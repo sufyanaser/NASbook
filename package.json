@@ -1,0 +1,36 @@
+{
+  "name": "nas-notesbook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RTL-first local desktop notebook scaffold for NAS Notesbook.",
+  "main": "dist/electron/main/index.js",
+  "scripts": {
+    "dev": "npm run build && electron .",
+    "start": "npm run build && electron .",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "build": "npm run build:electron && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/node": "^22.15.32",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.5.2",
+    "autoprefixer": "^10.4.21",
+    "electron": "^35.4.0",
+    "eslint": "^9.29.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^6.3.5"
+  }
+}
