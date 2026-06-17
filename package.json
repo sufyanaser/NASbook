@@ -9,16 +9,20 @@
     "start": "npm run build && electron .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "test": "node --test tests/*.test.mjs",
+    "test": "npm run build:electron && node --test tests/*.test.mjs",
+    "test:electron-runtime": "electron --run-as-node tests/electron-runtime-check.cjs",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@eslint/js": "^9.29.0",
     "@types/node": "^22.15.32",
     "@types/react": "^18.3.23",

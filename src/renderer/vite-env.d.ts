@@ -1,10 +1,11 @@
 /// <reference types="vite/client" />
 
-interface Window {
-  readonly nasNotesbook?: {
-    readonly app: {
-      readonly name: string;
-      readonly phase: string;
-    };
-  };
+import type { NasNotesbookApi } from "../shared/ipc";
+
+declare global {
+  interface Window {
+    readonly nasNotesbook?: NasNotesbookApi;
+  }
 }
+
+export {};

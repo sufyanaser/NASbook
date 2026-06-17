@@ -16,6 +16,12 @@ export interface CategoryDefinition {
   readonly placement: "primary" | "secondary";
 }
 
+export interface CategoryRecord extends CategoryDefinition {
+  readonly id: number;
+  readonly icon: string;
+  readonly isSystem: boolean;
+}
+
 export const defaultCategories: readonly CategoryDefinition[] = [
   { name: "All Notes", slug: "all-notes", placement: "primary" },
   { name: "Prompts", slug: "prompts", placement: "primary" },

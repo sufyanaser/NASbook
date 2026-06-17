@@ -1,9 +1,15 @@
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
+import type { NasNotesbookApi } from "../../src/shared/ipc";
 
-const api = Object.freeze({
+const api: NasNotesbookApi = Object.freeze({
   app: Object.freeze({
-    name: "NAS Notesbook",
-    phase: "phase-1-scaffold",
+    getInfo: () => ipcRenderer.invoke("app:getInfo"),
+  }),
+  categories: Object.freeze({
+    list: () => ipcRenderer.invoke("categories:list"),
+  }),
+  notes: Object.freeze({
+    list: () => ipcRenderer.invoke("notes:list"),
   }),
 });
 

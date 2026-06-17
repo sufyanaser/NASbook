@@ -1,7 +1,12 @@
 import { app, BrowserWindow, shell } from "electron";
 import path from "node:path";
+import { createNotesbookDatabase, type NotesbookDatabase } from "./db";
+import { registerIpcHandlers } from "./ipc";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
+let notesbookDatabase: NotesbookDatabase | null = null;
+
+app.setName("NAS Notesbook");
 
 function getPreloadPath(): string {
   return path.join(__dirname, "../preload/index.js");
@@ -47,6 +52,13 @@ function createMainWindow(): void {
 }
 
 app.whenReady().then(() => {
+  notesbookDatabase = createNotesbookDatabase(app.getPath("userData"));
+  registerIpcHandlers({
+    appName: app.getName(),
+    appVersion: app.getVersion(),
+    database: notesbookDatabase,
+  });
+
   createMainWindow();
 
   app.on("activate", () => {
@@ -60,4 +72,9 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  notesbookDatabase?.close();
+  notesbookDatabase = null;
 });

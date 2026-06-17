@@ -11,9 +11,17 @@ export default [
     files: ["**/*.{js,mjs,cjs}"],
     languageOptions: {
       globals: {
+        console: "readonly",
         module: "readonly",
         process: "readonly",
+        require: "readonly",
       },
+    },
+  },
+  {
+    files: ["**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   {
