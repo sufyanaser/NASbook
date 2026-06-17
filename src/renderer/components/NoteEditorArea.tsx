@@ -1,3 +1,6 @@
+import { useEffect, useRef } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import type { NoteRecord } from "../../shared/ipc";
 
 interface NoteEditorAreaProps {
@@ -30,6 +33,55 @@ export function NoteEditorArea({
   onTitleChange,
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
+  const isSettingContentRef = useRef(false);
+
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: draftContent,
+    editable: !isTrashView && hasSelectedNote,
+    onUpdate: ({ editor }) => {
+      if (isSettingContentRef.current) {
+        return;
+      }
+      // Save editor HTML into the existing note content/body field
+      // Avoid saving meaningless empty HTML when possible
+      const isEmpty = editor.getText().trim() === "";
+      const content = isEmpty ? "" : editor.getHTML();
+      onContentChange(content);
+    },
+  });
+
+  // Keep editor read-only status in sync
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(!isTrashView && hasSelectedNote);
+    }
+  }, [editor, isTrashView, hasSelectedNote]);
+
+  // Synchronize editor content when selectedNote changes
+  useEffect(() => {
+    if (editor) {
+      if (selectedNote) {
+        // Use contentHtml if present and non-empty; fallback to contentMarkdown
+        const targetContent =
+          selectedNote.contentHtml && selectedNote.contentHtml.trim() !== ""
+            ? selectedNote.contentHtml
+            : selectedNote.contentMarkdown || "";
+        
+        if (editor.getHTML() !== targetContent) {
+          isSettingContentRef.current = true;
+          editor.commands.setContent(targetContent);
+          isSettingContentRef.current = false;
+        }
+      } else {
+        isSettingContentRef.current = true;
+        editor.commands.setContent("");
+        isSettingContentRef.current = false;
+      }
+    }
+  }, [selectedNote?.id, editor]);
+
+  const isEditorEmpty = editor ? editor.getText().trim() === "" : true;
 
   return (
     <section className="editor-area" aria-label="Editor placeholder" dir="rtl">
@@ -63,6 +115,59 @@ export function NoteEditorArea({
             >
               Delete to Trash
             </button>
+            {editor && hasSelectedNote && (
+              <>
+                <div
+                  className="toolbar-divider"
+                  style={{
+                    width: "1px",
+                    background: "#e7e5e4",
+                    margin: "0 8px",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  data-active={editor.isActive("bold") ? "true" : "false"}
+                  title="Bold"
+                >
+                  Bold
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  data-active={editor.isActive("italic") ? "true" : "false"}
+                  title="Italic"
+                >
+                  Italic
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                  data-active={editor.isActive("bulletList") ? "true" : "false"}
+                  title="Bullet List"
+                >
+                  Bullet List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                  data-active={editor.isActive("orderedList") ? "true" : "false"}
+                  title="Ordered List"
+                >
+                  Ordered List
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().clearNodes().unsetAllMarks().run()
+                  }
+                  title="Clear Formatting"
+                >
+                  Clear Formatting
+                </button>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -83,14 +188,14 @@ export function NoteEditorArea({
       </div>
 
       {hasSelectedNote ? (
-        <textarea
-          className="note-content-textarea"
+        <div
+          className={`note-editor-content-wrapper${
+            isEditorEmpty ? " is-editor-empty" : ""
+          }`}
           dir="auto"
-          disabled={isTrashView}
-          onChange={(event) => onContentChange(event.target.value)}
-          placeholder="اكتب الملاحظة هنا..."
-          value={draftContent}
-        />
+        >
+          <EditorContent editor={editor} />
+        </div>
       ) : (
         <div className="editor-placeholder" dir="rtl">
           <p>اختر ملاحظة من القائمة أو أنشئ ملاحظة جديدة للبدء.</p>
@@ -99,3 +204,4 @@ export function NoteEditorArea({
     </section>
   );
 }
+
