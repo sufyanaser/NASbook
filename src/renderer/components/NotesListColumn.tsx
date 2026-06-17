@@ -19,7 +19,7 @@ export function NotesListColumn({
   activeCategoryName,
 }: NotesListColumnProps): JSX.Element {
   return (
-    <section className="notes-list-column" aria-label="Notes list">
+    <section className="notes-list-column" aria-label="Notes list" dir="rtl">
       <header className="notes-list-header">
         <input
           aria-label="Search notes"

@@ -6,7 +6,7 @@ export function NoteEditorArea({
   activeCategoryName,
 }: NoteEditorAreaProps): JSX.Element {
   return (
-    <section className="editor-area" aria-label="Editor placeholder">
+    <section className="editor-area" aria-label="Editor placeholder" dir="rtl">
       <header className="editor-header">
         <div>
           <span className="editor-eyebrow">{activeCategoryName}</span>

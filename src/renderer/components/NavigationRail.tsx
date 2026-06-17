@@ -19,7 +19,7 @@ export function NavigationRail({
   );
 
   return (
-    <aside className="navigation-rail" aria-label="Categories">
+    <aside className="navigation-rail" aria-label="Categories" dir="ltr">
       <div className="rail-brand" aria-label="NAS Notesbook">
         NAS
       </div>

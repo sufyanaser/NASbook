@@ -17,7 +17,11 @@ export function App(): JSX.Element {
   }, [activeCategory]);
 
   return (
-    <main className="app-shell" aria-label="NAS Notesbook workspace">
+    <main
+      className="app-shell"
+      aria-label="NAS Notesbook workspace"
+      dir="ltr"
+    >
       <div className="workspace-frame">
         <NavigationRail
           activeCategory={activeCategory}
