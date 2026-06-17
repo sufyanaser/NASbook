@@ -115,59 +115,6 @@ export function NoteEditorArea({
             >
               Delete to Trash
             </button>
-            {editor && hasSelectedNote && (
-              <>
-                <div
-                  className="toolbar-divider"
-                  style={{
-                    width: "1px",
-                    background: "#e7e5e4",
-                    margin: "0 8px",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                  data-active={editor.isActive("bold") ? "true" : "false"}
-                  title="Bold"
-                >
-                  Bold
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                  data-active={editor.isActive("italic") ? "true" : "false"}
-                  title="Italic"
-                >
-                  Italic
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleBulletList().run()}
-                  data-active={editor.isActive("bulletList") ? "true" : "false"}
-                  title="Bullet List"
-                >
-                  Bullet List
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                  data-active={editor.isActive("orderedList") ? "true" : "false"}
-                  title="Ordered List"
-                >
-                  Ordered List
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().clearNodes().unsetAllMarks().run()
-                  }
-                  title="Clear Formatting"
-                >
-                  Clear Formatting
-                </button>
-              </>
-            )}
           </>
         ) : (
           <>
@@ -181,6 +128,57 @@ export function NoteEditorArea({
               type="button"
             >
               Delete Permanently
+            </button>
+          </>
+        )}
+        {editor && (
+          <>
+            <div className="toolbar-divider" />
+            <button
+              type="button"
+              disabled={!hasSelectedNote || isTrashView}
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              data-active={editor.isActive("bold") ? "true" : "false"}
+              title="Bold — Ctrl+B"
+            >
+              Bold
+            </button>
+            <button
+              type="button"
+              disabled={!hasSelectedNote || isTrashView}
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              data-active={editor.isActive("italic") ? "true" : "false"}
+              title="Italic — Ctrl+I"
+            >
+              Italic
+            </button>
+            <button
+              type="button"
+              disabled={!hasSelectedNote || isTrashView}
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              data-active={editor.isActive("bulletList") ? "true" : "false"}
+              title="Bullet list"
+            >
+              Bullet list
+            </button>
+            <button
+              type="button"
+              disabled={!hasSelectedNote || isTrashView}
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              data-active={editor.isActive("orderedList") ? "true" : "false"}
+              title="Ordered list"
+            >
+              Ordered list
+            </button>
+            <button
+              type="button"
+              disabled={!hasSelectedNote || isTrashView}
+              onClick={() =>
+                editor.chain().focus().clearNodes().unsetAllMarks().run()
+              }
+              title="Clear formatting"
+            >
+              Clear formatting
             </button>
           </>
         )}
