@@ -40,7 +40,7 @@ export function NoteEditorArea({
             className="note-title-input"
             disabled={!hasSelectedNote || isTrashView}
             onChange={(event) => onTitleChange(event.target.value)}
-            placeholder="Untitled Note"
+            placeholder="عنوان الملاحظة..."
             type="text"
             value={draftTitle}
           />

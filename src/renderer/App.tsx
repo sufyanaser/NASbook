@@ -4,6 +4,7 @@ import {
   type CategoryRecord,
   type CategorySlug,
 } from "../shared/categories";
+import { hasUnsavedNoteChanges } from "../shared/dirtyState";
 import type { NoteRecord, NoteListItem } from "../shared/ipc";
 import { NavigationRail } from "./components/NavigationRail";
 import { NoteEditorArea } from "./components/NoteEditorArea";
@@ -11,7 +12,7 @@ import { NotesListColumn } from "./components/NotesListColumn";
 import { StatusFooter } from "./components/StatusFooter";
 
 type DatabaseStatus = "ready" | "unavailable";
-type SaveStatus = "Idle" | "Dirty" | "Saved" | "Saving" | "Error";
+type SaveStatus = "Idle" | "Unsaved" | "Saving" | "Saved" | "Error";
 
 function createFallbackCategories(): readonly CategoryRecord[] {
   return defaultCategories.map((category, index) => ({
@@ -45,6 +46,11 @@ export function App(): JSX.Element {
   }, [activeCategory, categories]);
 
   const activeCategoryName = activeCategoryRecord?.name ?? "All Notes";
+  const hasUnsavedChanges = hasUnsavedNoteChanges(
+    selectedNote,
+    draftTitle,
+    draftContent,
+  );
 
   const loadNotes = async (
     api: NonNullable<typeof window.nasNotesbook>,
@@ -74,6 +80,21 @@ export function App(): JSX.Element {
     const nextNotes = await loadNotes(api, activeCategory, categoryId);
     setNotes(nextNotes);
     setNotesCount(nextNotes.length);
+  };
+
+  const confirmDiscardChanges = (): boolean => {
+    if (!hasUnsavedChanges) {
+      return true;
+    }
+
+    return window.confirm("You have unsaved changes. Discard them?");
+  };
+
+  const clearSelectedNote = (): void => {
+    setSelectedNote(null);
+    setDraftTitle("");
+    setDraftContent("");
+    setSaveStatus("Idle");
   };
 
   useEffect(() => {
@@ -121,13 +142,14 @@ export function App(): JSX.Element {
       setNotes([]);
       setNotesCount(0);
     });
-    setSelectedNote(null);
-    setDraftTitle("");
-    setDraftContent("");
-    setSaveStatus("Idle");
+    clearSelectedNote();
   }, [activeCategory, activeCategoryRecord?.id]);
 
   const handleSelectNote = async (id: number): Promise<void> => {
+    if (id === selectedNote?.id || !confirmDiscardChanges()) {
+      return;
+    }
+
     const note = await window.nasNotesbook?.notes.getById(id);
 
     if (!note) {
@@ -142,7 +164,11 @@ export function App(): JSX.Element {
 
   const handleCreateNote = async (): Promise<void> => {
     const api = window.nasNotesbook;
-    if (!api || !isEditableCategory(activeCategory)) {
+    if (
+      !api ||
+      !isEditableCategory(activeCategory) ||
+      !confirmDiscardChanges()
+    ) {
       return;
     }
 
@@ -154,6 +180,14 @@ export function App(): JSX.Element {
     setDraftTitle(note.title);
     setDraftContent(note.contentMarkdown);
     setSaveStatus("Saved");
+  };
+
+  const handleSelectCategory = (category: CategorySlug): void => {
+    if (category === activeCategory || !confirmDiscardChanges()) {
+      return;
+    }
+
+    setActiveCategory(category);
   };
 
   const handleSaveNote = async (): Promise<void> => {
@@ -189,10 +223,7 @@ export function App(): JSX.Element {
 
     await window.nasNotesbook.notes.deleteToTrash(selectedNote.id);
     await refreshNotes();
-    setSelectedNote(null);
-    setDraftTitle("");
-    setDraftContent("");
-    setSaveStatus("Idle");
+    clearSelectedNote();
   };
 
   const handleRestore = async (): Promise<void> => {
@@ -202,9 +233,7 @@ export function App(): JSX.Element {
 
     await window.nasNotesbook.notes.restore(selectedNote.id);
     await refreshNotes();
-    setSelectedNote(null);
-    setDraftTitle("");
-    setDraftContent("");
+    clearSelectedNote();
   };
 
   const handleDeletePermanent = async (): Promise<void> => {
@@ -212,21 +241,27 @@ export function App(): JSX.Element {
       return;
     }
 
+    const confirmed = window.confirm(
+      "Delete this note permanently? This action cannot be undone.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     await window.nasNotesbook.notes.deletePermanent(selectedNote.id);
     await refreshNotes();
-    setSelectedNote(null);
-    setDraftTitle("");
-    setDraftContent("");
+    clearSelectedNote();
   };
 
   const handleDraftTitleChange = (title: string): void => {
     setDraftTitle(title);
-    setSaveStatus("Dirty");
+    setSaveStatus("Unsaved");
   };
 
   const handleDraftContentChange = (content: string): void => {
     setDraftContent(content);
-    setSaveStatus("Dirty");
+    setSaveStatus("Unsaved");
   };
 
   return (
@@ -239,11 +274,12 @@ export function App(): JSX.Element {
         <NavigationRail
           activeCategory={activeCategory}
           categories={categories}
-          onSelectCategory={setActiveCategory}
+          onSelectCategory={handleSelectCategory}
         />
         <NotesListColumn
           activeCategoryName={activeCategoryName}
           canCreate={isEditableCategory(activeCategory)}
+          isTrashView={activeCategory === "trash"}
           notes={notes}
           selectedNoteId={selectedNote?.id ?? null}
           onCreateNote={() => {

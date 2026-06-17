@@ -3,6 +3,7 @@ import type { NoteListItem } from "../../shared/ipc";
 interface NotesListColumnProps {
   readonly activeCategoryName: string;
   readonly canCreate: boolean;
+  readonly isTrashView: boolean;
   readonly notes: readonly NoteListItem[];
   readonly selectedNoteId: number | null;
   readonly onCreateNote: () => void;
@@ -25,6 +26,7 @@ function formatShortDate(value: string): string {
 export function NotesListColumn({
   activeCategoryName,
   canCreate,
+  isTrashView,
   notes,
   selectedNoteId,
   onCreateNote,
@@ -59,8 +61,14 @@ export function NotesListColumn({
       <div className="notes-stack">
         {notes.length === 0 ? (
           <div className="notes-empty-state">
-            <strong>لا توجد ملاحظات</strong>
-            <span>استخدم زر + لإنشاء ملاحظة نصية محلية.</span>
+            {isTrashView ? (
+              <strong>سلة المهملات فارغة.</strong>
+            ) : (
+              <>
+                <strong>لا توجد ملاحظات هنا بعد.</strong>
+                <span>اضغط + لإنشاء ملاحظة جديدة.</span>
+              </>
+            )}
           </div>
         ) : null}
 
