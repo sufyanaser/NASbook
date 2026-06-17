@@ -34,6 +34,7 @@ export function NoteEditorArea({
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
   const isSettingContentRef = useRef(false);
+  const loadedNoteIdRef = useRef<number | null>(null);
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -45,8 +46,14 @@ export function NoteEditorArea({
       }
       // Save editor HTML into the existing note content/body field
       // Avoid saving meaningless empty HTML when possible
-      const isEmpty = editor.getText().trim() === "";
-      const content = isEmpty ? "" : editor.getHTML();
+      const html = editor.getHTML();
+      const isMeaninglessHtml =
+        !html ||
+        html === "<p></p>" ||
+        html === "<p><br></p>" ||
+        html === "<p><br class=\"ProseMirror-trailingBreak\"></p>";
+      const isEmpty = editor.getText().trim() === "" || isMeaninglessHtml;
+      const content = isEmpty ? "" : html;
       onContentChange(content);
     },
   });
@@ -62,26 +69,33 @@ export function NoteEditorArea({
   useEffect(() => {
     if (editor) {
       if (selectedNote) {
-        // Use contentHtml if present and non-empty; fallback to contentMarkdown
-        const targetContent =
-          selectedNote.contentHtml && selectedNote.contentHtml.trim() !== ""
-            ? selectedNote.contentHtml
-            : selectedNote.contentMarkdown || "";
-        
-        if (editor.getHTML() !== targetContent) {
+        if (loadedNoteIdRef.current !== selectedNote.id) {
+          // Use contentHtml if present and non-empty; fallback to contentMarkdown
+          const targetContent =
+            selectedNote.contentHtml && selectedNote.contentHtml.trim() !== ""
+              ? selectedNote.contentHtml
+              : selectedNote.contentMarkdown || "";
+          
           isSettingContentRef.current = true;
           editor.commands.setContent(targetContent);
+          loadedNoteIdRef.current = selectedNote.id;
           isSettingContentRef.current = false;
         }
       } else {
         isSettingContentRef.current = true;
         editor.commands.setContent("");
+        loadedNoteIdRef.current = null;
         isSettingContentRef.current = false;
       }
     }
   }, [selectedNote?.id, editor]);
 
-  const isEditorEmpty = editor ? editor.getText().trim() === "" : true;
+  const isEditorEmpty = editor
+    ? editor.getText().trim() === "" ||
+      editor.getHTML() === "<p></p>" ||
+      editor.getHTML() === "<p><br></p>" ||
+      editor.getHTML() === "<p><br class=\"ProseMirror-trailingBreak\"></p>"
+    : true;
 
   return (
     <section className="editor-area" aria-label="Editor placeholder" dir="rtl">
