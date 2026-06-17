@@ -9,25 +9,45 @@ import { NoteEditorArea } from "./components/NoteEditorArea";
 import { NotesListColumn } from "./components/NotesListColumn";
 import { StatusFooter } from "./components/StatusFooter";
 
+type DatabaseStatus = "ready" | "unavailable";
+
 export function App(): JSX.Element {
   const [categories, setCategories] =
     useState<readonly CategoryDefinition[]>(defaultCategories);
   const [activeCategory, setActiveCategory] =
     useState<CategorySlug>("all-notes");
+  const [databaseStatus, setDatabaseStatus] =
+    useState<DatabaseStatus>("unavailable");
+  const [notesCount, setNotesCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
+    const api = window.nasNotesbook;
 
-    window.nasNotesbook?.categories
-      .list()
-      .then((nextCategories) => {
-        if (isMounted && nextCategories.length > 0) {
-          setCategories(nextCategories);
+    if (!api) {
+      setDatabaseStatus("unavailable");
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    Promise.all([api.categories.list(), api.notes.list()])
+      .then(([nextCategories, nextNotes]) => {
+        if (!isMounted) {
+          return;
         }
+
+        setDatabaseStatus("ready");
+        setCategories(
+          nextCategories.length > 0 ? nextCategories : defaultCategories,
+        );
+        setNotesCount(nextNotes.length);
       })
       .catch(() => {
         if (isMounted) {
+          setDatabaseStatus("unavailable");
           setCategories(defaultCategories);
+          setNotesCount(0);
         }
       });
 
@@ -58,7 +78,12 @@ export function App(): JSX.Element {
         <NotesListColumn activeCategoryName={activeCategoryName} />
         <NoteEditorArea activeCategoryName={activeCategoryName} />
       </div>
-      <StatusFooter activeCategoryName={activeCategoryName} />
+      <StatusFooter
+        activeCategoryName={activeCategoryName}
+        categoriesCount={categories.length}
+        databaseStatus={databaseStatus}
+        notesCount={notesCount}
+      />
     </main>
   );
 }
