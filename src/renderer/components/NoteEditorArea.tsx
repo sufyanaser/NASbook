@@ -257,6 +257,7 @@ export function NoteEditorArea({
           className={`note-editor-content-wrapper${
             isEditorEmpty ? " is-editor-empty" : ""
           }`}
+          data-readonly={isTrashView ? "true" : "false"}
           dir="auto"
         >
           <EditorContent editor={editor} />
