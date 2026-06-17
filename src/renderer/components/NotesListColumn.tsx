@@ -52,7 +52,12 @@ export function NotesListColumn({
   onSelectNote,
 }: NotesListColumnProps): JSX.Element {
   return (
-    <section className="notes-list-column" aria-label="Notes list" dir="rtl">
+    <section
+      className="notes-list-column"
+      data-trash-view={isTrashView ? "true" : "false"}
+      aria-label="Notes list"
+      dir="rtl"
+    >
       <header className="notes-list-header">
         <input
           aria-label="Search notes"
@@ -101,7 +106,13 @@ export function NotesListColumn({
           >
             <div className="note-card-topline">
               <h2>{note.title}</h2>
-              <time>{formatShortDate(note.updatedAt)}</time>
+              <time
+                title={`أنشئت: ${formatShortDate(
+                  note.createdAt,
+                )} • آخر تعديل: ${formatShortDate(note.updatedAt)}`}
+              >
+                {formatShortDate(note.updatedAt)}
+              </time>
             </div>
             <p>{stripHtmlForPreview(note.preview) || "لا يوجد محتوى بعد."}</p>
           </button>

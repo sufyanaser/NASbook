@@ -29,6 +29,7 @@ export function NavigationRail({
           <button
             className="rail-button"
             data-active={category.slug === activeCategory}
+            data-trash={category.slug === "trash" ? "true" : "false"}
             key={category.slug}
             onClick={() => onSelectCategory(category.slug)}
             title={category.name}
@@ -45,6 +46,7 @@ export function NavigationRail({
           <button
             className="rail-button"
             data-active={category.slug === activeCategory}
+            data-trash={category.slug === "trash" ? "true" : "false"}
             key={category.slug}
             onClick={() => onSelectCategory(category.slug)}
             title={category.name}
