@@ -23,6 +23,25 @@ function formatShortDate(value: string): string {
   });
 }
 
+function stripHtmlForPreview(html: string): string {
+  if (!html) {
+    return "";
+  }
+  // Remove HTML tags
+  let text = html.replace(/<[^>]*>/g, " ");
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+  // Normalize excessive whitespace
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
 export function NotesListColumn({
   activeCategoryName,
   canCreate,
@@ -84,7 +103,7 @@ export function NotesListColumn({
               <h2>{note.title}</h2>
               <time>{formatShortDate(note.updatedAt)}</time>
             </div>
-            <p>{note.preview || "لا يوجد محتوى بعد."}</p>
+            <p>{stripHtmlForPreview(note.preview) || "لا يوجد محتوى بعد."}</p>
           </button>
         ))}
       </div>
