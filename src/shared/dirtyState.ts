@@ -39,3 +39,22 @@ export function hasUnsavedNoteChanges(
     draftTitle !== source.title || normalizedDraft !== normalizedSource
   );
 }
+
+export function stripHtmlForPreview(html: string): string {
+  if (!html) {
+    return "";
+  }
+  // Remove HTML tags
+  let text = html.replace(/<[^>]*>/g, " ");
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+  // Normalize excessive whitespace
+  text = text.replace(/\s+/g, " ").trim();
+  return text;
+}
