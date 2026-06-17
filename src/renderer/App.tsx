@@ -145,6 +145,22 @@ export function App(): JSX.Element {
     clearSelectedNote();
   }, [activeCategory, activeCategoryRecord?.id]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (selectedNote && activeCategory !== "trash") {
+          void handleSaveNote();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedNote, activeCategory, draftTitle, draftContent]);
+
   const handleSelectNote = async (id: number): Promise<void> => {
     if (id === selectedNote?.id || !confirmDiscardChanges()) {
       return;

@@ -155,7 +155,12 @@ export function NoteEditorArea({
       <div className="editor-toolbar" aria-label="Editor toolbar placeholder">
         {!isTrashView ? (
           <>
-            <button disabled={!hasSelectedNote} onClick={onSave} type="button">
+            <button
+              disabled={!hasSelectedNote}
+              onClick={onSave}
+              title="Save — Ctrl+S"
+              type="button"
+            >
               Save
             </button>
             <button
