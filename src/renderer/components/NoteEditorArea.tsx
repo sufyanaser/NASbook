@@ -18,6 +18,22 @@ interface NoteEditorAreaProps {
   readonly onTitleChange: (title: string) => void;
 }
 
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
 export function NoteEditorArea({
   activeCategoryName,
   draftContent,
@@ -100,7 +116,7 @@ export function NoteEditorArea({
   return (
     <section className="editor-area" aria-label="Editor placeholder" dir="rtl">
       <header className="editor-header">
-        <div>
+        <div style={{ flex: 1 }}>
           <span className="editor-eyebrow">{activeCategoryName}</span>
           <input
             className="note-title-input"
@@ -110,11 +126,31 @@ export function NoteEditorArea({
             type="text"
             value={draftTitle}
           />
+          {hasSelectedNote && (
+            <div className="note-metadata-row">
+              {selectedNote.createdAt && (
+                <span className="metadata-item">
+                  أنشئت: {formatDateTime(selectedNote.createdAt)}
+                </span>
+              )}
+              {selectedNote.updatedAt && (
+                <span className="metadata-item">
+                  تعديل: {formatDateTime(selectedNote.updatedAt)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="direction-chip" title="RTL-first scaffold">
           RTL
         </div>
       </header>
+
+      {isTrashView && hasSelectedNote && (
+        <div className="editor-trash-banner">
+          <span>⚠️ هذه الملاحظة في سلة المهملات. التعديل معطل. قم باستعادة الملاحظة لتعديلها.</span>
+        </div>
+      )}
 
       <div className="editor-toolbar" aria-label="Editor toolbar placeholder">
         {!isTrashView ? (
@@ -196,7 +232,19 @@ export function NoteEditorArea({
             </button>
           </>
         )}
-        <span className="save-status-pill">Save: {saveStatus}</span>
+        <span className="save-status-pill" data-status={saveStatus.toLowerCase()}>
+          {saveStatus === "Idle"
+            ? "Saved"
+            : saveStatus === "Unsaved"
+            ? "Unsaved changes"
+            : saveStatus === "Saving"
+            ? "Saving..."
+            : saveStatus === "Saved"
+            ? "Saved"
+            : saveStatus === "Error"
+            ? "Save Error"
+            : saveStatus}
+        </span>
       </div>
 
       {hasSelectedNote ? (
@@ -210,7 +258,11 @@ export function NoteEditorArea({
         </div>
       ) : (
         <div className="editor-placeholder" dir="rtl">
-          <p>اختر ملاحظة من القائمة أو أنشئ ملاحظة جديدة للبدء.</p>
+          <div className="editor-placeholder-content">
+            <span aria-hidden="true" style={{ fontSize: "32px" }}>📔</span>
+            <p>اختر ملاحظة من القائمة أو أنشئ ملاحظة جديدة للبدء.</p>
+            <span>يمكنك التنقل بين الفئات وسلة المهملات من الشريط الجانبي.</span>
+          </div>
         </div>
       )}
     </section>

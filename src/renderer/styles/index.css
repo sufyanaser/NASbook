@@ -473,23 +473,73 @@ pre {
   align-items: center;
   border: 1px solid #e7e5e4;
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 12px;
   color: #57534e;
+  background: #f5f5f4;
   font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease-in-out;
+}
+
+.save-status-pill[data-status="saved"],
+.save-status-pill[data-status="idle"] {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.save-status-pill[data-status="unsaved"] {
+  background: #fffbeb;
+  border-color: #fef3c7;
+  color: #92400e;
+}
+
+.save-status-pill[data-status="saving"] {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.save-status-pill[data-status="error"] {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
 }
 
 .editor-placeholder {
-  min-height: 0;
-  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   padding: 32px;
-  color: #1c1917;
-  font-size: 18px;
-  line-height: 1.75;
+  color: #78716c;
+  background: #fbfbfa;
 }
 
-.editor-placeholder p {
-  max-width: none;
+.editor-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  max-width: 400px;
+  padding: 40px;
+  border: 2px dashed #e7e5e4;
+  border-radius: 16px;
+  background: #fafaf9;
+}
+
+.editor-placeholder-content p {
   margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #57534e;
+  line-height: 1.6;
+}
+
+.editor-placeholder-content span {
+  font-size: 13px;
+  color: #a8a29e;
 }
 
 .note-content-textarea {
@@ -585,5 +635,33 @@ pre {
   color: #a8a29e;
   pointer-events: none;
   position: absolute;
+}
+
+/* Note Metadata display under title input */
+.note-metadata-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  color: #78716c;
+  font-size: 11px;
+}
+
+.metadata-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Warning banner in Trash view / Read-only indication */
+.editor-trash-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fca5a5;
+  padding: 10px 32px;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
 }
 
