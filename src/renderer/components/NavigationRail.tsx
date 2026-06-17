@@ -1,5 +1,22 @@
 import type { CategoryDefinition, CategorySlug } from "../../shared/categories";
 
+const categoryIcons: Record<string, string> = {
+  "all-notes": "AN",
+  "prompts": "PR",
+  "chatgpt-instructions": "CI",
+  "nas-projects": "NP",
+  "powershell-commands": "PC",
+  "development-notes": "DN",
+  "errors-fixes": "EF",
+  "templates": "TP",
+  "archive": "AR",
+  "trash": "🗑️",
+};
+
+const getCategoryIcon = (slug: string, name: string): string => {
+  return categoryIcons[slug] || name.slice(0, 2).toUpperCase();
+};
+
 interface NavigationRailProps {
   readonly activeCategory: CategorySlug;
   readonly categories: readonly CategoryDefinition[];
@@ -35,7 +52,9 @@ export function NavigationRail({
             title={category.name}
             type="button"
           >
-            <span aria-hidden="true">{category.name.slice(0, 2)}</span>
+            <span aria-hidden="true" style={{ fontSize: "16px" }}>
+              {getCategoryIcon(category.slug, category.name)}
+            </span>
             <span className="sr-only">{category.name}</span>
           </button>
         ))}
@@ -52,12 +71,14 @@ export function NavigationRail({
             title={category.name}
             type="button"
           >
-            <span aria-hidden="true">{category.name.slice(0, 2)}</span>
+            <span aria-hidden="true" style={{ fontSize: "16px" }}>
+              {getCategoryIcon(category.slug, category.name)}
+            </span>
             <span className="sr-only">{category.name}</span>
           </button>
         ))}
         <button className="rail-button" title="Settings" type="button">
-          <span aria-hidden="true">⚙</span>
+          <span aria-hidden="true" style={{ fontSize: "16px" }}>⚙</span>
           <span className="sr-only">Settings</span>
         </button>
       </nav>

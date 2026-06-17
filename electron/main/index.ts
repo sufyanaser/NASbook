@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, Menu } from "electron";
 import path from "node:path";
 import { createNotesbookDatabase, type NotesbookDatabase } from "./db";
 import { registerIpcHandlers } from "./ipc";
@@ -52,6 +52,7 @@ function createMainWindow(): void {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   notesbookDatabase = createNotesbookDatabase(app.getPath("userData"));
   registerIpcHandlers({
     appName: app.getName(),

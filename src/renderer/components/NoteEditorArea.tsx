@@ -152,104 +152,116 @@ export function NoteEditorArea({
         </div>
       )}
 
-      <div className="editor-toolbar" aria-label="Editor toolbar placeholder">
-        {!isTrashView ? (
-          <>
-            <button
-              disabled={!hasSelectedNote}
-              onClick={onSave}
-              title="Save — Ctrl+S"
-              type="button"
-            >
-              Save
-            </button>
-            <button
-              disabled={!hasSelectedNote}
-              onClick={onDeleteToTrash}
-              type="button"
-            >
-              Delete to Trash
-            </button>
-          </>
-        ) : (
-          <>
-            <button disabled={!hasSelectedNote} onClick={onRestore} type="button">
-              Restore
-            </button>
-            <button
-              className="danger-button"
-              disabled={!hasSelectedNote}
-              onClick={onDeletePermanent}
-              type="button"
-            >
-              Delete Permanently
-            </button>
-          </>
-        )}
+      <div className="editor-toolbar" aria-label="Editor toolbar">
+        <div className="toolbar-group note-actions">
+          {!isTrashView ? (
+            <>
+              <div className="note-save-group">
+                <button
+                  disabled={!hasSelectedNote}
+                  onClick={onSave}
+                  title="Save — Ctrl+S"
+                  type="button"
+                >
+                  Save
+                </button>
+                <span className="save-status-pill" data-status={saveStatus.toLowerCase()}>
+                  {saveStatus === "Idle"
+                    ? "Saved"
+                    : saveStatus === "Unsaved"
+                    ? "Unsaved changes"
+                    : saveStatus === "Saving"
+                    ? "Saving..."
+                    : saveStatus === "Saved"
+                    ? "Saved"
+                    : saveStatus === "Error"
+                    ? "Save Error"
+                    : saveStatus}
+                </span>
+              </div>
+              <div className="toolbar-divider" />
+              <button
+                disabled={!hasSelectedNote}
+                onClick={onDeleteToTrash}
+                type="button"
+              >
+                Delete to Trash
+              </button>
+            </>
+          ) : (
+            <>
+              <button disabled={!hasSelectedNote} onClick={onRestore} type="button">
+                Restore
+              </button>
+              <button
+                className="danger-button"
+                disabled={!hasSelectedNote}
+                onClick={onDeletePermanent}
+                type="button"
+              >
+                Delete Permanently
+              </button>
+              <div className="toolbar-divider" />
+              <span className="save-status-pill" data-status="saved">
+                Saved
+              </span>
+            </>
+          )}
+        </div>
+
         {editor && (
           <>
             <div className="toolbar-divider" />
-            <button
-              type="button"
-              disabled={!hasSelectedNote || isTrashView}
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              data-active={editor.isActive("bold") ? "true" : "false"}
-              title="Bold — Ctrl+B"
-            >
-              Bold
-            </button>
-            <button
-              type="button"
-              disabled={!hasSelectedNote || isTrashView}
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              data-active={editor.isActive("italic") ? "true" : "false"}
-              title="Italic — Ctrl+I"
-            >
-              Italic
-            </button>
-            <button
-              type="button"
-              disabled={!hasSelectedNote || isTrashView}
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              data-active={editor.isActive("bulletList") ? "true" : "false"}
-              title="Bullet list"
-            >
-              Bullet list
-            </button>
-            <button
-              type="button"
-              disabled={!hasSelectedNote || isTrashView}
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              data-active={editor.isActive("orderedList") ? "true" : "false"}
-              title="Ordered list"
-            >
-              Ordered list
-            </button>
-            <button
-              type="button"
-              disabled={!hasSelectedNote || isTrashView}
-              onClick={() =>
-                editor.chain().focus().clearNodes().unsetAllMarks().run()
-              }
-              title="Clear formatting"
-            >
-              Clear formatting
-            </button>
+            <div className="toolbar-group formatting-actions">
+              <button
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                data-active={editor.isActive("bold") ? "true" : "false"}
+                title="Bold — Ctrl+B"
+              >
+                Bold
+              </button>
+              <button
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                data-active={editor.isActive("italic") ? "true" : "false"}
+                title="Italic — Ctrl+I"
+              >
+                Italic
+              </button>
+              <button
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                data-active={editor.isActive("bulletList") ? "true" : "false"}
+                title="Bullet list"
+              >
+                Bullet list
+              </button>
+              <button
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                data-active={editor.isActive("orderedList") ? "true" : "false"}
+                title="Ordered list"
+              >
+                Ordered list
+              </button>
+              <button
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() =>
+                  editor.chain().focus().clearNodes().unsetAllMarks().run()
+                }
+                title="Clear formatting"
+              >
+                Clear formatting
+              </button>
+            </div>
           </>
         )}
-        <span className="save-status-pill" data-status={saveStatus.toLowerCase()}>
-          {saveStatus === "Idle"
-            ? "Saved"
-            : saveStatus === "Unsaved"
-            ? "Unsaved changes"
-            : saveStatus === "Saving"
-            ? "Saving..."
-            : saveStatus === "Saved"
-            ? "Saved"
-            : saveStatus === "Error"
-            ? "Save Error"
-            : saveStatus}
-        </span>
       </div>
 
       {hasSelectedNote ? (

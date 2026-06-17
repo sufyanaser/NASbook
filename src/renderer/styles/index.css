@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  color: #1c1917;
-  background: #fbfbfa;
+  color: #e7e5e4; /* stone-200 */
+  background: #1c1917; /* stone-900 */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Cairo", "Tahoma",
     "Arial", sans-serif;
   font-synthesis: none;
@@ -28,6 +28,7 @@ body,
 body {
   direction: ltr;
   overflow: hidden;
+  background: #0c0a09; /* stone-950 */
 }
 
 button,
@@ -52,10 +53,10 @@ samp {
 pre {
   margin: 16px 0 0;
   overflow: auto;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #292524; /* stone-800 */
   border-radius: 8px;
-  background: #1c1917;
-  color: #f5f5f4;
+  background: #0c0a09; /* stone-950 */
+  color: #f5f5f4; /* stone-100 */
   padding: 16px;
   line-height: 1.6;
 }
@@ -80,7 +81,7 @@ pre {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #fbfbfa;
+  background: #0c0a09; /* stone-950 */
   direction: ltr;
 }
 
@@ -103,8 +104,8 @@ pre {
   min-width: 64px;
   max-width: 64px;
   overflow: hidden;
-  border-right: 1px solid #e7e5e4;
-  background: #f5f5f4;
+  border-right: 1px solid #292524; /* stone-800 */
+  background: #1c1917; /* stone-900 */
   padding: 12px 8px;
   direction: ltr;
 }
@@ -114,12 +115,13 @@ pre {
   width: 40px;
   height: 40px;
   place-items: center;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #292524; /* stone-800 */
   border-radius: 8px;
-  color: #1c1917;
+  color: #fafaf9; /* stone-50 */
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
+  background: #0c0a09; /* stone-950 */
 }
 
 .rail-section {
@@ -142,12 +144,21 @@ pre {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #57534e;
+  color: #a8a29e; /* stone-400 */
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
   position: relative;
   transition: all 0.15s ease-in-out;
+}
+
+.rail-button span[aria-hidden="true"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .rail-button::before {
@@ -163,27 +174,27 @@ pre {
 }
 
 .rail-button:hover {
-  border-color: #d6d3d1;
-  background: #e7e5e4;
-  color: #1c1917;
+  border-color: #44403c; /* stone-700 */
+  background: #292524; /* stone-800 */
+  color: #fafaf9; /* stone-50 */
 }
 
 .rail-button[data-active="true"] {
-  border-color: #a8a29e;
-  background: #d6d3d1;
-  color: #1c1917;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-color: #57534e; /* stone-600 */
+  background: #44403c; /* stone-700 */
+  color: #fafaf9; /* stone-50 */
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .rail-button[data-active="true"]::before {
-  background: #57534e;
+  background: #fafaf9;
 }
 
 /* Distinct Trash active style in Navigation Rail */
 .rail-button[data-trash="true"][data-active="true"] {
-  border-color: #fca5a5;
-  background: #fee2e2;
-  color: #b91c1c;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
 .rail-button[data-trash="true"][data-active="true"]::before {
@@ -191,9 +202,9 @@ pre {
 }
 
 .rail-button[data-trash="true"]:not([data-active="true"]):hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #f87171;
 }
 
 .notes-list-column {
@@ -202,8 +213,8 @@ pre {
   height: 100%;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid #e7e5e4;
-  background: #f5f5f4;
+  border-right: 1px solid #292524; /* stone-800 */
+  background: #1c1917; /* stone-900 */
   padding: 12px;
   direction: rtl;
   text-align: right;
@@ -212,45 +223,60 @@ pre {
 
 /* Distinct Trash view background and border indicator in Notes List */
 .notes-list-column[data-trash-view="true"] {
-  background: #faf7f5;
-  box-shadow: inset -4px 0 0 #f87171;
+  background: #151312;
+  box-shadow: inset -4px 0 0 #ef4444;
 }
 
 .notes-list-header {
-  display: grid;
-  grid-template-columns: 1fr 36px;
-  gap: 8px;
-}
-
-.notes-search,
-.new-note-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   height: 36px;
-  border: 1px solid #e7e5e4;
-  border-radius: 8px;
-  background: #fbfbfa;
-  color: #1c1917;
+  margin-bottom: 12px;
 }
 
-.notes-search {
-  direction: rtl;
-  padding: 0 12px;
+.notes-list-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fafaf9; /* stone-50 */
 }
 
 .new-note-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #44403c; /* stone-700 */
+  border-radius: 8px;
+  background: #292524; /* stone-800 */
+  color: #fafaf9; /* stone-50 */
   font-size: 20px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-note-button:hover:not(:disabled) {
+  background: #44403c;
+  border-color: #57534e;
+}
+
+.new-note-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .category-context {
   display: grid;
   gap: 4px;
-  margin: 16px 0 12px;
-  color: #57534e;
+  margin: 4px 0 12px;
+  color: #a8a29e; /* stone-400 */
   font-size: 12px;
 }
 
 .category-context strong {
-  color: #1c1917;
+  color: #fafaf9; /* stone-50 */
   font-size: 16px;
 }
 
@@ -259,33 +285,33 @@ pre {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-right: 2px;
+  gap: 6px;
+  padding: 2px 4px;
 }
 
 .note-list-card {
   width: 100%;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #292524; /* stone-800 */
   border-right-width: 4px;
   border-right-color: transparent;
   border-radius: 8px;
-  background: #fbfbfa;
-  padding: 12px;
+  background: #1c1917; /* stone-900 default card background */
+  padding: 10px 12px;
   text-align: right;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.12s ease-in-out;
 }
 
 .note-list-card:hover {
-  background: #fafaf9;
-  border-color: #d6d3d1;
+  background: #2e2a28; /* stone-800-like dark hover */
+  border-color: #44403c;
 }
 
 .note-list-card[data-selected="true"] {
-  background: #e7e5e4;
-  border-color: #a8a29e;
-  border-right-color: #57534e;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  background: #3c3835; /* stone-700-like high contrast selection */
+  border-color: #57534e;
+  border-right-color: #a8a29e;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .notes-list-column[data-trash-view="true"] .note-list-card[data-selected="true"] {
@@ -301,13 +327,16 @@ pre {
 
 .note-card-topline h2 {
   margin: 0;
-  color: #1c1917;
+  color: #fafaf9;
   font-size: 15px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-card-topline time {
-  color: #78716c;
+  color: #a8a29e;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -315,7 +344,7 @@ pre {
 .note-list-card p {
   margin: 6px 0 0;
   line-height: 1.5;
-  color: #78716c;
+  color: #a8a29e;
   font-size: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -331,22 +360,22 @@ pre {
   justify-content: center;
   text-align: center;
   gap: 8px;
-  border: 2px dashed #d6d3d1;
+  border: 1px dashed #44403c;
   border-radius: 12px;
   padding: 24px 16px;
-  color: #78716c;
-  background: #fafaf9;
+  color: #a8a29e;
+  background: #292524;
   margin: 16px 0;
 }
 
 .notes-empty-state strong {
-  color: #44403c;
+  color: #fafaf9;
   font-size: 14px;
 }
 
 .notes-empty-state span {
   font-size: 12px;
-  color: #a8a29e;
+  color: #78716c;
 }
 
 .editor-area {
@@ -356,7 +385,7 @@ pre {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #fbfbfa;
+  background: #0c0a09; /* stone-950 */
   direction: rtl;
   text-align: right;
 }
@@ -366,19 +395,20 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid #e7e5e4;
+  border-bottom: 1px solid #1c1917; /* stone-900 */
   padding: 20px 32px 16px;
+  background: #0c0a09;
 }
 
 .editor-eyebrow {
-  color: #57534e;
+  color: #a8a29e;
   font-size: 13px;
 }
 
 .note-title-input {
   width: min(760px, 100%);
   border: 1px solid transparent;
-  border-bottom-color: #d6d3d1;
+  border-bottom-color: #292524;
   border-radius: 6px 6px 0 0;
   outline: 0;
   background: transparent;
@@ -386,24 +416,25 @@ pre {
   text-align: right;
   font: inherit;
   margin: 4px -8px 0 0;
-  color: #1c1917;
+  color: #fafaf9;
   font-size: 30px;
   font-weight: 800;
   letter-spacing: 0;
+  transition: all 0.15s ease-in-out;
 }
 
 .note-title-input:not(:disabled):hover {
-  background: #f5f5f4;
-  border-color: #e7e5e4;
+  background: #1c1917;
+  border-color: #44403c;
 }
 
 .note-title-input:not(:disabled):focus {
-  background: #fbfbfa;
-  border-color: #d6d3d1;
+  background: #0c0a09;
+  border-color: #57534e;
 }
 
 .note-title-input::placeholder {
-  color: #a8a29e;
+  color: #57534e;
 }
 
 .note-title-input:disabled {
@@ -411,11 +442,11 @@ pre {
 }
 
 .direction-chip {
-  border: 1px solid #d6d3d1;
+  border: 1px solid #292524;
   border-radius: 8px;
-  background: #f5f5f4;
+  background: #1c1917;
   padding: 6px 10px;
-  color: #57534e;
+  color: #a8a29e;
   font-size: 12px;
   font-weight: 800;
 }
@@ -424,17 +455,30 @@ pre {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid #e7e5e4;
+  border-bottom: 1px solid #1c1917;
   padding: 8px 32px;
+  background: #0c0a09;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note-save-group {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* tight connection */
 }
 
 .editor-toolbar button {
   height: 32px;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #292524;
   border-radius: 8px;
-  background: #f5f5f4;
+  background: #1c1917;
   padding: 0 12px;
-  color: #57534e;
+  color: #a8a29e;
   font-size: 13px;
   font-weight: 500;
   transition: all 0.15s ease-in-out;
@@ -445,45 +489,44 @@ pre {
 }
 
 .editor-toolbar button:not(:disabled):hover {
-  background: #e7e5e4;
-  color: #1c1917;
-  border-color: #d6d3d1;
+  background: #292524;
+  color: #fafaf9;
+  border-color: #44403c;
 }
 
 .editor-toolbar button:disabled {
-  opacity: 0.55;
   cursor: not-allowed;
-  background: #f5f5f4;
-  border-color: #e7e5e4;
-  color: #a8a29e;
+  background: #0c0a09;
+  border-color: #1c1917;
+  color: #44403c;
 }
 
 .editor-toolbar .toolbar-divider {
   width: 1px;
   height: 18px;
-  background: #d6d3d1;
+  background: #292524;
   margin: 0 4px;
 }
 
 .editor-toolbar .danger-button {
-  color: #ef4444;
+  color: #f87171;
 }
 
 .editor-toolbar .danger-button:not(:disabled):hover {
-  background: #fecaca;
-  color: #b91c1c;
-  border-color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: #ef4444;
 }
 
 .save-status-pill {
   display: inline-flex;
   height: 32px;
   align-items: center;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #292524;
   border-radius: 8px;
   padding: 0 12px;
-  color: #57534e;
-  background: #f5f5f4;
+  color: #a8a29e;
+  background: #1c1917;
   font-size: 12px;
   font-weight: 600;
   transition: all 0.15s ease-in-out;
@@ -491,27 +534,27 @@ pre {
 
 .save-status-pill[data-status="saved"],
 .save-status-pill[data-status="idle"] {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-  color: #166534;
+  background: rgba(22, 101, 52, 0.15);
+  border-color: #166534;
+  color: #4ade80;
 }
 
 .save-status-pill[data-status="unsaved"] {
-  background: #fffbeb;
-  border-color: #fef3c7;
-  color: #92400e;
+  background: rgba(146, 64, 14, 0.15);
+  border-color: #92400e;
+  color: #fbbf24;
 }
 
 .save-status-pill[data-status="saving"] {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1e40af;
+  background: rgba(30, 64, 175, 0.15);
+  border-color: #1e40af;
+  color: #60a5fa;
 }
 
 .save-status-pill[data-status="error"] {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  color: #991b1b;
+  background: rgba(153, 27, 27, 0.15);
+  border-color: #991b1b;
+  color: #f87171;
 }
 
 .editor-placeholder {
@@ -521,8 +564,8 @@ pre {
   flex: 1;
   min-height: 0;
   padding: 32px;
-  color: #78716c;
-  background: #fbfbfa;
+  color: #a8a29e;
+  background: #0c0a09;
 }
 
 .editor-placeholder-content {
@@ -533,43 +576,23 @@ pre {
   text-align: center;
   max-width: 440px;
   padding: 48px 32px;
-  border: 1px dashed #d6d3d1;
+  border: 1px dashed #292524;
   border-radius: 16px;
-  background: #fafaf9;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  background: #1c1917;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .editor-placeholder-content p {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #57534e;
+  color: #fafaf9;
   line-height: 1.6;
 }
 
 .editor-placeholder-content span {
   font-size: 13px;
-  color: #a8a29e;
-}
-
-.note-content-textarea {
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  resize: none;
-  border: 0;
-  outline: 0;
-  background: #fbfbfa;
-  padding: 32px;
-  color: #1c1917;
-  font: inherit;
-  font-size: 17px;
-  line-height: 1.75;
-  text-align: start;
-}
-
-.note-content-textarea:disabled {
-  color: #57534e;
+  color: #78716c;
 }
 
 .status-footer {
@@ -579,10 +602,10 @@ pre {
   gap: 24px;
   min-width: 0;
   overflow: hidden;
-  border-top: 1px solid #e7e5e4;
-  background: #f5f5f4;
+  border-top: 1px solid #292524;
+  background: #1c1917;
   padding: 0 16px;
-  color: #57534e;
+  color: #a8a29e;
   font-size: 12px;
   direction: ltr;
   white-space: nowrap;
@@ -593,76 +616,24 @@ pre {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background: #fbfbfa;
-}
-
-/* Custom scrollbar styling for scrollable zones */
-.notes-stack::-webkit-scrollbar,
-.note-editor-content-wrapper::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.notes-stack::-webkit-scrollbar-track,
-.note-editor-content-wrapper::-webkit-scrollbar-track {
-  background: transparent;
-}
-.notes-stack::-webkit-scrollbar-thumb,
-.note-editor-content-wrapper::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
-  border-radius: 3px;
-}
-.notes-stack::-webkit-scrollbar-thumb:hover,
-.note-editor-content-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
-}
-
-/* Focus-visible ring styles for accessibility and keyboard navigation */
-.rail-button:focus-visible,
-.new-note-button:focus-visible,
-.note-list-card:focus-visible,
-.editor-toolbar button:focus-visible,
-.note-editor-content-wrapper .ProseMirror:focus-visible {
-  outline: 2px solid #a8a29e;
-  outline-offset: 2px;
-}
-
-.editor-toolbar button:focus-visible {
-  outline-offset: 1px;
-}
-
-/* Specific focus state for search input and title input */
-.notes-search:focus,
-.notes-search:focus-visible {
-  outline: none;
-  border-color: #a8a29e;
-  box-shadow: 0 0 0 2px rgba(168, 162, 158, 0.25);
-}
-
-.note-title-input:focus,
-.note-title-input:focus-visible {
-  outline: none;
-  border-color: #a8a29e;
-  background: #fafaf9;
-}
-
-/* Dimmed read-only editor background and cursor for deleted notes in Trash */
-.note-editor-content-wrapper[data-readonly="true"] {
-  background: #faf8f6;
-}
-
-.note-editor-content-wrapper[data-readonly="true"] .ProseMirror {
-  cursor: not-allowed;
-  color: #78716c;
+  background: #0c0a09; /* Deep canvas background */
+  padding: 0 16px;
 }
 
 .note-editor-content-wrapper .ProseMirror {
-  min-height: 100%;
-  padding: 32px;
+  max-width: 760px;
+  margin: 32px auto;
+  padding: 40px 48px;
+  min-height: calc(100% - 64px);
+  background: #1c1917; /* stone-900 page surface definition */
+  border: 1px solid #292524; /* stone-800 page borders */
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  line-height: 1.8;
   outline: 0;
-  color: #1c1917;
+  color: #f5f5f4;
   font-family: inherit;
   font-size: 17px;
-  line-height: 1.75;
   text-align: start;
 }
 
@@ -692,16 +663,16 @@ pre {
 
 /* Active State for editor toolbar formatting buttons */
 .editor-toolbar button[data-active="true"] {
-  background: #e7e5e4;
-  color: #1c1917;
-  border-color: #d6d3d1;
+  background: #44403c;
+  color: #fafaf9;
+  border-color: #57534e;
   font-weight: 600;
 }
 
 /* Custom CSS Placeholder when editor is empty */
 .note-editor-content-wrapper.is-editor-empty .ProseMirror p:first-child::before {
   content: "اكتب الملاحظة هنا...";
-  color: #a8a29e;
+  color: #44403c;
   pointer-events: none;
   position: absolute;
 }
@@ -725,12 +696,63 @@ pre {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fef2f2;
-  border-bottom: 1px solid #fca5a5;
+  background: rgba(153, 27, 27, 0.15);
+  border-bottom: 1px solid #991b1b;
   padding: 10px 32px;
-  color: #991b1b;
+  color: #f87171;
   font-size: 13px;
   font-weight: 600;
   text-align: right;
 }
 
+/* Custom scrollbar styling for scrollable zones */
+.notes-stack::-webkit-scrollbar,
+.note-editor-content-wrapper::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.notes-stack::-webkit-scrollbar-track,
+.note-editor-content-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+.notes-stack::-webkit-scrollbar-thumb,
+.note-editor-content-wrapper::-webkit-scrollbar-thumb {
+  background: #292524;
+  border-radius: 3px;
+}
+.notes-stack::-webkit-scrollbar-thumb:hover,
+.note-editor-content-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #44403c;
+}
+
+/* Focus-visible ring styles for accessibility and keyboard navigation */
+.rail-button:focus-visible,
+.new-note-button:focus-visible,
+.note-list-card:focus-visible,
+.editor-toolbar button:focus-visible,
+.note-editor-content-wrapper .ProseMirror:focus-visible {
+  outline: 2px solid #57534e;
+  outline-offset: 2px;
+}
+
+.editor-toolbar button:focus-visible {
+  outline-offset: 1px;
+}
+
+/* Specific focus state for search input and title input */
+.note-title-input:focus,
+.note-title-input:focus-visible {
+  outline: none;
+  border-color: #57534e;
+  background: #1c1917;
+}
+
+/* Dimmed read-only editor background and cursor for deleted notes in Trash */
+.note-editor-content-wrapper[data-readonly="true"] {
+  background: #12100f;
+}
+
+.note-editor-content-wrapper[data-readonly="true"] .ProseMirror {
+  cursor: not-allowed;
+  color: #57534e;
+}

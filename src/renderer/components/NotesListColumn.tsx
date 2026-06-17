@@ -43,13 +43,7 @@ export function NotesListColumn({
       dir="rtl"
     >
       <header className="notes-list-header">
-        <input
-          aria-label="Search notes"
-          className="notes-search"
-          disabled
-          placeholder="Search notes..."
-          type="search"
-        />
+        <span className="notes-list-title">الملاحظات</span>
         <button
           className="new-note-button"
           disabled={!canCreate}
