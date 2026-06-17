@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
 import {
   schemaStatements,
@@ -39,4 +41,26 @@ test("database seed data defines the default system categories", () => {
     seedCategories.every((category) => category.isSystem),
     true,
   );
+});
+
+test("database module contains basic notes CRUD operations", async () => {
+  const source = await readFile(join(process.cwd(), "electron/main/db.ts"), "utf8");
+
+  for (const operation of [
+    "createNote",
+    "updateNote",
+    "listNotes",
+    "listTrashNotes",
+    "deleteNoteToTrash",
+    "restoreNote",
+    "deleteNotePermanent",
+  ]) {
+    assert.match(source, new RegExp(`${operation}:`));
+  }
+
+  assert.match(source, /INSERT INTO notes/);
+  assert.match(source, /UPDATE notes/);
+  assert.match(source, /deleted_at IS NOT NULL/);
+  assert.match(source, /deleted_at = NULL/);
+  assert.match(source, /DELETE FROM notes WHERE id = \?/);
 });

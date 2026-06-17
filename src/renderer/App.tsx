@@ -1,24 +1,80 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   defaultCategories,
-  type CategoryDefinition,
+  type CategoryRecord,
   type CategorySlug,
 } from "../shared/categories";
+import type { NoteRecord, NoteListItem } from "../shared/ipc";
 import { NavigationRail } from "./components/NavigationRail";
 import { NoteEditorArea } from "./components/NoteEditorArea";
 import { NotesListColumn } from "./components/NotesListColumn";
 import { StatusFooter } from "./components/StatusFooter";
 
 type DatabaseStatus = "ready" | "unavailable";
+type SaveStatus = "Idle" | "Dirty" | "Saved" | "Saving" | "Error";
+
+function createFallbackCategories(): readonly CategoryRecord[] {
+  return defaultCategories.map((category, index) => ({
+    ...category,
+    id: index + 1,
+    icon: "",
+    isSystem: true,
+  }));
+}
+
+function isEditableCategory(slug: CategorySlug): boolean {
+  return slug !== "trash";
+}
 
 export function App(): JSX.Element {
   const [categories, setCategories] =
-    useState<readonly CategoryDefinition[]>(defaultCategories);
+    useState<readonly CategoryRecord[]>(createFallbackCategories);
   const [activeCategory, setActiveCategory] =
     useState<CategorySlug>("all-notes");
   const [databaseStatus, setDatabaseStatus] =
     useState<DatabaseStatus>("unavailable");
+  const [notes, setNotes] = useState<readonly NoteListItem[]>([]);
+  const [selectedNote, setSelectedNote] = useState<NoteRecord | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftContent, setDraftContent] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("Idle");
   const [notesCount, setNotesCount] = useState(0);
+
+  const activeCategoryRecord = useMemo(() => {
+    return categories.find((category) => category.slug === activeCategory);
+  }, [activeCategory, categories]);
+
+  const activeCategoryName = activeCategoryRecord?.name ?? "All Notes";
+
+  const loadNotes = async (
+    api: NonNullable<typeof window.nasNotesbook>,
+    category: CategorySlug,
+    categoryId: number | null,
+  ): Promise<readonly NoteListItem[]> => {
+    if (category === "trash") {
+      return api.notes.list({ includeTrash: true });
+    }
+
+    if (category === "all-notes") {
+      return api.notes.list();
+    }
+
+    return api.notes.list({ categoryId });
+  };
+
+  const refreshNotes = async (): Promise<void> => {
+    const api = window.nasNotesbook;
+
+    if (!api) {
+      setDatabaseStatus("unavailable");
+      return;
+    }
+
+    const categoryId = activeCategoryRecord?.id ?? null;
+    const nextNotes = await loadNotes(api, activeCategory, categoryId);
+    setNotes(nextNotes);
+    setNotesCount(nextNotes.length);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -31,7 +87,7 @@ export function App(): JSX.Element {
       };
     }
 
-    Promise.all([api.categories.list(), api.notes.list()])
+    Promise.all([api.categories.list(), loadNotes(api, activeCategory, null)])
       .then(([nextCategories, nextNotes]) => {
         if (!isMounted) {
           return;
@@ -39,14 +95,17 @@ export function App(): JSX.Element {
 
         setDatabaseStatus("ready");
         setCategories(
-          nextCategories.length > 0 ? nextCategories : defaultCategories,
+          nextCategories.length > 0
+            ? nextCategories
+            : createFallbackCategories(),
         );
+        setNotes(nextNotes);
         setNotesCount(nextNotes.length);
       })
       .catch(() => {
         if (isMounted) {
           setDatabaseStatus("unavailable");
-          setCategories(defaultCategories);
+          setCategories(createFallbackCategories());
           setNotesCount(0);
         }
       });
@@ -56,12 +115,119 @@ export function App(): JSX.Element {
     };
   }, []);
 
-  const activeCategoryName = useMemo(() => {
-    return (
-      categories.find((category) => category.slug === activeCategory)?.name ??
-      "All Notes"
-    );
-  }, [activeCategory, categories]);
+  useEffect(() => {
+    void refreshNotes().catch(() => {
+      setDatabaseStatus("unavailable");
+      setNotes([]);
+      setNotesCount(0);
+    });
+    setSelectedNote(null);
+    setDraftTitle("");
+    setDraftContent("");
+    setSaveStatus("Idle");
+  }, [activeCategory, activeCategoryRecord?.id]);
+
+  const handleSelectNote = async (id: number): Promise<void> => {
+    const note = await window.nasNotesbook?.notes.getById(id);
+
+    if (!note) {
+      return;
+    }
+
+    setSelectedNote(note);
+    setDraftTitle(note.title);
+    setDraftContent(note.contentMarkdown);
+    setSaveStatus("Idle");
+  };
+
+  const handleCreateNote = async (): Promise<void> => {
+    const api = window.nasNotesbook;
+    if (!api || !isEditableCategory(activeCategory)) {
+      return;
+    }
+
+    const categoryId =
+      activeCategory === "all-notes" ? null : activeCategoryRecord?.id ?? null;
+    const note = await api.notes.create({ categoryId, isRtl: true });
+    await refreshNotes();
+    setSelectedNote(note);
+    setDraftTitle(note.title);
+    setDraftContent(note.contentMarkdown);
+    setSaveStatus("Saved");
+  };
+
+  const handleSaveNote = async (): Promise<void> => {
+    const api = window.nasNotesbook;
+    if (!api || !selectedNote) {
+      return;
+    }
+
+    setSaveStatus("Saving");
+
+    try {
+      const note = await api.notes.update({
+        id: selectedNote.id,
+        title: draftTitle,
+        contentMarkdown: draftContent,
+        categoryId: selectedNote.categoryId,
+        isRtl: selectedNote.isRtl,
+      });
+      await refreshNotes();
+      setSelectedNote(note);
+      setDraftTitle(note.title);
+      setDraftContent(note.contentMarkdown);
+      setSaveStatus("Saved");
+    } catch {
+      setSaveStatus("Error");
+    }
+  };
+
+  const handleDeleteToTrash = async (): Promise<void> => {
+    if (!selectedNote || !window.nasNotesbook) {
+      return;
+    }
+
+    await window.nasNotesbook.notes.deleteToTrash(selectedNote.id);
+    await refreshNotes();
+    setSelectedNote(null);
+    setDraftTitle("");
+    setDraftContent("");
+    setSaveStatus("Idle");
+  };
+
+  const handleRestore = async (): Promise<void> => {
+    if (!selectedNote || !window.nasNotesbook) {
+      return;
+    }
+
+    await window.nasNotesbook.notes.restore(selectedNote.id);
+    await refreshNotes();
+    setSelectedNote(null);
+    setDraftTitle("");
+    setDraftContent("");
+  };
+
+  const handleDeletePermanent = async (): Promise<void> => {
+    if (!selectedNote || !window.nasNotesbook) {
+      return;
+    }
+
+    await window.nasNotesbook.notes.deletePermanent(selectedNote.id);
+    await refreshNotes();
+    setSelectedNote(null);
+    setDraftTitle("");
+    setDraftContent("");
+  };
+
+  const handleDraftTitleChange = (title: string): void => {
+    setDraftTitle(title);
+    setSaveStatus("Dirty");
+  };
+
+  const handleDraftContentChange = (content: string): void => {
+    setDraftContent(content);
+    setSaveStatus("Dirty");
+  };
 
   return (
     <main
@@ -75,14 +241,47 @@ export function App(): JSX.Element {
           categories={categories}
           onSelectCategory={setActiveCategory}
         />
-        <NotesListColumn activeCategoryName={activeCategoryName} />
-        <NoteEditorArea activeCategoryName={activeCategoryName} />
+        <NotesListColumn
+          activeCategoryName={activeCategoryName}
+          canCreate={isEditableCategory(activeCategory)}
+          notes={notes}
+          selectedNoteId={selectedNote?.id ?? null}
+          onCreateNote={() => {
+            void handleCreateNote();
+          }}
+          onSelectNote={(id) => {
+            void handleSelectNote(id);
+          }}
+        />
+        <NoteEditorArea
+          activeCategoryName={activeCategoryName}
+          draftContent={draftContent}
+          draftTitle={draftTitle}
+          isTrashView={activeCategory === "trash"}
+          saveStatus={saveStatus}
+          selectedNote={selectedNote}
+          onContentChange={handleDraftContentChange}
+          onDeletePermanent={() => {
+            void handleDeletePermanent();
+          }}
+          onDeleteToTrash={() => {
+            void handleDeleteToTrash();
+          }}
+          onRestore={() => {
+            void handleRestore();
+          }}
+          onSave={() => {
+            void handleSaveNote();
+          }}
+          onTitleChange={handleDraftTitleChange}
+        />
       </div>
       <StatusFooter
         activeCategoryName={activeCategoryName}
         categoriesCount={categories.length}
         databaseStatus={databaseStatus}
         notesCount={notesCount}
+        saveStatus={saveStatus}
       />
     </main>
   );

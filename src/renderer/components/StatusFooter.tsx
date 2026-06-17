@@ -3,6 +3,7 @@ interface StatusFooterProps {
   readonly categoriesCount: number;
   readonly databaseStatus: "ready" | "unavailable";
   readonly notesCount: number;
+  readonly saveStatus: string;
 }
 
 export function StatusFooter({
@@ -10,6 +11,7 @@ export function StatusFooter({
   categoriesCount,
   databaseStatus,
   notesCount,
+  saveStatus,
 }: StatusFooterProps): JSX.Element {
   const databaseLabel =
     databaseStatus === "ready" ? "DB: Ready" : "DB: Unavailable";
@@ -21,7 +23,7 @@ export function StatusFooter({
       <span>{databaseLabel}</span>
       <span>Categories: {categoriesCount}</span>
       <span>Notes: {notesCount}</span>
-      <span>Saved Local: placeholder</span>
+      <span>Save: {saveStatus}</span>
       <span>DIR: RTL foundation</span>
     </footer>
   );

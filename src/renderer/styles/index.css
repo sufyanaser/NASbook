@@ -209,10 +209,13 @@ pre {
 }
 
 .note-list-card {
+  width: 100%;
   border: 1px solid #e7e5e4;
   border-radius: 8px;
   background: #fbfbfa;
   padding: 12px;
+  text-align: right;
+  cursor: pointer;
 }
 
 .note-list-card[data-selected="true"] {
@@ -244,6 +247,20 @@ pre {
   line-height: 1.5;
 }
 
+.notes-empty-state {
+  display: grid;
+  gap: 6px;
+  border: 1px dashed #d6d3d1;
+  border-radius: 8px;
+  padding: 14px;
+  color: #57534e;
+  font-size: 13px;
+}
+
+.notes-empty-state strong {
+  color: #1c1917;
+}
+
 .editor-area {
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -269,12 +286,23 @@ pre {
   font-size: 13px;
 }
 
-.editor-header h1 {
+.note-title-input {
+  width: min(760px, 100%);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0;
+  text-align: right;
+  font: inherit;
   margin: 4px 0 0;
   color: #1c1917;
   font-size: 30px;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.note-title-input:disabled {
+  color: #78716c;
 }
 
 .direction-chip {
@@ -303,6 +331,30 @@ pre {
   color: #57534e;
 }
 
+.editor-toolbar button:not(:disabled) {
+  cursor: pointer;
+}
+
+.editor-toolbar button:not(:disabled):hover {
+  background: #e7e5e4;
+  color: #1c1917;
+}
+
+.editor-toolbar .danger-button {
+  color: #ef4444;
+}
+
+.save-status-pill {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #57534e;
+  font-size: 12px;
+}
+
 .editor-placeholder {
   min-height: 0;
   overflow: auto;
@@ -315,6 +367,26 @@ pre {
 .editor-placeholder p {
   max-width: none;
   margin: 0;
+}
+
+.note-content-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: #fbfbfa;
+  padding: 32px;
+  color: #1c1917;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.75;
+  text-align: start;
+}
+
+.note-content-textarea:disabled {
+  color: #57534e;
 }
 
 .status-footer {

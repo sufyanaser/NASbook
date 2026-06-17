@@ -1,6 +1,6 @@
 declare module "better-sqlite3" {
   interface Statement {
-    run(...params: readonly unknown[]): unknown;
+    run(...params: readonly unknown[]): { lastInsertRowid: number | bigint };
     get(...params: readonly unknown[]): unknown;
     all(...params: readonly unknown[]): unknown[];
   }
