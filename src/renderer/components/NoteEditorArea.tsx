@@ -31,6 +31,98 @@ interface NoteEditorAreaProps {
   readonly onTitleChange: (title: string) => void;
 }
 
+type ToolbarIcon =
+  | "bold"
+  | "italic"
+  | "bullets"
+  | "numbered"
+  | "clear"
+  | "save"
+  | "trash"
+  | "restore"
+  | "deletePermanent";
+
+function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
+  if (icon === "bold" || icon === "italic") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="toolbar-button-icon"
+        viewBox="0 0 24 24"
+      >
+        <text
+          x="12"
+          y="17"
+          fill="currentColor"
+          fontFamily="Georgia, serif"
+          fontSize="16"
+          fontStyle={icon === "italic" ? "italic" : "normal"}
+          fontWeight={icon === "bold" ? "800" : "700"}
+          textAnchor="middle"
+        >
+          {icon === "bold" ? "B" : "I"}
+        </text>
+      </svg>
+    );
+  }
+
+  const strokeProps = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: 2,
+  } as const;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="toolbar-button-icon"
+      viewBox="0 0 24 24"
+    >
+      {icon === "bullets" && (
+        <>
+          <circle cx="6" cy="7" r="1.4" fill="currentColor" />
+          <circle cx="6" cy="12" r="1.4" fill="currentColor" />
+          <circle cx="6" cy="17" r="1.4" fill="currentColor" />
+          <path d="M10 7h8M10 12h8M10 17h8" {...strokeProps} />
+        </>
+      )}
+      {icon === "numbered" && (
+        <>
+          <path d="M5 6h1v4M4.8 10h2.4M4.8 14h2.4l-2.4 4h2.4" {...strokeProps} />
+          <path d="M11 7h7M11 12h7M11 17h7" {...strokeProps} />
+        </>
+      )}
+      {icon === "clear" && (
+        <>
+          <path d="M5 5h10M10 5v14M7 19h6" {...strokeProps} />
+          <path d="M15 15l4 4M19 15l-4 4" {...strokeProps} />
+        </>
+      )}
+      {icon === "save" && (
+        <>
+          <path d="M5 4h11l3 3v13H5z" {...strokeProps} />
+          <path d="M8 4v6h8M8 17h8" {...strokeProps} />
+          <path d="m9 13 2 2 4-4" {...strokeProps} />
+        </>
+      )}
+      {icon === "trash" && (
+        <path d="M6 7h12M10 7V5h4v2M8 10v9h8v-9M10 12v5M14 12v5" {...strokeProps} />
+      )}
+      {icon === "restore" && (
+        <path d="M9 7H5v-4M5 7a8 8 0 1 1-1 6" {...strokeProps} />
+      )}
+      {icon === "deletePermanent" && (
+        <>
+          <path d="M6 7h12M10 7V5h4v2M8 10v9h8v-9" {...strokeProps} />
+          <path d="m10 13 4 4M14 13l-4 4" {...strokeProps} />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function formatDateTime(value: string): string {
   const date = new Date(value);
 
@@ -172,7 +264,7 @@ export function NoteEditorArea({
             aria-label={isLightMode ? "Switch to dark theme" : "Switch to light theme"}
             className="theme-toggle"
             data-light={isLightMode ? "true" : "false"}
-            data-tooltip={isLightMode ? "Switch to dark theme" : "Switch to light theme"}
+            data-tooltip="Toggle light/dark theme"
             onClick={onToggleTheme}
             type="button"
           >
@@ -199,12 +291,14 @@ export function NoteEditorArea({
             <>
               <div className="note-save-group">
                 <button
+                  aria-label="Save"
+                  className="toolbar-action-button"
                   disabled={!hasSelectedNote}
-                  data-tooltip="Save - Ctrl+S"
+                  data-tooltip="Save — Ctrl+S"
                   onClick={onSave}
                   type="button"
                 >
-                  Save
+                  <ToolbarIconSvg icon="save" />
                 </button>
                 <span className="save-status-pill" data-status={saveStatus.toLowerCase()}>
                   {saveStatus === "Idle"
@@ -222,32 +316,37 @@ export function NoteEditorArea({
               </div>
               <div className="toolbar-divider" />
               <button
+                aria-label="Delete to Trash"
+                className="toolbar-action-button toolbar-danger-action"
                 disabled={!hasSelectedNote}
-                data-tooltip="Move note to Trash"
+                data-tooltip="Delete to Trash"
                 onClick={onDeleteToTrash}
                 type="button"
               >
-                Delete to Trash
+                <ToolbarIconSvg icon="trash" />
               </button>
             </>
           ) : (
             <>
               <button
+                aria-label="Restore"
+                className="toolbar-action-button"
                 disabled={!hasSelectedNote}
-                data-tooltip="Restore note"
+                data-tooltip="Restore"
                 onClick={onRestore}
                 type="button"
               >
-                Restore
+                <ToolbarIconSvg icon="restore" />
               </button>
               <button
-                className="danger-button"
+                aria-label="Delete Permanently"
+                className="toolbar-action-button danger-button"
                 disabled={!hasSelectedNote}
-                data-tooltip="Delete permanently"
+                data-tooltip="Delete Permanently"
                 onClick={onDeletePermanent}
                 type="button"
               >
-                Delete Permanently
+                <ToolbarIconSvg icon="deletePermanent" />
               </button>
               <div className="toolbar-divider" />
               <span className="save-status-pill" data-status="saved">
@@ -262,42 +361,52 @@ export function NoteEditorArea({
             <div className="toolbar-divider" />
             <div className="toolbar-group formatting-actions">
               <button
+                aria-label="Bold"
+                className="toolbar-icon-button"
                 type="button"
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 data-active={editor.isActive("bold") ? "true" : "false"}
-                data-tooltip="Bold - Ctrl+B"
+                data-tooltip="Bold — Ctrl+B"
               >
-                Bold
+                <ToolbarIconSvg icon="bold" />
               </button>
               <button
+                aria-label="Italic"
+                className="toolbar-icon-button"
                 type="button"
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
                 data-active={editor.isActive("italic") ? "true" : "false"}
-                data-tooltip="Italic - Ctrl+I"
+                data-tooltip="Italic — Ctrl+I"
               >
-                Italic
+                <ToolbarIconSvg icon="italic" />
               </button>
               <button
+                aria-label="Bullets"
+                className="toolbar-icon-button"
                 type="button"
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
                 data-active={editor.isActive("bulletList") ? "true" : "false"}
-                data-tooltip="Bullet list"
+                data-tooltip="Bullets"
               >
-                Bullet list
+                <ToolbarIconSvg icon="bullets" />
               </button>
               <button
+                aria-label="Numbered"
+                className="toolbar-icon-button"
                 type="button"
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
                 data-active={editor.isActive("orderedList") ? "true" : "false"}
-                data-tooltip="Ordered list"
+                data-tooltip="Numbered"
               >
-                Ordered list
+                <ToolbarIconSvg icon="numbered" />
               </button>
               <button
+                aria-label="Clear formatting"
+                className="toolbar-icon-button"
                 type="button"
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() =>
@@ -305,7 +414,7 @@ export function NoteEditorArea({
                 }
                 data-tooltip="Clear formatting"
               >
-                Clear formatting
+                <ToolbarIconSvg icon="clear" />
               </button>
             </div>
           </>

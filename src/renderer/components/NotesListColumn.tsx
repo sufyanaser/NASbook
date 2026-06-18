@@ -49,11 +49,11 @@ export function NotesListColumn({
       <header className="notes-list-header">
         <span className="notes-list-title">الملاحظات</span>
         <button
+          aria-label={canCreate ? "New note" : "Cannot create notes in Trash"}
           className="new-note-button"
           data-tooltip={canCreate ? "New note" : "Cannot create notes in Trash"}
           disabled={!canCreate}
           onClick={onCreateNote}
-          title={canCreate ? "New note" : "Cannot create notes in Trash"}
           type="button"
         >
           +

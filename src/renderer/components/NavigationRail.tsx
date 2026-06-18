@@ -137,10 +137,10 @@ export function NavigationRail({
               className="rail-button"
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
+              data-tooltip={category.name}
+              data-tooltip-placement="right"
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
-              data-tooltip={category.name}
-              title={category.name}
               type="button"
             >
               <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
@@ -163,10 +163,10 @@ export function NavigationRail({
               className="rail-button"
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
+              data-tooltip={category.name}
+              data-tooltip-placement="right"
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
-              data-tooltip={category.name}
-              title={category.name}
               type="button"
             >
               <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
@@ -178,8 +178,8 @@ export function NavigationRail({
           aria-label="Settings"
           className="rail-button"
           data-tooltip="Settings"
+          data-tooltip-placement="right"
           onClick={onOpenSettings}
-          title="Settings"
           type="button"
         >
           <span aria-hidden="true">

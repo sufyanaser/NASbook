@@ -48,3 +48,39 @@ test("electron main process keeps renderer security enabled", async () => {
   assert.match(mainSource, /sandbox:\s*true/);
   assert.match(mainSource, /assets\/icon\.ico/);
 });
+
+test("renderer defines reusable CSS tooltip system", async () => {
+  const stylesSource = await readFile(
+    join(projectRoot, "src/renderer/styles/index.css"),
+    "utf8",
+  );
+  const railSource = await readFile(
+    join(projectRoot, "src/renderer/components/NavigationRail.tsx"),
+    "utf8",
+  );
+  const editorSource = await readFile(
+    join(projectRoot, "src/renderer/components/NoteEditorArea.tsx"),
+    "utf8",
+  );
+  const settingsSource = await readFile(
+    join(projectRoot, "src/renderer/components/SettingsPanel.tsx"),
+    "utf8",
+  );
+
+  for (const token of [
+    "--tooltip-bg",
+    "--tooltip-color",
+    "--tooltip-border",
+    "--tooltip-shadow",
+  ]) {
+    assert.match(stylesSource, new RegExp(token));
+  }
+
+  assert.match(stylesSource, /\[data-tooltip\]:not\(\[data-tooltip=""\]\)::before/);
+  assert.match(stylesSource, /focus-visible::before/);
+  assert.match(stylesSource, /pointer-events:\s*none/);
+  assert.match(stylesSource, /data-tooltip-placement="right"/);
+  assert.match(railSource, /data-tooltip-placement="right"/);
+  assert.match(editorSource, /data-tooltip="Save — Ctrl\+S"/);
+  assert.match(settingsSource, /data-tooltip="Close settings"/);
+});

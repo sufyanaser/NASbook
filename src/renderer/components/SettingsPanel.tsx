@@ -126,9 +126,10 @@ export function SettingsPanel({
             <h2>Settings</h2>
           </div>
           <button
+            aria-label="Close settings"
             className="settings-close-button"
+            data-tooltip="Close settings"
             onClick={onClose}
-            title="Close settings"
             type="button"
           >
             Close

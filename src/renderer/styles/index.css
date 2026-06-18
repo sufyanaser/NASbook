@@ -23,6 +23,10 @@
   --rail-button-bg: transparent;
   --rail-button-active-bg: rgba(255, 255, 255, 0.10);
   --rail-button-border: rgba(255, 255, 255, 0.10);
+  --tooltip-bg: rgba(31, 29, 27, 0.96);
+  --tooltip-color: #fafaf9;
+  --tooltip-border: rgba(255, 255, 255, 0.12);
+  --tooltip-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Cairo", "Tahoma",
     "Arial", sans-serif;
   font-synthesis: none;
@@ -49,6 +53,10 @@
   --rail-icon-muted-color: rgba(16, 18, 23, 0.42);
   --rail-button-active-bg: rgba(0, 0, 0, 0.08);
   --rail-button-border: rgba(0, 0, 0, 0.10);
+  --tooltip-bg: rgba(255, 255, 255, 0.98);
+  --tooltip-color: #101217;
+  --tooltip-border: rgba(16, 18, 23, 0.14);
+  --tooltip-shadow: 0 12px 30px rgba(16, 18, 23, 0.18);
 }
 
 [data-theme="graphite"] {
@@ -98,6 +106,10 @@
   --rail-icon-active-color: #1f1a15;
   --rail-button-active-bg: rgba(49, 43, 36, 0.08);
   --rail-button-border: rgba(49, 43, 36, 0.12);
+  --tooltip-bg: rgba(255, 253, 247, 0.98);
+  --tooltip-color: #1f1a15;
+  --tooltip-border: rgba(49, 43, 36, 0.16);
+  --tooltip-shadow: 0 12px 30px rgba(49, 43, 36, 0.18);
 }
 
 [data-theme="one-dark"] {
@@ -212,66 +224,160 @@ pre {
   direction: ltr;
 }
 
-[data-tooltip] {
+[data-tooltip]:not([data-tooltip=""]) {
   position: relative;
 }
 
-[data-tooltip]:not(.rail-button)::before,
-[data-tooltip]:not(.rail-button)::after {
+[data-tooltip]:not([data-tooltip=""])::before,
+[data-tooltip]:not([data-tooltip=""])::after {
   position: absolute;
-  z-index: 50;
+  z-index: 90;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+  visibility: hidden;
 }
 
-[data-tooltip]:not(.rail-button)::before {
+[data-tooltip]:not([data-tooltip=""])::before {
   content: attr(data-tooltip);
   bottom: calc(100% + 8px);
   left: 50%;
   width: max-content;
   max-width: 220px;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--tooltip-border);
   border-radius: 6px;
-  background: var(--app-surface-raised);
-  color: var(--app-text-strong);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-color);
   padding: 5px 8px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.3;
   text-align: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--tooltip-shadow);
   transform: translate(-50%, 4px);
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
 }
 
-[data-tooltip]:not(.rail-button)::after {
+[data-tooltip]:not([data-tooltip=""])::after {
   content: "";
   bottom: calc(100% + 3px);
   left: 50%;
   width: 8px;
   height: 8px;
-  border-right: 1px solid var(--app-border);
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-surface-raised);
+  border-right: 1px solid var(--tooltip-border);
+  border-bottom: 1px solid var(--tooltip-border);
+  background: var(--tooltip-bg);
   transform: translate(-50%, 4px) rotate(45deg);
 }
 
-[data-tooltip]:not(.rail-button):hover::before,
-[data-tooltip]:not(.rail-button):hover::after,
-[data-tooltip]:not(.rail-button):focus-visible::before,
-[data-tooltip]:not(.rail-button):focus-visible::after {
+[data-tooltip]:not([data-tooltip=""]):hover::before,
+[data-tooltip]:not([data-tooltip=""]):hover::after,
+[data-tooltip]:not([data-tooltip=""]):focus-visible::before,
+[data-tooltip]:not([data-tooltip=""]):focus-visible::after,
+[data-tooltip]:not([data-tooltip=""]):focus-within::before,
+[data-tooltip]:not([data-tooltip=""]):focus-within::after {
   opacity: 1;
+  visibility: visible;
 }
 
-[data-tooltip]:not(.rail-button):hover::before,
-[data-tooltip]:not(.rail-button):focus-visible::before {
+[data-tooltip]:not([data-tooltip=""]):hover::before,
+[data-tooltip]:not([data-tooltip=""]):focus-visible::before,
+[data-tooltip]:not([data-tooltip=""]):focus-within::before {
   transform: translate(-50%, 0);
 }
 
-[data-tooltip]:not(.rail-button):hover::after,
-[data-tooltip]:not(.rail-button):focus-visible::after {
+[data-tooltip]:not([data-tooltip=""]):hover::after,
+[data-tooltip]:not([data-tooltip=""]):focus-visible::after,
+[data-tooltip]:not([data-tooltip=""]):focus-within::after {
   transform: translate(-50%, 0) rotate(45deg);
+}
+
+[data-tooltip-placement="right"]:not([data-tooltip=""])::before {
+  top: 50%;
+  bottom: auto;
+  left: calc(100% + 10px);
+  transform: translate(-4px, -50%);
+}
+
+[data-tooltip-placement="right"]:not([data-tooltip=""])::after {
+  top: 50%;
+  bottom: auto;
+  left: calc(100% + 5px);
+  border: 0;
+  border-left: 1px solid var(--tooltip-border);
+  border-bottom: 1px solid var(--tooltip-border);
+  transform: translate(-4px, -50%) rotate(45deg);
+}
+
+[data-tooltip-placement="right"]:not([data-tooltip=""]):hover::before,
+[data-tooltip-placement="right"]:not([data-tooltip=""]):focus-visible::before,
+[data-tooltip-placement="right"]:not([data-tooltip=""]):focus-within::before {
+  transform: translate(0, -50%);
+}
+
+[data-tooltip-placement="right"]:not([data-tooltip=""]):hover::after,
+[data-tooltip-placement="right"]:not([data-tooltip=""]):focus-visible::after,
+[data-tooltip-placement="right"]:not([data-tooltip=""]):focus-within::after {
+  transform: translate(0, -50%) rotate(45deg);
+}
+
+[data-tooltip-placement="bottom"]:not([data-tooltip=""])::before {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translate(-50%, -4px);
+}
+
+[data-tooltip-placement="bottom"]:not([data-tooltip=""])::after {
+  top: calc(100% + 3px);
+  bottom: auto;
+  border: 0;
+  border-left: 1px solid var(--tooltip-border);
+  border-top: 1px solid var(--tooltip-border);
+  transform: translate(-50%, -4px) rotate(45deg);
+}
+
+[data-tooltip-placement="bottom"]:not([data-tooltip=""]):hover::before,
+[data-tooltip-placement="bottom"]:not([data-tooltip=""]):focus-visible::before,
+[data-tooltip-placement="bottom"]:not([data-tooltip=""]):focus-within::before {
+  transform: translate(-50%, 0);
+}
+
+[data-tooltip-placement="bottom"]:not([data-tooltip=""]):hover::after,
+[data-tooltip-placement="bottom"]:not([data-tooltip=""]):focus-visible::after,
+[data-tooltip-placement="bottom"]:not([data-tooltip=""]):focus-within::after {
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+[data-tooltip-placement="left"]:not([data-tooltip=""])::before {
+  top: 50%;
+  right: calc(100% + 10px);
+  bottom: auto;
+  left: auto;
+  transform: translate(4px, -50%);
+}
+
+[data-tooltip-placement="left"]:not([data-tooltip=""])::after {
+  top: 50%;
+  right: calc(100% + 5px);
+  bottom: auto;
+  left: auto;
+  border: 0;
+  border-right: 1px solid var(--tooltip-border);
+  border-top: 1px solid var(--tooltip-border);
+  transform: translate(4px, -50%) rotate(45deg);
+}
+
+[data-tooltip-placement="left"]:not([data-tooltip=""]):hover::before,
+[data-tooltip-placement="left"]:not([data-tooltip=""]):focus-visible::before,
+[data-tooltip-placement="left"]:not([data-tooltip=""]):focus-within::before {
+  transform: translate(0, -50%);
+}
+
+[data-tooltip-placement="left"]:not([data-tooltip=""]):hover::after,
+[data-tooltip-placement="left"]:not([data-tooltip=""]):focus-visible::after,
+[data-tooltip-placement="left"]:not([data-tooltip=""]):focus-within::after {
+  transform: translate(0, -50%) rotate(45deg);
 }
 
 .rail-brand {
@@ -355,18 +461,6 @@ pre {
   display: block;
 }
 
-.rail-button::before {
-  content: "";
-  position: absolute;
-  left: -8px;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: transparent;
-  border-radius: 0 4px 4px 0;
-  transition: all 0.15s ease-in-out;
-}
-
 .rail-button:hover {
   border-color: var(--rail-button-border);
   background: var(--app-surface-raised);
@@ -377,11 +471,9 @@ pre {
   border-color: var(--rail-button-border);
   background: var(--rail-button-active-bg);
   color: var(--rail-icon-active-color);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.rail-button[data-active="true"]::before {
-  background: var(--rail-icon-active-color);
+  box-shadow:
+    inset 3px 0 0 var(--rail-icon-active-color),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* Distinct Trash active style in Navigation Rail */
@@ -389,10 +481,9 @@ pre {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.15);
   color: #f87171;
-}
-
-.rail-button[data-trash="true"][data-active="true"]::before {
-  background: #ef4444;
+  box-shadow:
+    inset 3px 0 0 #ef4444,
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .rail-button[data-trash="true"]:not([data-active="true"]):hover {
@@ -648,7 +739,7 @@ pre {
 .editor-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   border-bottom: 1px solid var(--app-border);
   padding: 8px 32px;
   background: var(--app-bg);
@@ -657,25 +748,37 @@ pre {
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .note-save-group {
   display: flex;
   align-items: center;
-  gap: 6px; /* tight connection */
+  gap: 4px;
+}
+
+.note-actions {
+  gap: 10px;
+}
+
+.formatting-actions {
+  gap: 6px;
 }
 
 .editor-toolbar button {
-  height: 32px;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
-  padding: 0 12px;
+  padding: 0;
   color: var(--app-text-muted);
-  font-size: 13px;
+  font-size: 0;
   font-weight: 500;
   transition: all 0.15s ease-in-out;
+  white-space: nowrap;
 }
 
 .editor-toolbar button:not(:disabled) {
@@ -693,6 +796,7 @@ pre {
   background: var(--app-bg);
   border-color: var(--app-border);
   color: var(--app-border-strong);
+  opacity: 0.52;
 }
 
 .editor-toolbar .toolbar-divider {
@@ -724,6 +828,39 @@ pre {
   font-size: 12px;
   font-weight: 600;
   transition: all 0.15s ease-in-out;
+}
+
+.toolbar-button-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+}
+
+.toolbar-icon-button[data-active="true"] {
+  background: var(--app-border-strong);
+  color: var(--app-text-strong);
+  border-color: var(--app-focus);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.24);
+}
+
+.toolbar-action-button {
+  background: var(--app-surface-raised);
+  color: var(--app-text-strong);
+}
+
+.note-save-group .toolbar-action-button {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.note-save-group .save-status-pill {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.toolbar-danger-action {
+  color: #f87171;
 }
 
 .save-status-pill[data-status="saved"],
