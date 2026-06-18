@@ -12,3 +12,4 @@ assets/*.zip
 # Build outputs
 release/
 dist/
+assets/FONTS/
