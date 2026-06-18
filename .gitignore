@@ -2,3 +2,9 @@ node_modules/
 dist/
 .vite/
 *.log
+
+# Local icon source packs
+assets/Icon/
+assets/nas-notesbook-icons-adaptive/
+assets/nas-notesbook-icons-colored/
+assets/*.zip
