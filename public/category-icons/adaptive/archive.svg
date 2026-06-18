@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 24 24" role="img" aria-label="Archive">
+  <title>Archive</title>
+  <g color="currentColor">
+    <path d="M4 7h16v13H4zM3 4h18v3H3zM9 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>
