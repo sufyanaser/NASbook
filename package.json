@@ -14,6 +14,8 @@
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "pack:win": "npm run build && electron-builder --win dir",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
@@ -32,11 +34,40 @@
     "@vitejs/plugin-react": "^4.5.2",
     "autoprefixer": "^10.4.21",
     "electron": "^35.4.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.29.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.34.1",
     "vite": "^6.3.5"
+  },
+  "build": {
+    "productName": "NAS Notesbook",
+    "appId": "com.nasfm.notesbook",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/icon.ico",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/build/Release/*.node"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "NAS Notesbook Setup ${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

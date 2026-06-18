@@ -8,3 +8,7 @@ assets/Icon/
 assets/nas-notesbook-icons-adaptive/
 assets/nas-notesbook-icons-colored/
 assets/*.zip
+
+# Build outputs
+release/
+dist/
