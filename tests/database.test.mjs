@@ -9,6 +9,8 @@ import {
 import { hasUnsavedNoteChanges, stripHtmlForPreview } from "../dist/src/shared/dirtyState.js";
 import {
   defaultAppSettings,
+  getToggledLightDarkTheme,
+  isLightLikeTheme,
   normalizeAppSettings,
 } from "../dist/src/shared/settings.js";
 
@@ -157,4 +159,16 @@ test("app settings validation rejects unsupported values", () => {
   assert.equal(settings.showNotePreview, true);
   assert.equal(settings.showNoteDates, false);
   assert.equal(settings.confirmUnsavedSwitch, false);
+});
+
+test("dark light theme toggle treats light-like themes safely", () => {
+  assert.equal(isLightLikeTheme("light"), true);
+  assert.equal(isLightLikeTheme("ulysses"), true);
+  assert.equal(isLightLikeTheme("dark"), false);
+  assert.equal(isLightLikeTheme("graphite"), false);
+  assert.equal(getToggledLightDarkTheme("light"), "dark");
+  assert.equal(getToggledLightDarkTheme("ulysses"), "dark");
+  assert.equal(getToggledLightDarkTheme("dark"), "light");
+  assert.equal(getToggledLightDarkTheme("material-dark"), "light");
+  assert.equal(getToggledLightDarkTheme("one-dark"), "light");
 });

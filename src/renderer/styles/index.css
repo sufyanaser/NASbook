@@ -205,11 +205,73 @@ pre {
   width: 64px;
   min-width: 64px;
   max-width: 64px;
-  overflow: hidden;
+  overflow: visible;
   border-right: 1px solid var(--app-border);
   background: var(--app-surface);
   padding: 12px 8px;
   direction: ltr;
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:not(.rail-button)::before,
+[data-tooltip]:not(.rail-button)::after {
+  position: absolute;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+[data-tooltip]:not(.rail-button)::before {
+  content: attr(data-tooltip);
+  bottom: calc(100% + 8px);
+  left: 50%;
+  width: max-content;
+  max-width: 220px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-raised);
+  color: var(--app-text-strong);
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, 4px);
+}
+
+[data-tooltip]:not(.rail-button)::after {
+  content: "";
+  bottom: calc(100% + 3px);
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-raised);
+  transform: translate(-50%, 4px) rotate(45deg);
+}
+
+[data-tooltip]:not(.rail-button):hover::before,
+[data-tooltip]:not(.rail-button):hover::after,
+[data-tooltip]:not(.rail-button):focus-visible::before,
+[data-tooltip]:not(.rail-button):focus-visible::after {
+  opacity: 1;
+}
+
+[data-tooltip]:not(.rail-button):hover::before,
+[data-tooltip]:not(.rail-button):focus-visible::before {
+  transform: translate(-50%, 0);
+}
+
+[data-tooltip]:not(.rail-button):hover::after,
+[data-tooltip]:not(.rail-button):focus-visible::after {
+  transform: translate(-50%, 0) rotate(45deg);
 }
 
 .rail-brand {
@@ -435,12 +497,12 @@ pre {
 }
 
 .note-list-card:hover {
-  background: #2e2a28; /* stone-800-like dark hover */
+  background: var(--app-surface-raised);
   border-color: var(--app-border-strong);
 }
 
 .note-list-card[data-selected="true"] {
-  background: #3c3835; /* stone-700-like high contrast selection */
+  background: var(--app-surface-raised);
   border-color: var(--app-focus);
   border-right-color: var(--app-text-muted);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -1116,4 +1178,181 @@ pre {
 .settings-about-list strong {
   color: var(--app-text-strong);
   font-size: 18px;
+}
+
+.editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface-raised);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.theme-toggle span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--app-text-muted);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.theme-toggle[data-light="true"] {
+  border-color: rgba(16, 18, 23, 0.18);
+  background: #e7e5e4;
+}
+
+.theme-toggle[data-light="true"] span {
+  background: #101217;
+  transform: translateX(20px);
+}
+
+.context-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
+
+.context-menu {
+  position: fixed;
+  display: grid;
+  width: 164px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 96%, transparent);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+  padding: 6px;
+  backdrop-filter: blur(12px);
+}
+
+.context-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-text);
+  cursor: pointer;
+  padding: 0 8px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.context-menu button:hover:not(:disabled) {
+  background: var(--app-surface-raised);
+  color: var(--app-text-strong);
+}
+
+.context-menu button:disabled {
+  cursor: not-allowed;
+  color: var(--app-text-subtle);
+}
+
+.context-menu kbd {
+  color: var(--app-text-subtle);
+  font-size: 10px;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--app-border);
+  margin: 4px 2px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.54);
+  backdrop-filter: blur(8px);
+}
+
+.modal-dialog {
+  width: min(420px, calc(100vw - 48px));
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+  padding: 22px;
+  animation: modal-scale-in 0.16s ease-out;
+}
+
+@keyframes modal-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-dialog-copy h2 {
+  margin: 0;
+  color: var(--app-text-strong);
+  font-size: 18px;
+}
+
+.modal-dialog-copy p {
+  margin: 10px 0 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.modal-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.modal-secondary-button,
+.modal-primary-button {
+  height: 34px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  padding: 0 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.modal-secondary-button {
+  background: var(--app-surface-raised);
+  color: var(--app-text);
+}
+
+.modal-primary-button {
+  background: var(--app-border-strong);
+  color: var(--app-text-strong);
+}
+
+.modal-primary-button[data-variant="destructive"] {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+}
+
+.modal-secondary-button:hover,
+.modal-primary-button:hover {
+  border-color: var(--app-focus);
 }

@@ -139,6 +139,7 @@ export function NavigationRail({
               data-trash={category.slug === "trash" ? "true" : "false"}
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
+              data-tooltip={category.name}
               title={category.name}
               type="button"
             >
@@ -164,6 +165,7 @@ export function NavigationRail({
               data-trash={category.slug === "trash" ? "true" : "false"}
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
+              data-tooltip={category.name}
               title={category.name}
               type="button"
             >
@@ -175,6 +177,7 @@ export function NavigationRail({
         <button
           aria-label="Settings"
           className="rail-button"
+          data-tooltip="Settings"
           onClick={onOpenSettings}
           title="Settings"
           type="button"

@@ -50,6 +50,7 @@ export function NotesListColumn({
         <span className="notes-list-title">الملاحظات</span>
         <button
           className="new-note-button"
+          data-tooltip={canCreate ? "New note" : "Cannot create notes in Trash"}
           disabled={!canCreate}
           onClick={onCreateNote}
           title={canCreate ? "New note" : "Cannot create notes in Trash"}

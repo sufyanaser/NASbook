@@ -70,6 +70,14 @@ export const defaultAppSettings: AppSettings = {
   confirmUnsavedSwitch: true,
 };
 
+export function isLightLikeTheme(theme: AppTheme): boolean {
+  return theme === "light" || theme === "ulysses";
+}
+
+export function getToggledLightDarkTheme(theme: AppTheme): AppTheme {
+  return isLightLikeTheme(theme) ? "dark" : "light";
+}
+
 function isOneOf<T extends string>(
   value: unknown,
   values: readonly T[],

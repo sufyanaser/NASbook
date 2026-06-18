@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { NoteRecord } from "../../shared/ipc";
+import { isLightLikeTheme } from "../../shared/settings";
 import type {
+  AppTheme,
   EditorDensity,
   EditorDirection,
   EditorFontSize,
@@ -19,11 +21,13 @@ interface NoteEditorAreaProps {
   readonly saveStatus: string;
   readonly selectedNote: NoteRecord | null;
   readonly showMetadata: boolean;
+  readonly theme: AppTheme;
   readonly onContentChange: (content: string) => void;
   readonly onDeletePermanent: () => void;
   readonly onDeleteToTrash: () => void;
   readonly onRestore: () => void;
   readonly onSave: () => void;
+  readonly onToggleTheme: () => void;
   readonly onTitleChange: (title: string) => void;
 }
 
@@ -54,11 +58,13 @@ export function NoteEditorArea({
   saveStatus,
   selectedNote,
   showMetadata,
+  theme,
   onContentChange,
   onDeletePermanent,
   onDeleteToTrash,
   onRestore,
   onSave,
+  onToggleTheme,
   onTitleChange,
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
@@ -125,6 +131,7 @@ export function NoteEditorArea({
       editor.getHTML() === "<p><br></p>" ||
       editor.getHTML() === "<p><br class=\"ProseMirror-trailingBreak\"></p>"
     : true;
+  const isLightMode = isLightLikeTheme(theme);
 
   return (
     <section
@@ -160,8 +167,23 @@ export function NoteEditorArea({
             </div>
           )}
         </div>
-        <div className="direction-chip" title="Editor text direction">
-          {editorDirection.toUpperCase()}
+        <div className="editor-header-actions">
+          <button
+            aria-label={isLightMode ? "Switch to dark theme" : "Switch to light theme"}
+            className="theme-toggle"
+            data-light={isLightMode ? "true" : "false"}
+            data-tooltip={isLightMode ? "Switch to dark theme" : "Switch to light theme"}
+            onClick={onToggleTheme}
+            type="button"
+          >
+            <span aria-hidden="true" />
+          </button>
+          <div
+            className="direction-chip"
+            data-tooltip="Editor text direction"
+          >
+            {editorDirection.toUpperCase()}
+          </div>
         </div>
       </header>
 
@@ -178,8 +200,8 @@ export function NoteEditorArea({
               <div className="note-save-group">
                 <button
                   disabled={!hasSelectedNote}
+                  data-tooltip="Save - Ctrl+S"
                   onClick={onSave}
-                  title="Save — Ctrl+S"
                   type="button"
                 >
                   Save
@@ -201,6 +223,7 @@ export function NoteEditorArea({
               <div className="toolbar-divider" />
               <button
                 disabled={!hasSelectedNote}
+                data-tooltip="Move note to Trash"
                 onClick={onDeleteToTrash}
                 type="button"
               >
@@ -209,12 +232,18 @@ export function NoteEditorArea({
             </>
           ) : (
             <>
-              <button disabled={!hasSelectedNote} onClick={onRestore} type="button">
+              <button
+                disabled={!hasSelectedNote}
+                data-tooltip="Restore note"
+                onClick={onRestore}
+                type="button"
+              >
                 Restore
               </button>
               <button
                 className="danger-button"
                 disabled={!hasSelectedNote}
+                data-tooltip="Delete permanently"
                 onClick={onDeletePermanent}
                 type="button"
               >
@@ -237,7 +266,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 data-active={editor.isActive("bold") ? "true" : "false"}
-                title="Bold — Ctrl+B"
+                data-tooltip="Bold - Ctrl+B"
               >
                 Bold
               </button>
@@ -246,7 +275,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
                 data-active={editor.isActive("italic") ? "true" : "false"}
-                title="Italic — Ctrl+I"
+                data-tooltip="Italic - Ctrl+I"
               >
                 Italic
               </button>
@@ -255,7 +284,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
                 data-active={editor.isActive("bulletList") ? "true" : "false"}
-                title="Bullet list"
+                data-tooltip="Bullet list"
               >
                 Bullet list
               </button>
@@ -264,7 +293,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
                 data-active={editor.isActive("orderedList") ? "true" : "false"}
-                title="Ordered list"
+                data-tooltip="Ordered list"
               >
                 Ordered list
               </button>
@@ -274,7 +303,7 @@ export function NoteEditorArea({
                 onClick={() =>
                   editor.chain().focus().clearNodes().unsetAllMarks().run()
                 }
-                title="Clear formatting"
+                data-tooltip="Clear formatting"
               >
                 Clear formatting
               </button>

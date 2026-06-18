@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   defaultCategories,
   type CategoryRecord,
@@ -8,6 +8,7 @@ import { hasUnsavedNoteChanges } from "../shared/dirtyState";
 import type { AppInfo, NoteRecord, NoteListItem } from "../shared/ipc";
 import {
   defaultAppSettings,
+  getToggledLightDarkTheme,
   type AppSettings,
 } from "../shared/settings";
 import { NavigationRail } from "./components/NavigationRail";
@@ -15,6 +16,11 @@ import { NoteEditorArea } from "./components/NoteEditorArea";
 import { NotesListColumn } from "./components/NotesListColumn";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { StatusFooter } from "./components/StatusFooter";
+import {
+  AppContextMenu,
+  type ContextMenuState,
+} from "./components/AppContextMenu";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 
 type DatabaseStatus = "ready" | "unavailable";
 type SaveStatus = "Idle" | "Unsaved" | "Saving" | "Saved" | "Error";
@@ -49,6 +55,10 @@ export function App(): JSX.Element {
   const [settings, setSettings] =
     useState<AppSettings>(defaultAppSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [isPermanentDeleteDialogOpen, setIsPermanentDeleteDialogOpen] =
+    useState(false);
+  const contextFocusRef = useRef<HTMLElement | null>(null);
 
   const activeCategoryRecord = useMemo(() => {
     return categories.find((category) => category.slug === activeCategory);
@@ -275,6 +285,10 @@ export function App(): JSX.Element {
     void window.nasNotesbook?.app.openDataFolder();
   };
 
+  const handleToggleLightDarkTheme = (): void => {
+    handleUpdateSettings({ theme: getToggledLightDarkTheme(settings.theme) });
+  };
+
   const handleDeleteToTrash = async (): Promise<void> => {
     if (!selectedNote || !window.nasNotesbook) {
       return;
@@ -295,22 +309,22 @@ export function App(): JSX.Element {
     clearSelectedNote();
   };
 
-  const handleDeletePermanent = async (): Promise<void> => {
+  const performDeletePermanent = async (): Promise<void> => {
     if (!selectedNote || !window.nasNotesbook) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Delete this note permanently? This action cannot be undone.",
-    );
-
-    if (!confirmed) {
       return;
     }
 
     await window.nasNotesbook.notes.deletePermanent(selectedNote.id);
     await refreshNotes();
     clearSelectedNote();
+  };
+
+  const handleDeletePermanent = (): void => {
+    if (!selectedNote || !window.nasNotesbook) {
+      return;
+    }
+
+    setIsPermanentDeleteDialogOpen(true);
   };
 
   const handleDraftTitleChange = (title: string): void => {
@@ -323,11 +337,59 @@ export function App(): JSX.Element {
     setSaveStatus("Unsaved");
   };
 
+  const handleOpenContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLElement>): void => {
+      event.preventDefault();
+      contextFocusRef.current = document.activeElement as HTMLElement | null;
+
+      const selectionText = window.getSelection()?.toString() ?? "";
+      const activeElement = document.activeElement;
+      const isEditableTarget =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLElement && activeElement.isContentEditable;
+
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        canCopy: selectionText.length > 0,
+        canPaste: isEditableTarget,
+        canSelectAll: Boolean(activeElement),
+      });
+    },
+    [],
+  );
+
+  const handleContextMenuAction = (action: "copy" | "paste" | "selectAll"): void => {
+    const focusedElement = contextFocusRef.current;
+    focusedElement?.focus();
+    setContextMenu(null);
+
+    if (action === "copy") {
+      document.execCommand("copy");
+      return;
+    }
+
+    if (action === "selectAll") {
+      document.execCommand("selectAll");
+      return;
+    }
+
+    const pasted = document.execCommand("paste");
+    if (!pasted && navigator.clipboard) {
+      void navigator.clipboard.readText().then((text) => {
+        focusedElement?.focus();
+        document.execCommand("insertText", false, text);
+      });
+    }
+  };
+
   return (
     <main
       className="app-shell"
       aria-label="NAS Notesbook workspace"
       dir="ltr"
+      onContextMenu={handleOpenContextMenu}
     >
       <div className="workspace-frame">
         <NavigationRail
@@ -363,9 +425,10 @@ export function App(): JSX.Element {
           saveStatus={saveStatus}
           selectedNote={selectedNote}
           showMetadata={settings.showMetadata}
+          theme={settings.theme}
           onContentChange={handleDraftContentChange}
           onDeletePermanent={() => {
-            void handleDeletePermanent();
+            handleDeletePermanent();
           }}
           onDeleteToTrash={() => {
             void handleDeleteToTrash();
@@ -376,9 +439,27 @@ export function App(): JSX.Element {
           onSave={() => {
             void handleSaveNote();
           }}
+          onToggleTheme={handleToggleLightDarkTheme}
           onTitleChange={handleDraftTitleChange}
         />
       </div>
+      <AppContextMenu
+        menu={contextMenu}
+        onAction={handleContextMenuAction}
+        onClose={() => setContextMenu(null)}
+      />
+      <ConfirmDialog
+        confirmLabel="Delete permanently"
+        isOpen={isPermanentDeleteDialogOpen}
+        message="This note will be removed from the local SQLite database. This action cannot be undone."
+        title="Delete note permanently?"
+        variant="destructive"
+        onCancel={() => setIsPermanentDeleteDialogOpen(false)}
+        onConfirm={() => {
+          setIsPermanentDeleteDialogOpen(false);
+          void performDeletePermanent();
+        }}
+      />
       <SettingsPanel
         appInfo={appInfo}
         isOpen={isSettingsOpen}
