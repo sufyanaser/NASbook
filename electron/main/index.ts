@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, Menu } from "electron";
 import path from "node:path";
 import { createNotesbookDatabase, type NotesbookDatabase } from "./db";
 import { registerIpcHandlers } from "./ipc";
+import { createSettingsStore } from "./settingsStore";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 let notesbookDatabase: NotesbookDatabase | null = null;
@@ -53,11 +54,14 @@ function createMainWindow(): void {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  notesbookDatabase = createNotesbookDatabase(app.getPath("userData"));
+  const userDataPath = app.getPath("userData");
+  notesbookDatabase = createNotesbookDatabase(userDataPath);
+  const settingsStore = createSettingsStore(userDataPath);
   registerIpcHandlers({
     appName: app.getName(),
     appVersion: app.getVersion(),
     database: notesbookDatabase,
+    settingsStore,
   });
 
   createMainWindow();

@@ -1,10 +1,13 @@
 import type { CategoryRecord } from "./categories";
+import type { AppSettings } from "./settings";
 
 export interface AppInfo {
   readonly name: string;
   readonly version: string;
   readonly phase: "phase-2-data-layer";
   readonly databasePath: string;
+  readonly dataDirectory: string;
+  readonly settingsPath: string;
 }
 
 export interface NoteListItem {
@@ -46,6 +49,13 @@ export interface UpdateNoteInput {
 export interface NasNotesbookApi {
   readonly app: {
     readonly getInfo: () => Promise<AppInfo>;
+    readonly openDataFolder: () => Promise<void>;
+  };
+  readonly settings: {
+    readonly get: () => Promise<AppSettings>;
+    readonly update: (
+      settings: Partial<AppSettings>,
+    ) => Promise<AppSettings>;
   };
   readonly categories: {
     readonly list: () => Promise<readonly CategoryRecord[]>;

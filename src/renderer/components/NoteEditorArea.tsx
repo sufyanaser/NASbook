@@ -2,14 +2,23 @@ import { useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { NoteRecord } from "../../shared/ipc";
+import type {
+  EditorDensity,
+  EditorDirection,
+  EditorFontSize,
+} from "../../shared/settings";
 
 interface NoteEditorAreaProps {
   readonly activeCategoryName: string;
   readonly draftContent: string;
   readonly draftTitle: string;
+  readonly editorDensity: EditorDensity;
+  readonly editorDirection: EditorDirection;
+  readonly fontSize: EditorFontSize;
   readonly isTrashView: boolean;
   readonly saveStatus: string;
   readonly selectedNote: NoteRecord | null;
+  readonly showMetadata: boolean;
   readonly onContentChange: (content: string) => void;
   readonly onDeletePermanent: () => void;
   readonly onDeleteToTrash: () => void;
@@ -38,9 +47,13 @@ export function NoteEditorArea({
   activeCategoryName,
   draftContent,
   draftTitle,
+  editorDensity,
+  editorDirection,
+  fontSize,
   isTrashView,
   saveStatus,
   selectedNote,
+  showMetadata,
   onContentChange,
   onDeletePermanent,
   onDeleteToTrash,
@@ -114,7 +127,13 @@ export function NoteEditorArea({
     : true;
 
   return (
-    <section className="editor-area" aria-label="Editor placeholder" dir="rtl">
+    <section
+      className="editor-area"
+      aria-label="Editor placeholder"
+      data-editor-density={editorDensity}
+      data-editor-font-size={fontSize}
+      dir={editorDirection === "ltr" ? "ltr" : "rtl"}
+    >
       <header className="editor-header">
         <div style={{ flex: 1 }}>
           <span className="editor-eyebrow">{activeCategoryName}</span>
@@ -126,7 +145,7 @@ export function NoteEditorArea({
             type="text"
             value={draftTitle}
           />
-          {hasSelectedNote && (
+          {hasSelectedNote && showMetadata && (
             <div className="note-metadata-row">
               {selectedNote.createdAt && (
                 <span className="metadata-item">
@@ -141,8 +160,8 @@ export function NoteEditorArea({
             </div>
           )}
         </div>
-        <div className="direction-chip" title="RTL-first scaffold">
-          RTL
+        <div className="direction-chip" title="Editor text direction">
+          {editorDirection.toUpperCase()}
         </div>
       </header>
 
@@ -270,7 +289,7 @@ export function NoteEditorArea({
             isEditorEmpty ? " is-editor-empty" : ""
           }`}
           data-readonly={isTrashView ? "true" : "false"}
-          dir="auto"
+          dir={editorDirection}
         >
           <EditorContent editor={editor} />
         </div>
@@ -286,4 +305,3 @@ export function NoteEditorArea({
     </section>
   );
 }
-

@@ -7,6 +7,10 @@ import {
   seedCategories,
 } from "../dist/electron/main/schema.js";
 import { hasUnsavedNoteChanges, stripHtmlForPreview } from "../dist/src/shared/dirtyState.js";
+import {
+  defaultAppSettings,
+  normalizeAppSettings,
+} from "../dist/src/shared/settings.js";
 
 const expectedCategories = [
   "All Notes",
@@ -115,4 +119,42 @@ test("stripHtmlForPreview strips tags, decodes entities, and normalizes whitespa
   // Normalizes excessive whitespace
   assert.equal(stripHtmlForPreview("   Hello    World   "), "Hello World");
   assert.equal(stripHtmlForPreview("<p>  Hello  </p>\n\n<p>  World  </p>"), "Hello World");
+});
+
+test("app settings defaults preserve manual-save behavior", () => {
+  assert.deepEqual(defaultAppSettings, {
+    theme: "dark",
+    railIconMode: "colored",
+    editorDirection: "auto",
+    editorDensity: "comfortable",
+    fontSize: "medium",
+    showMetadata: true,
+    showNotePreview: true,
+    showNoteDates: true,
+    confirmUnsavedSwitch: true,
+  });
+});
+
+test("app settings validation rejects unsupported values", () => {
+  const settings = normalizeAppSettings({
+    theme: "broken",
+    railIconMode: "adaptive",
+    editorDirection: "sideways",
+    editorDensity: "wide",
+    fontSize: "huge",
+    showMetadata: false,
+    showNotePreview: "yes",
+    showNoteDates: false,
+    confirmUnsavedSwitch: false,
+  });
+
+  assert.equal(settings.theme, "dark");
+  assert.equal(settings.railIconMode, "adaptive");
+  assert.equal(settings.editorDirection, "auto");
+  assert.equal(settings.editorDensity, "wide");
+  assert.equal(settings.fontSize, "medium");
+  assert.equal(settings.showMetadata, false);
+  assert.equal(settings.showNotePreview, true);
+  assert.equal(settings.showNoteDates, false);
+  assert.equal(settings.confirmUnsavedSwitch, false);
 });

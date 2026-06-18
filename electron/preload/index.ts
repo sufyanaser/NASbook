@@ -5,10 +5,17 @@ import type {
   NoteListOptions,
   UpdateNoteInput,
 } from "../../src/shared/ipc";
+import type { AppSettings } from "../../src/shared/settings";
 
 const api: NasNotesbookApi = Object.freeze({
   app: Object.freeze({
     getInfo: () => ipcRenderer.invoke("app:getInfo"),
+    openDataFolder: () => ipcRenderer.invoke("app:openDataFolder"),
+  }),
+  settings: Object.freeze({
+    get: () => ipcRenderer.invoke("settings:get"),
+    update: (settings: Partial<AppSettings>) =>
+      ipcRenderer.invoke("settings:update", settings),
   }),
   categories: Object.freeze({
     list: () => ipcRenderer.invoke("categories:list"),

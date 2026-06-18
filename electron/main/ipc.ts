@@ -1,30 +1,56 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
+import path from "node:path";
 import type {
   AppInfo,
   CreateNoteInput,
   NoteListOptions,
   UpdateNoteInput,
 } from "../../src/shared/ipc";
+import type { AppSettings } from "../../src/shared/settings";
 import type { NotesbookDatabase } from "./db";
+import type { SettingsStore } from "./settingsStore";
 
 interface RegisterIpcOptions {
   readonly appName: string;
   readonly appVersion: string;
   readonly database: NotesbookDatabase;
+  readonly settingsStore: SettingsStore;
 }
 
 export function registerIpcHandlers({
   appName,
   appVersion,
   database,
+  settingsStore,
 }: RegisterIpcOptions): void {
   ipcMain.handle("app:getInfo", (): AppInfo => {
+    const dataDirectory = path.dirname(database.databasePath);
+
     return {
       name: appName,
       version: appVersion,
       phase: "phase-2-data-layer",
       databasePath: database.databasePath,
+      dataDirectory,
+      settingsPath: settingsStore.settingsPath,
     };
+  });
+
+  ipcMain.handle("app:openDataFolder", async () => {
+    const dataDirectory = path.dirname(database.databasePath);
+    const result = await shell.openPath(dataDirectory);
+
+    if (result) {
+      throw new Error(result);
+    }
+  });
+
+  ipcMain.handle("settings:get", () => {
+    return settingsStore.getSettings();
+  });
+
+  ipcMain.handle("settings:update", (_event, settings: Partial<AppSettings>) => {
+    return settingsStore.updateSettings(settings);
   });
 
   ipcMain.handle("categories:list", () => {

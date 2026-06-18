@@ -1,13 +1,11 @@
+import { useEffect, useState } from "react";
 import type { CategoryDefinition, CategorySlug } from "../../shared/categories";
-
-type RailIconMode = "colored" | "adaptive";
+import type { RailIconMode } from "../../shared/settings";
 
 interface IconResolution {
-  readonly type: "image" | "mask" | "text";
+  readonly type: "image" | "inline" | "text";
   readonly value: string;
 }
-
-const railIconMode: RailIconMode = "colored";
 
 const categoryIconPath = (mode: RailIconMode, fileName: string): string =>
   `${import.meta.env.BASE_URL}category-icons/${mode}/${fileName}`;
@@ -37,7 +35,7 @@ const getCategoryIcon = (
     const value = categoryIconPath(mode, fileName);
 
     return {
-      type: mode === "adaptive" ? "mask" : "image",
+      type: mode === "adaptive" ? "inline" : "image",
       value,
     };
   }
@@ -45,18 +43,54 @@ const getCategoryIcon = (
   return { type: "text", value: name.slice(0, 2).toUpperCase() };
 };
 
+function InlineRailIcon({ src }: { readonly src: string }): JSX.Element {
+  const [svgMarkup, setSvgMarkup] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(src)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Icon request failed: ${response.status}`);
+        }
+        return response.text();
+      })
+      .then((markup) => {
+        if (isMounted) {
+          setSvgMarkup(markup);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSvgMarkup(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [src]);
+
+  if (!svgMarkup) {
+    return <span className="rail-icon-mask" style={{ "--icon-url": `url(${src})` } as React.CSSProperties} />;
+  }
+
+  return (
+    <span
+      className="rail-icon-inline"
+      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+    />
+  );
+}
+
 const renderRailIcon = (icon: IconResolution): JSX.Element | string => {
   if (icon.type === "image") {
     return <img className="rail-icon-image" src={icon.value} alt="" />;
   }
 
-  if (icon.type === "mask") {
-    return (
-      <span
-        className="rail-icon-mask"
-        style={{ "--icon-url": `url(${icon.value})` } as React.CSSProperties}
-      />
-    );
+  if (icon.type === "inline") {
+    return <InlineRailIcon src={icon.value} />;
   }
 
   return icon.value;
@@ -65,12 +99,16 @@ const renderRailIcon = (icon: IconResolution): JSX.Element | string => {
 interface NavigationRailProps {
   readonly activeCategory: CategorySlug;
   readonly categories: readonly CategoryDefinition[];
+  readonly railIconMode: RailIconMode;
+  readonly onOpenSettings: () => void;
   readonly onSelectCategory: (category: CategorySlug) => void;
 }
 
 export function NavigationRail({
   activeCategory,
   categories,
+  railIconMode,
+  onOpenSettings,
   onSelectCategory,
 }: NavigationRailProps): JSX.Element {
   const primaryCategories = categories.filter(
@@ -137,6 +175,7 @@ export function NavigationRail({
         <button
           aria-label="Settings"
           className="rail-button"
+          onClick={onOpenSettings}
           title="Settings"
           type="button"
         >

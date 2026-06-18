@@ -7,6 +7,8 @@ interface NotesListColumnProps {
   readonly isTrashView: boolean;
   readonly notes: readonly NoteListItem[];
   readonly selectedNoteId: number | null;
+  readonly showNoteDates: boolean;
+  readonly showNotePreview: boolean;
   readonly onCreateNote: () => void;
   readonly onSelectNote: (id: number) => void;
 }
@@ -32,6 +34,8 @@ export function NotesListColumn({
   isTrashView,
   notes,
   selectedNoteId,
+  showNoteDates,
+  showNotePreview,
   onCreateNote,
   onSelectNote,
 }: NotesListColumnProps): JSX.Element {
@@ -84,15 +88,19 @@ export function NotesListColumn({
           >
             <div className="note-card-topline">
               <h2>{note.title}</h2>
-              <time
-                title={`أنشئت: ${formatShortDate(
-                  note.createdAt,
-                )} • آخر تعديل: ${formatShortDate(note.updatedAt)}`}
-              >
-                {formatShortDate(note.updatedAt)}
-              </time>
+              {showNoteDates && (
+                <time
+                  title={`أنشئت: ${formatShortDate(
+                    note.createdAt,
+                  )} • آخر تعديل: ${formatShortDate(note.updatedAt)}`}
+                >
+                  {formatShortDate(note.updatedAt)}
+                </time>
+              )}
             </div>
-            <p>{stripHtmlForPreview(note.preview) || "لا يوجد محتوى بعد."}</p>
+            {showNotePreview && (
+              <p>{stripHtmlForPreview(note.preview) || "لا يوجد محتوى بعد."}</p>
+            )}
           </button>
         ))}
       </div>

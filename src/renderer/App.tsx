@@ -5,10 +5,15 @@ import {
   type CategorySlug,
 } from "../shared/categories";
 import { hasUnsavedNoteChanges } from "../shared/dirtyState";
-import type { NoteRecord, NoteListItem } from "../shared/ipc";
+import type { AppInfo, NoteRecord, NoteListItem } from "../shared/ipc";
+import {
+  defaultAppSettings,
+  type AppSettings,
+} from "../shared/settings";
 import { NavigationRail } from "./components/NavigationRail";
 import { NoteEditorArea } from "./components/NoteEditorArea";
 import { NotesListColumn } from "./components/NotesListColumn";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { StatusFooter } from "./components/StatusFooter";
 
 type DatabaseStatus = "ready" | "unavailable";
@@ -40,6 +45,10 @@ export function App(): JSX.Element {
   const [draftContent, setDraftContent] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("Idle");
   const [notesCount, setNotesCount] = useState(0);
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [settings, setSettings] =
+    useState<AppSettings>(defaultAppSettings);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const activeCategoryRecord = useMemo(() => {
     return categories.find((category) => category.slug === activeCategory);
@@ -87,6 +96,10 @@ export function App(): JSX.Element {
       return true;
     }
 
+    if (!settings.confirmUnsavedSwitch) {
+      return true;
+    }
+
     return window.confirm("You have unsaved changes. Discard them?");
   };
 
@@ -108,13 +121,20 @@ export function App(): JSX.Element {
       };
     }
 
-    Promise.all([api.categories.list(), loadNotes(api, activeCategory, null)])
-      .then(([nextCategories, nextNotes]) => {
+    Promise.all([
+      api.app.getInfo(),
+      api.settings.get(),
+      api.categories.list(),
+      loadNotes(api, activeCategory, null),
+    ])
+      .then(([nextAppInfo, nextSettings, nextCategories, nextNotes]) => {
         if (!isMounted) {
           return;
         }
 
         setDatabaseStatus("ready");
+        setAppInfo(nextAppInfo);
+        setSettings(nextSettings);
         setCategories(
           nextCategories.length > 0
             ? nextCategories
@@ -135,6 +155,10 @@ export function App(): JSX.Element {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+  }, [settings.theme]);
 
   useEffect(() => {
     void refreshNotes().catch(() => {
@@ -232,6 +256,25 @@ export function App(): JSX.Element {
     }
   };
 
+  const handleUpdateSettings = (updates: Partial<AppSettings>): void => {
+    const nextSettings = {
+      ...settings,
+      ...updates,
+    };
+    setSettings(nextSettings);
+
+    void window.nasNotesbook?.settings
+      .update(updates)
+      .then(setSettings)
+      .catch(() => {
+        setSettings(settings);
+      });
+  };
+
+  const handleOpenDataFolder = (): void => {
+    void window.nasNotesbook?.app.openDataFolder();
+  };
+
   const handleDeleteToTrash = async (): Promise<void> => {
     if (!selectedNote || !window.nasNotesbook) {
       return;
@@ -290,6 +333,8 @@ export function App(): JSX.Element {
         <NavigationRail
           activeCategory={activeCategory}
           categories={categories}
+          railIconMode={settings.railIconMode}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onSelectCategory={handleSelectCategory}
         />
         <NotesListColumn
@@ -298,6 +343,8 @@ export function App(): JSX.Element {
           isTrashView={activeCategory === "trash"}
           notes={notes}
           selectedNoteId={selectedNote?.id ?? null}
+          showNoteDates={settings.showNoteDates}
+          showNotePreview={settings.showNotePreview}
           onCreateNote={() => {
             void handleCreateNote();
           }}
@@ -309,9 +356,13 @@ export function App(): JSX.Element {
           activeCategoryName={activeCategoryName}
           draftContent={draftContent}
           draftTitle={draftTitle}
+          editorDensity={settings.editorDensity}
+          editorDirection={settings.editorDirection}
+          fontSize={settings.fontSize}
           isTrashView={activeCategory === "trash"}
           saveStatus={saveStatus}
           selectedNote={selectedNote}
+          showMetadata={settings.showMetadata}
           onContentChange={handleDraftContentChange}
           onDeletePermanent={() => {
             void handleDeletePermanent();
@@ -328,6 +379,14 @@ export function App(): JSX.Element {
           onTitleChange={handleDraftTitleChange}
         />
       </div>
+      <SettingsPanel
+        appInfo={appInfo}
+        isOpen={isSettingsOpen}
+        settings={settings}
+        onClose={() => setIsSettingsOpen(false)}
+        onOpenDataFolder={handleOpenDataFolder}
+        onUpdateSettings={handleUpdateSettings}
+      />
       <StatusFooter
         activeCategoryName={activeCategoryName}
         categoriesCount={categories.length}
