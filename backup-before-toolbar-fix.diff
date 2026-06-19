@@ -1,0 +1,327 @@
+diff --git a/.gitignore b/.gitignore
+index 21abc3a..7a29c71 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -27,3 +27,4 @@ CLAUDE.md
+ google-credentials.json
+ client_secret*.json
+ *token*.json
++.aider*
+diff --git a/src/renderer/components/EditorContextMenu.tsx b/src/renderer/components/EditorContextMenu.tsx
+index bbc5b61..3dc627b 100644
+--- a/src/renderer/components/EditorContextMenu.tsx
++++ b/src/renderer/components/EditorContextMenu.tsx
+@@ -64,7 +64,13 @@ function MenuList({
+               disabled={node.disabled}
+               aria-haspopup={hasSub ? "menu" : undefined}
+               aria-expanded={hasSub ? isOpen : undefined}
+-              onClick={() => {
++              onClick={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++              }}
++              onMouseDown={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
+                 if (node.disabled) {
+                   return;
+                 }
+diff --git a/src/renderer/components/NoteEditorArea.tsx b/src/renderer/components/NoteEditorArea.tsx
+index a48958d..cae2e60 100644
+--- a/src/renderer/components/NoteEditorArea.tsx
++++ b/src/renderer/components/NoteEditorArea.tsx
+@@ -448,7 +448,16 @@ function Dropdown<T extends string>({
+         className="custom-dropdown-trigger"
+         disabled={disabled}
+         data-tooltip={tooltip}
+-        onClick={() => setIsOpen(!isOpen)}
++        onClick={(event) => {
++          if (event.detail === 0) {
++            setIsOpen((open) => !open);
++          }
++        }}
++        onMouseDown={(event) => {
++          event.preventDefault();
++          event.stopPropagation();
++          setIsOpen((open) => !open);
++        }}
+         type="button"
+       >
+         <span className="dropdown-label-text">{label}</span>
+@@ -480,7 +489,13 @@ function Dropdown<T extends string>({
+               key={option.value}
+               className={`custom-dropdown-item ${option.className || ""}`}
+               data-selected={option.value === value ? "true" : "false"}
+-              onClick={() => {
++              onClick={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
++              }}
++              onMouseDown={(event) => {
++                event.preventDefault();
++                event.stopPropagation();
+                 onChange(option.value);
+                 setIsOpen(false);
+               }}
+@@ -602,7 +617,16 @@ function ColorPicker({
+         className="toolbar-icon-button color-picker-trigger"
+         disabled={disabled}
+         data-tooltip={tooltip}
+-        onClick={() => setIsOpen(!isOpen)}
++        onClick={(event) => {
++          if (event.detail === 0) {
++            setIsOpen((open) => !open);
++          }
++        }}
++        onMouseDown={(event) => {
++          event.preventDefault();
++          event.stopPropagation();
++          setIsOpen((open) => !open);
++        }}
+         type="button"
+       >
+         <svg viewBox="0 0 24 24" className="toolbar-button-icon" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+@@ -662,7 +686,13 @@ function ColorPicker({
+                   key={swatch.name}
+                   className="color-swatch-button"
+                   data-tooltip={getSwatchTooltip(swatch.name)}
+-                  onClick={() => {
++                  onClick={(event) => {
++                    event.preventDefault();
++                    event.stopPropagation();
++                  }}
++                  onMouseDown={(event) => {
++                    event.preventDefault();
++                    event.stopPropagation();
+                     onChange(swatch.value);
+                     setIsOpen(false);
+                   }}
+@@ -804,7 +834,16 @@ function CodeBlockColorPicker({
+         className="toolbar-icon-button color-picker-trigger code-block-color-trigger"
+         disabled={disabled}
+         data-tooltip={tooltip}
+-        onClick={() => setIsOpen(!isOpen)}
++        onClick={(event) => {
++          if (event.detail === 0) {
++            setIsOpen((open) => !open);
++          }
++        }}
++        onMouseDown={(event) => {
++          event.preventDefault();
++          event.stopPropagation();
++          setIsOpen((open) => !open);
++        }}
+         type="button"
+       >
+         <ToolbarIconSvg icon="codeBlockColor" />
+@@ -843,7 +882,13 @@ function CodeBlockColorPicker({
+                 className="color-swatch-button"
+                 data-active={swatch.value === value ? "true" : "false"}
+                 data-tooltip={getSwatchTooltip(swatch.name)}
+-                onClick={() => {
++                onClick={(event) => {
++                  event.preventDefault();
++                  event.stopPropagation();
++                }}
++                onMouseDown={(event) => {
++                  event.preventDefault();
++                  event.stopPropagation();
+                   onChange(swatch.value);
+                   setIsOpen(false);
+                 }}
+@@ -1335,6 +1380,18 @@ export function NoteEditorArea({
+     setIsLinkDialogOpen(false);
+   };
+ 
++  const handleToolbarCommand = (
++    event: React.MouseEvent<HTMLButtonElement>,
++    command: () => void,
++  ): void => {
++    event.preventDefault();
++    event.stopPropagation();
++    if (!hasSelectedNote || isTrashView) {
++      return;
++    }
++    command();
++  };
++
+   const handleEditorContextMenu = (
+     event: React.MouseEvent<HTMLDivElement>,
+   ): void => {
+@@ -2123,7 +2180,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleBold().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleBold().run();
++                  });
++                }}
+                 data-active={editor.isActive("bold") ? "true" : "false"}
+                 data-tooltip={t("tooltipBold", language)}
+               >
+@@ -2134,7 +2195,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleItalic().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleItalic().run();
++                  });
++                }}
+                 data-active={editor.isActive("italic") ? "true" : "false"}
+                 data-tooltip={t("tooltipItalic", language)}
+               >
+@@ -2145,7 +2210,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleUnderline().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleUnderline().run();
++                  });
++                }}
+                 data-active={editor.isActive("underline") ? "true" : "false"}
+                 data-tooltip={t("tooltipUnderline", language)}
+               >
+@@ -2156,7 +2225,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleStrike().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleStrike().run();
++                  });
++                }}
+                 data-active={editor.isActive("strike") ? "true" : "false"}
+                 data-tooltip={language === "ar" ? "يتوسطه خط" : "Strikethrough"}
+               >
+@@ -2186,7 +2259,12 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => setIsLinkDialogOpen(true)}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().extendMarkRange("link").run();
++                    setIsLinkDialogOpen(true);
++                  });
++                }}
+                 data-active={editor.isActive("link") ? "true" : "false"}
+                 data-tooltip={t("tooltipLink", language)}
+               >
+@@ -2197,7 +2275,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleCodeBlock().run();
++                  });
++                }}
+                 data-active={editor.isActive("codeBlock") ? "true" : "false"}
+                 data-tooltip={language === "ar" ? "كتلة كود" : "Code block"}
+               >
+@@ -2239,7 +2321,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleBulletList().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleBulletList().run();
++                  });
++                }}
+                 data-active={editor.isActive("bulletList") ? "true" : "false"}
+                 data-tooltip={t("tooltipBullets", language)}
+               >
+@@ -2250,7 +2336,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().toggleOrderedList().run();
++                  });
++                }}
+                 data-active={editor.isActive("orderedList") ? "true" : "false"}
+                 data-tooltip={t("tooltipNumbered", language)}
+               >
+@@ -2261,7 +2351,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().setTextAlign("left").run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().setTextAlign("left").run();
++                  });
++                }}
+                 data-active={editor.isActive({ textAlign: "left" }) ? "true" : "false"}
+                 data-tooltip={t("tooltipAlignLeft", language)}
+               >
+@@ -2272,7 +2366,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().setTextAlign("center").run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().setTextAlign("center").run();
++                  });
++                }}
+                 data-active={editor.isActive({ textAlign: "center" }) ? "true" : "false"}
+                 data-tooltip={t("tooltipAlignCenter", language)}
+               >
+@@ -2283,7 +2381,11 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() => editor.chain().focus().setTextAlign("right").run()}
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor.chain().focus().setTextAlign("right").run();
++                  });
++                }}
+                 data-active={editor.isActive({ textAlign: "right" }) ? "true" : "false"}
+                 data-tooltip={t("tooltipAlignRight", language)}
+               >
+@@ -2300,18 +2402,20 @@ export function NoteEditorArea({
+                 className="toolbar-icon-button"
+                 type="button"
+                 disabled={!hasSelectedNote || isTrashView}
+-                onClick={() =>
+-                  editor
+-                    .chain()
+-                    .focus()
+-                    .clearNodes()
+-                    .unsetAllMarks()
+-                    .unsetColor()
+-                    .unsetFontFamily()
+-                    .unsetFontSize()
+-                    .unsetLink()
+-                    .run()
+-                }
++                onMouseDown={(event) => {
++                  handleToolbarCommand(event, () => {
++                    editor
++                      .chain()
++                      .focus()
++                      .clearNodes()
++                      .unsetAllMarks()
++                      .unsetColor()
++                      .unsetFontFamily()
++                      .unsetFontSize()
++                      .unsetLink()
++                      .run();
++                  });
++                }}
+                 data-tooltip={t("tooltipClearFormatting", language)}
+               >
+                 <ToolbarIconSvg icon="clear" />
