@@ -884,6 +884,9 @@ function ThemeDropdown({
   ];
 
   const currentOption = themeOptions.find((opt) => opt.value === theme) || themeOptions[0];
+  const isRtl = language === "ar";
+  const triggerText = isRtl ? "سمة" : "Theme";
+  const currentThemeLabel = isRtl ? currentOption.labelAr : currentOption.labelEn;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -894,14 +897,12 @@ function ThemeDropdown({
     const updateCoords = () => {
       const triggerRect = trigger.getBoundingClientRect();
       const menu = menuRef.current;
-      const menuWidth = menu ? menu.offsetWidth : 200;
-      const menuHeight = menu ? menu.offsetHeight : 240;
+      const menuWidth = menu ? menu.offsetWidth : 236;
+      const menuHeight = menu ? menu.offsetHeight : 280;
 
-      let left = triggerRect.left;
-      let top = triggerRect.bottom + 4;
-      let openUpward = false;
+      let left = isRtl ? triggerRect.right - menuWidth : triggerRect.left;
+      let top = triggerRect.bottom + 8;
 
-      // Horizontal clamping
       if (left + menuWidth > window.innerWidth) {
         left = window.innerWidth - menuWidth - 12;
       }
@@ -909,13 +910,13 @@ function ThemeDropdown({
         left = 12;
       }
 
-      // Vertical clamping
       if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
-        top = triggerRect.top - menuHeight - 4;
-        openUpward = true;
+        top = triggerRect.top - menuHeight - 8;
+      } else if (top + menuHeight > window.innerHeight) {
+        top = Math.max(12, window.innerHeight - menuHeight - 12);
       }
 
-      setCoords({ top, left, openUpward });
+      setCoords({ top, left });
     };
 
     const id = requestAnimationFrame(updateCoords);
@@ -952,18 +953,18 @@ function ThemeDropdown({
       window.removeEventListener("scroll", handleCloseEvent, true);
       window.removeEventListener("resize", handleCloseEvent);
     };
-  }, [isOpen]);
-
-  const isRtl = language === "ar";
+  }, [isOpen, isRtl]);
 
   return (
-    <div className="custom-dropdown-container">
+    <div className="custom-dropdown-container theme-dropdown-container">
       <button
         ref={triggerRef}
         aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={isRtl ? `تغيير السمة: ${currentThemeLabel}` : `Change theme: ${currentThemeLabel}`}
         className="theme-dropdown-trigger"
         onClick={() => setIsOpen(!isOpen)}
-        data-tooltip={language === "ar" ? "تغيير السمة" : "Change theme"}
+        data-tooltip={isRtl ? `تغيير السمة: ${currentThemeLabel}` : `Change theme: ${currentThemeLabel}`}
         type="button"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
@@ -973,15 +974,15 @@ function ThemeDropdown({
           <circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" />
           <circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" />
         </svg>
-        <span className="theme-trigger-label">
-          {isRtl ? currentOption.labelAr : currentOption.labelEn}
-        </span>
+        <span className="theme-trigger-label">{triggerText}</span>
       </button>
 
       {isOpen && createPortal(
         <div
           ref={menuRef}
           className="theme-dropdown-menu"
+          dir={isRtl ? "rtl" : "ltr"}
+          role="menu"
           style={coords ? {
             position: "fixed",
             top: `${coords.top}px`,
@@ -1004,6 +1005,8 @@ function ThemeDropdown({
                 onChange(option.value);
                 setIsOpen(false);
               }}
+              role="menuitemradio"
+              aria-checked={option.value === theme}
               type="button"
             >
               <div className="theme-item-details">
