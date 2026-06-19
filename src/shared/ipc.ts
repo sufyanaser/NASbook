@@ -61,6 +61,12 @@ export interface BackupResult {
   readonly error?: string;
 }
 
+export interface GoogleAuthState {
+  readonly linked: boolean;
+  readonly email: string | null;
+  readonly error: string | null;
+}
+
 export interface NasNotesbookApi {
   readonly app: {
     readonly getInfo: () => Promise<AppInfo>;
@@ -90,5 +96,10 @@ export interface NasNotesbookApi {
     readonly create: () => Promise<BackupResult>;
     readonly getStatus: () => Promise<BackupStatus>;
     readonly openFolder: () => Promise<void>;
+  };
+  readonly googleAuth: {
+    readonly link: () => Promise<GoogleAuthState>;
+    readonly unlink: () => Promise<void>;
+    readonly getStatus: () => Promise<GoogleAuthState>;
   };
 }

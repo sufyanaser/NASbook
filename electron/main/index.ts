@@ -4,6 +4,7 @@ import { createNotesbookDatabase, type NotesbookDatabase } from "./db";
 import { registerIpcHandlers } from "./ipc";
 import { createSettingsStore } from "./settingsStore";
 import { createBackupService } from "./backupService";
+import { createGoogleAuthService } from "./googleAuthService";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 let notesbookDatabase: NotesbookDatabase | null = null;
@@ -72,12 +73,15 @@ app.whenReady().then(() => {
     });
   }, 1000);
 
+  const googleAuthService = createGoogleAuthService(userDataPath);
+
   registerIpcHandlers({
     appName: app.getName(),
     appVersion: app.getVersion(),
     database: notesbookDatabase,
     settingsStore,
     backupService,
+    googleAuthService,
   });
 
   createMainWindow();
