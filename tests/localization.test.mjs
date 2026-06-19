@@ -8,12 +8,14 @@ test("localization t helper translates keys correctly", () => {
   assert.equal(t("newNote", "ar"), "ملاحظة جديدة");
   assert.equal(t("saved", "ar"), "تم الحفظ");
   assert.equal(t("tooltipFontFamily", "ar"), "عائلة الخط");
+  assert.equal(t("googleStatusNotConfigured", "ar"), "لم يتم إعداد بيانات Google");
 
   // Test English translation
   assert.equal(t("notesListTitle", "en"), "Notes");
   assert.equal(t("newNote", "en"), "New Note");
   assert.equal(t("saved", "en"), "Saved");
   assert.equal(t("tooltipFontFamily", "en"), "Font Family");
+  assert.equal(t("googleStatusNotConfigured", "en"), "Google credentials not configured");
 });
 
 test("localization t helper handles fallbacks", () => {

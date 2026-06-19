@@ -31,6 +31,9 @@ export interface AppSettings {
   readonly language: AppLanguage;
   readonly autoBackupEnabled: boolean;
   readonly backupRetentionCount: number;
+  readonly cloudBackupEnabled: boolean;
+  readonly lastCloudBackupAt: string | null;
+  readonly lastCloudBackupFileName: string | null;
 }
 
 export const appThemes = [
@@ -78,6 +81,9 @@ export const defaultAppSettings: AppSettings = {
   language: "ar",
   autoBackupEnabled: true,
   backupRetentionCount: 10,
+  cloudBackupEnabled: false,
+  lastCloudBackupAt: null,
+  lastCloudBackupFileName: null,
 };
 
 export function isLightLikeTheme(theme: AppTheme): boolean {
@@ -147,5 +153,17 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       candidate.backupRetentionCount > 0
         ? candidate.backupRetentionCount
         : defaultAppSettings.backupRetentionCount,
+    cloudBackupEnabled:
+      typeof candidate.cloudBackupEnabled === "boolean"
+        ? candidate.cloudBackupEnabled
+        : defaultAppSettings.cloudBackupEnabled,
+    lastCloudBackupAt:
+      typeof candidate.lastCloudBackupAt === "string" || candidate.lastCloudBackupAt === null
+        ? candidate.lastCloudBackupAt
+        : defaultAppSettings.lastCloudBackupAt,
+    lastCloudBackupFileName:
+      typeof candidate.lastCloudBackupFileName === "string" || candidate.lastCloudBackupFileName === null
+        ? candidate.lastCloudBackupFileName
+        : defaultAppSettings.lastCloudBackupFileName,
   };
 }

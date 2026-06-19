@@ -135,6 +135,7 @@ export function createBackupService(
     const currentSettings = settingsStore.getSettings();
     let backupCount = 0;
     let lastBackupAt: string | null = null;
+    let lastBackupFileName: string | null = null;
 
     try {
       if (existsSync(backupsFolder)) {
@@ -142,6 +143,10 @@ export function createBackupService(
         const dbPattern = /^nas-notesbook-backup-(\d{4}-\d{2}-\d{2}-\d{6})\.db$/;
         const dbFiles = files.filter((f) => dbPattern.test(f));
         backupCount = dbFiles.length;
+        if (dbFiles.length > 0) {
+          dbFiles.sort();
+          lastBackupFileName = dbFiles[dbFiles.length - 1];
+        }
         lastBackupAt = await getLatestBackupTime(files);
       }
     } catch (err: any) {
@@ -151,6 +156,7 @@ export function createBackupService(
     return {
       backupsFolder,
       lastBackupAt,
+      lastBackupFileName,
       backupCount,
       autoBackupEnabled: currentSettings.autoBackupEnabled,
       retentionCount: currentSettings.backupRetentionCount,

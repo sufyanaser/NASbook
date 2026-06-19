@@ -137,6 +137,9 @@ test("app settings defaults preserve manual-save behavior", () => {
     language: "ar",
     autoBackupEnabled: true,
     backupRetentionCount: 10,
+    cloudBackupEnabled: false,
+    lastCloudBackupAt: null,
+    lastCloudBackupFileName: null,
   });
 });
 

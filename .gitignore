@@ -8,6 +8,11 @@ assets/Icon/
 assets/nas-notesbook-icons-adaptive/
 assets/nas-notesbook-icons-colored/
 assets/*.zip
+# Local icon source packs
+assets/Icon/
+assets/nas-notesbook-icons-adaptive/
+assets/nas-notesbook-icons-colored/
+assets/*.zip
 
 # Build outputs
 release/
@@ -17,3 +22,8 @@ assets/FONTS/
 # Claude local workspace files
 .claude/
 CLAUDE.md
+
+# Google Credentials & Tokens
+google-credentials.json
+client_secret*.json
+*token*.json
