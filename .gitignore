@@ -27,3 +27,4 @@ CLAUDE.md
 google-credentials.json
 client_secret*.json
 *token*.json
+.aider*

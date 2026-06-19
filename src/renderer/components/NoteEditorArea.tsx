@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TextSelection } from "@tiptap/pm/state";
-import { DOMSerializer } from "@tiptap/pm/model";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -13,9 +11,8 @@ import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
 import { LinkDialog } from "./LinkDialog";
-import { EditorContextMenu, type MenuNode } from "./EditorContextMenu";
-import { htmlToMarkdown, toSafeFilename } from "../markdown";
 import type { NoteRecord } from "../../shared/ipc";
+import { isLightLikeTheme } from "../../shared/settings";
 import type {
   AppTheme,
   EditorDensity,
@@ -38,14 +35,12 @@ interface NoteEditorAreaProps {
   readonly showMetadata: boolean;
   readonly theme: AppTheme;
   readonly language: AppLanguage;
-  readonly isFocusMode: boolean;
-  readonly onToggleFocusMode: () => void;
   readonly onContentChange: (content: string) => void;
   readonly onDeletePermanent: () => void;
   readonly onDeleteToTrash: () => void;
   readonly onRestore: () => void;
   readonly onSave: () => void;
-  readonly onThemeChange: (theme: AppTheme) => void;
+  readonly onToggleTheme: () => void;
   readonly onTitleChange: (title: string) => void;
 }
 
@@ -53,7 +48,6 @@ type ToolbarIcon =
   | "bold"
   | "italic"
   | "underline"
-  | "strike"
   | "codeBlock"
   | "codeBlockColor"
   | "link"
@@ -108,12 +102,6 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
     >
       {icon === "underline" && (
         <path d="M6 3v7a6 6 0 0 0 12 0V3M4 21h16" {...strokeProps} />
-      )}
-      {icon === "strike" && (
-        <>
-          <path d="M16 4H9a4 4 0 0 0-2.77 6.88L17 14.12A4 4 0 0 1 14.23 21H7" {...strokeProps} />
-          <path d="M4 12h16" {...strokeProps} />
-        </>
       )}
       {icon === "codeBlock" && (
         <>
@@ -230,33 +218,6 @@ function isCodeBlockDirection(value: string | null): value is CodeBlockDirection
   return value !== null && CODE_BLOCK_DIRECTIONS.includes(value as CodeBlockDirection);
 }
 
-const CODE_BLOCK_FONT_FAMILIES = ["mono", "sans", "serif", "arabic", "system"] as const;
-type CodeBlockFontFamily = (typeof CODE_BLOCK_FONT_FAMILIES)[number];
-function isCodeBlockFontFamily(value: string | null): value is CodeBlockFontFamily {
-  return value !== null && CODE_BLOCK_FONT_FAMILIES.includes(value as CodeBlockFontFamily);
-}
-
-const CODE_BLOCK_FONT_SIZES = ["sm", "md", "lg", "xl"] as const;
-type CodeBlockFontSize = (typeof CODE_BLOCK_FONT_SIZES)[number];
-function isCodeBlockFontSize(value: string | null): value is CodeBlockFontSize {
-  return value !== null && CODE_BLOCK_FONT_SIZES.includes(value as CodeBlockFontSize);
-}
-
-function codeBlockBoxColorLabel(
-  color: CodeBlockBoxColor,
-  language: AppLanguage,
-): string {
-  const labels: Record<CodeBlockBoxColor, { ar: string; en: string }> = {
-    default: { ar: "افتراضي", en: "Default" },
-    "light-gray": { ar: "رمادي فاتح", en: "Light Gray" },
-    "light-blue": { ar: "أزرق فاتح", en: "Light Blue" },
-    "light-green": { ar: "أخضر فاتح", en: "Light Green" },
-    "light-amber": { ar: "كهرماني فاتح", en: "Light Amber" },
-    "light-rose": { ar: "وردي فاتح", en: "Light Rose" },
-  };
-  return language === "ar" ? labels[color].ar : labels[color].en;
-}
-
 const CustomCodeBlock = CodeBlock.extend({
   addAttributes() {
     return {
@@ -280,30 +241,6 @@ const CustomCodeBlock = CodeBlock.extend({
         },
         renderHTML: (attributes) => ({
           dir: isCodeBlockDirection(attributes.dir) ? attributes.dir : "auto",
-        }),
-      },
-      fontFamily: {
-        default: "mono",
-        parseHTML: (element) => {
-          const value = element.getAttribute("data-font-family");
-          return isCodeBlockFontFamily(value) ? value : "mono";
-        },
-        renderHTML: (attributes) => ({
-          "data-font-family": isCodeBlockFontFamily(attributes.fontFamily)
-            ? attributes.fontFamily
-            : "mono",
-        }),
-      },
-      fontSize: {
-        default: "md",
-        parseHTML: (element) => {
-          const value = element.getAttribute("data-font-size");
-          return isCodeBlockFontSize(value) ? value : "md";
-        },
-        renderHTML: (attributes) => ({
-          "data-font-size": isCodeBlockFontSize(attributes.fontSize)
-            ? attributes.fontSize
-            : "md",
         }),
       },
     };
@@ -357,7 +294,7 @@ function Dropdown<T extends string>({
   label,
   className,
 }: {
-  readonly options: readonly { readonly value: T; readonly label: string; readonly className?: string }[];
+  readonly options: { readonly value: T; readonly label: string }[];
   readonly value: T;
   readonly onChange: (value: T) => void;
   readonly disabled?: boolean;
@@ -366,83 +303,31 @@ function Dropdown<T extends string>({
   readonly className?: string;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLUListElement>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-
-    const updateCoords = () => {
-      const triggerRect = trigger.getBoundingClientRect();
-      const menu = menuRef.current;
-      const menuWidth = menu ? menu.offsetWidth : 160;
-      const menuHeight = menu ? menu.offsetHeight : 180;
-
-      let left = triggerRect.left;
-      let top = triggerRect.bottom + 4;
-      let openUpward = false;
-
-      // Clamp horizontally
-      if (left + menuWidth > window.innerWidth) {
-        left = window.innerWidth - menuWidth - 12;
-      }
-      if (left < 12) {
-        left = 12;
-      }
-
-      // Clamp vertically (flip if it would overflow the bottom)
-      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
-        top = triggerRect.top - menuHeight - 4;
-        openUpward = true;
-      }
-
-      setCoords({ top, left, openUpward });
-    };
-
-    const id = requestAnimationFrame(updateCoords);
-
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        trigger.contains(event.target as Node) ||
-        (menuRef.current && menuRef.current.contains(event.target as Node))
-      ) {
-        return;
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
       }
-      setIsOpen(false);
     };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
-
-    const handleCloseEvent = () => {
-      setIsOpen(false);
-    };
-
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", handleCloseEvent, true);
-    window.addEventListener("resize", handleCloseEvent);
-
     return () => {
-      cancelAnimationFrame(id);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", handleCloseEvent, true);
-      window.removeEventListener("resize", handleCloseEvent);
     };
   }, [isOpen]);
 
   return (
-    <div className={`custom-dropdown-container ${className || ""}`}>
+    <div className={`custom-dropdown-container ${className || ""}`} ref={containerRef}>
       <button
-        ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         className="custom-dropdown-trigger"
@@ -456,29 +341,12 @@ function Dropdown<T extends string>({
           <path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {isOpen && createPortal(
-        <ul
-          ref={menuRef}
-          className="custom-dropdown-menu"
-          role="listbox"
-          style={coords ? {
-            position: "fixed",
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            zIndex: 9999,
-            margin: 0,
-          } : {
-            position: "fixed",
-            visibility: "hidden",
-            top: 0,
-            left: 0,
-            zIndex: 9999,
-          }}
-        >
+      {isOpen && (
+        <ul className="custom-dropdown-menu" role="listbox">
           {options.map((option) => (
             <li
               key={option.value}
-              className={`custom-dropdown-item ${option.className || ""}`}
+              className="custom-dropdown-item"
               data-selected={option.value === value ? "true" : "false"}
               onClick={() => {
                 onChange(option.value);
@@ -490,8 +358,7 @@ function Dropdown<T extends string>({
               {option.label}
             </li>
           ))}
-        </ul>,
-        document.body
+        </ul>
       )}
     </div>
   );
@@ -512,74 +379,25 @@ function ColorPicker({
   readonly language: AppLanguage;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-
-    const updateCoords = () => {
-      const triggerRect = trigger.getBoundingClientRect();
-      const menu = menuRef.current;
-      const menuWidth = menu ? menu.offsetWidth : 140;
-      const menuHeight = menu ? menu.offsetHeight : 140;
-
-      let left = triggerRect.left + triggerRect.width / 2 - menuWidth / 2;
-      let top = triggerRect.bottom + 4;
-      let openUpward = false;
-
-      if (left + menuWidth > window.innerWidth) {
-        left = window.innerWidth - menuWidth - 12;
-      }
-      if (left < 12) {
-        left = 12;
-      }
-
-      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
-        top = triggerRect.top - menuHeight - 4;
-        openUpward = true;
-      }
-
-      setCoords({ top, left, openUpward });
-    };
-
-    const id = requestAnimationFrame(updateCoords);
-
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        trigger.contains(event.target as Node) ||
-        (menuRef.current && menuRef.current.contains(event.target as Node))
-      ) {
-        return;
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
       }
-      setIsOpen(false);
     };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
-
-    const handleCloseEvent = () => {
-      setIsOpen(false);
-    };
-
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", handleCloseEvent, true);
-    window.addEventListener("resize", handleCloseEvent);
-
     return () => {
-      cancelAnimationFrame(id);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", handleCloseEvent, true);
-      window.removeEventListener("resize", handleCloseEvent);
     };
   }, [isOpen]);
 
@@ -595,9 +413,8 @@ function ColorPicker({
   ];
 
   return (
-    <div className="custom-dropdown-container">
+    <div className="custom-dropdown-container" ref={containerRef}>
       <button
-        ref={triggerRef}
         aria-expanded={isOpen}
         className="toolbar-icon-button color-picker-trigger"
         disabled={disabled}
@@ -620,25 +437,8 @@ function ColorPicker({
           }}
         />
       </button>
-      {isOpen && createPortal(
-        <div
-          ref={menuRef}
-          className="color-picker-menu"
-          style={coords ? {
-            position: "fixed",
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            transform: "none",
-            zIndex: 9999,
-            margin: 0,
-          } : {
-            position: "fixed",
-            visibility: "hidden",
-            top: 0,
-            left: 0,
-            zIndex: 9999,
-          }}
-        >
+      {isOpen && (
+        <div className="color-picker-menu">
           <div className="color-picker-grid">
             {swatches.map((swatch) => {
               const getSwatchTooltip = (name: string) => {
@@ -678,8 +478,7 @@ function ColorPicker({
               );
             })}
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
@@ -699,74 +498,25 @@ function CodeBlockColorPicker({
   readonly language: AppLanguage;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-
-    const updateCoords = () => {
-      const triggerRect = trigger.getBoundingClientRect();
-      const menu = menuRef.current;
-      const menuWidth = menu ? menu.offsetWidth : 120;
-      const menuHeight = menu ? menu.offsetHeight : 100;
-
-      let left = triggerRect.left + triggerRect.width / 2 - menuWidth / 2;
-      let top = triggerRect.bottom + 4;
-      let openUpward = false;
-
-      if (left + menuWidth > window.innerWidth) {
-        left = window.innerWidth - menuWidth - 12;
-      }
-      if (left < 12) {
-        left = 12;
-      }
-
-      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
-        top = triggerRect.top - menuHeight - 4;
-        openUpward = true;
-      }
-
-      setCoords({ top, left, openUpward });
-    };
-
-    const id = requestAnimationFrame(updateCoords);
-
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        trigger.contains(event.target as Node) ||
-        (menuRef.current && menuRef.current.contains(event.target as Node))
-      ) {
-        return;
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
       }
-      setIsOpen(false);
     };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
-
-    const handleCloseEvent = () => {
-      setIsOpen(false);
-    };
-
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", handleCloseEvent, true);
-    window.addEventListener("resize", handleCloseEvent);
-
     return () => {
-      cancelAnimationFrame(id);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", handleCloseEvent, true);
-      window.removeEventListener("resize", handleCloseEvent);
     };
   }, [isOpen]);
 
@@ -797,9 +547,8 @@ function CodeBlockColorPicker({
   };
 
   return (
-    <div className="custom-dropdown-container">
+    <div className="custom-dropdown-container" ref={containerRef}>
       <button
-        ref={triggerRef}
         aria-expanded={isOpen}
         className="toolbar-icon-button color-picker-trigger code-block-color-trigger"
         disabled={disabled}
@@ -816,25 +565,8 @@ function CodeBlockColorPicker({
           }}
         />
       </button>
-      {isOpen && createPortal(
-        <div
-          ref={menuRef}
-          className="color-picker-menu code-block-color-menu"
-          style={coords ? {
-            position: "fixed",
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            transform: "none",
-            zIndex: 9999,
-            margin: 0,
-          } : {
-            position: "fixed",
-            visibility: "hidden",
-            top: 0,
-            left: 0,
-            zIndex: 9999,
-          }}
-        >
+      {isOpen && (
+        <div className="color-picker-menu code-block-color-menu">
           <div className="color-picker-grid code-block-color-grid">
             {swatches.map((swatch) => (
               <button
@@ -852,182 +584,7 @@ function CodeBlockColorPicker({
               />
             ))}
           </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-// Custom Theme Dropdown Component
-function ThemeDropdown({
-  theme,
-  language,
-  onChange,
-}: {
-  readonly theme: AppTheme;
-  readonly language: AppLanguage;
-  readonly onChange: (theme: AppTheme) => void;
-}): JSX.Element {
-  const [isOpen, setIsOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
-
-  const themeOptions = [
-    { value: "light" as AppTheme, labelEn: "Light", labelAr: "فاتح", bgHex: "#f5f5f4", panelHex: "#ffffff", accentHex: "#4f46e5" },
-    { value: "dark" as AppTheme, labelEn: "Dark", labelAr: "داكن", bgHex: "#0c0a09", panelHex: "#1c1917", accentHex: "#6366f1" },
-    { value: "graphite" as AppTheme, labelEn: "Graphite", labelAr: "غرافيت", bgHex: "#101214", panelHex: "#1b1f23", accentHex: "#3b82f6" },
-    { value: "material-dark" as AppTheme, labelEn: "Material Dark", labelAr: "ماتيريال داكن", bgHex: "#121212", panelHex: "#1e1e1e", accentHex: "#b39ddb" },
-    { value: "ulysses" as AppTheme, labelEn: "Ulysses", labelAr: "يوليسيس", bgHex: "#f8f5ee", panelHex: "#fffdf7", accentHex: "#d84b20" },
-    { value: "one-dark" as AppTheme, labelEn: "One Dark", labelAr: "ون دارك", bgHex: "#1e2127", panelHex: "#282c34", accentHex: "#61afef" },
-  ];
-
-  const currentOption = themeOptions.find((opt) => opt.value === theme) || themeOptions[0];
-  const isRtl = language === "ar";
-  const triggerText = isRtl ? "سمة" : "Theme";
-  const currentThemeLabel = isRtl ? currentOption.labelAr : currentOption.labelEn;
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-
-    const updateCoords = () => {
-      const triggerRect = trigger.getBoundingClientRect();
-      const menu = menuRef.current;
-      const menuWidth = menu ? menu.offsetWidth : 236;
-      const menuHeight = menu ? menu.offsetHeight : 280;
-
-      let left = isRtl ? triggerRect.right - menuWidth : triggerRect.left;
-      let top = triggerRect.bottom + 8;
-
-      if (left + menuWidth > window.innerWidth) {
-        left = window.innerWidth - menuWidth - 12;
-      }
-      if (left < 12) {
-        left = 12;
-      }
-
-      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
-        top = triggerRect.top - menuHeight - 8;
-      } else if (top + menuHeight > window.innerHeight) {
-        top = Math.max(12, window.innerHeight - menuHeight - 12);
-      }
-
-      setCoords({ top, left });
-    };
-
-    const id = requestAnimationFrame(updateCoords);
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        trigger.contains(event.target as Node) ||
-        (menuRef.current && menuRef.current.contains(event.target as Node))
-      ) {
-        return;
-      }
-      setIsOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    const handleCloseEvent = () => {
-      setIsOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", handleCloseEvent, true);
-    window.addEventListener("resize", handleCloseEvent);
-
-    return () => {
-      cancelAnimationFrame(id);
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", handleCloseEvent, true);
-      window.removeEventListener("resize", handleCloseEvent);
-    };
-  }, [isOpen, isRtl]);
-
-  return (
-    <div className="custom-dropdown-container theme-dropdown-container">
-      <button
-        ref={triggerRef}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        aria-label={isRtl ? `تغيير السمة: ${currentThemeLabel}` : `Change theme: ${currentThemeLabel}`}
-        className="theme-dropdown-trigger"
-        onClick={() => setIsOpen(!isOpen)}
-        data-tooltip={isRtl ? `تغيير السمة: ${currentThemeLabel}` : `Change theme: ${currentThemeLabel}`}
-        type="button"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
-          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35825 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z" />
-          <circle cx="7.5" cy="10.5" r="1.5" fill="currentColor" />
-          <circle cx="11.5" cy="7.5" r="1.5" fill="currentColor" />
-          <circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" />
-          <circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" />
-        </svg>
-        <span className="theme-trigger-label">{triggerText}</span>
-      </button>
-
-      {isOpen && createPortal(
-        <div
-          ref={menuRef}
-          className="theme-dropdown-menu"
-          dir={isRtl ? "rtl" : "ltr"}
-          role="menu"
-          style={coords ? {
-            position: "fixed",
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            zIndex: 9999,
-          } : {
-            position: "fixed",
-            visibility: "hidden",
-            top: 0,
-            left: 0,
-            zIndex: 9999,
-          }}
-        >
-          {themeOptions.map((option) => (
-            <button
-              key={option.value}
-              className="theme-dropdown-item"
-              data-active={option.value === theme ? "true" : "false"}
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-              role="menuitemradio"
-              aria-checked={option.value === theme}
-              type="button"
-            >
-              <div className="theme-item-details">
-                <span className="theme-item-label">
-                  {isRtl ? option.labelAr : option.labelEn}
-                </span>
-                <div className="theme-item-swatches">
-                  <span className="theme-swatch" style={{ backgroundColor: option.bgHex }} title="Background" />
-                  <span className="theme-swatch" style={{ backgroundColor: option.panelHex }} title="Panel" />
-                  <span className="theme-swatch" style={{ backgroundColor: option.accentHex }} title="Accent" />
-                </div>
-              </div>
-              {option.value === theme && (
-                <svg viewBox="0 0 24 24" className="theme-active-checkmark" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              )}
-            </button>
-          ))}
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
@@ -1069,14 +626,12 @@ export function NoteEditorArea({
   showMetadata,
   theme,
   language,
-  isFocusMode,
-  onToggleFocusMode,
   onContentChange,
   onDeletePermanent,
   onDeleteToTrash,
   onRestore,
   onSave,
-  onThemeChange,
+  onToggleTheme,
   onTitleChange,
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
@@ -1084,12 +639,7 @@ export function NoteEditorArea({
   const loadedNoteIdRef = useRef<number | null>(null);
   
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
-
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -1196,17 +746,14 @@ export function NoteEditorArea({
     }
   }, [selectedNote?.id, editor]);
 
-  // Close the editor context menu whenever the open note changes.
-  useEffect(() => {
-    setContextMenu(null);
-  }, [selectedNote?.id]);
-
   const isEditorEmpty = editor
     ? editor.getText().trim() === "" ||
       editor.getHTML() === "<p></p>" ||
       editor.getHTML() === "<p><br></p>" ||
       editor.getHTML() === "<p><br class=\"ProseMirror-trailingBreak\"></p>"
     : true;
+  const isLightMode = isLightLikeTheme(theme);
+
   // Dropdown option maps
   const fontFamilies = [
     { value: "System", label: language === "ar" ? "نظام" : "System" },
@@ -1228,13 +775,13 @@ export function NoteEditorArea({
   ];
 
   const headingTypes = [
-    { value: "paragraph", label: language === "ar" ? "فقرة" : "Paragraph", className: "text-type-option text-type-option--paragraph" },
-    { value: "h1", label: language === "ar" ? "عنوان 1" : "Heading 1", className: "text-type-option text-type-option--h1" },
-    { value: "h2", label: language === "ar" ? "عنوان 2" : "Heading 2", className: "text-type-option text-type-option--h2" },
-    { value: "h3", label: language === "ar" ? "عنوان 3" : "Heading 3", className: "text-type-option text-type-option--h3" },
-    { value: "h4", label: language === "ar" ? "عنوان 4" : "Heading 4", className: "text-type-option text-type-option--h4" },
-    { value: "h5", label: language === "ar" ? "عنوان 5" : "Heading 5", className: "text-type-option text-type-option--h5" },
-    { value: "h6", label: language === "ar" ? "عنوان 6" : "Heading 6", className: "text-type-option text-type-option--h6" },
+    { value: "paragraph", label: language === "ar" ? "فقرة" : "Paragraph" },
+    { value: "h1", label: language === "ar" ? "عنوان 1" : "Heading 1" },
+    { value: "h2", label: language === "ar" ? "عنوان 2" : "Heading 2" },
+    { value: "h3", label: language === "ar" ? "عنوان 3" : "Heading 3" },
+    { value: "h4", label: language === "ar" ? "عنوان 4" : "Heading 4" },
+    { value: "h5", label: language === "ar" ? "عنوان 5" : "Heading 5" },
+    { value: "h6", label: language === "ar" ? "عنوان 6" : "Heading 6" },
   ];
 
   const activeFontFamily = editor
@@ -1281,20 +828,6 @@ export function NoteEditorArea({
     ? activeCodeBlockDirValue
     : "auto";
 
-  const activeCodeBlockFontFamilyVal = editor && editor.isActive("codeBlock")
-    ? editor.getAttributes("codeBlock").fontFamily
-    : "mono";
-  const activeCodeBlockFontFamily = isCodeBlockFontFamily(activeCodeBlockFontFamilyVal)
-    ? activeCodeBlockFontFamilyVal
-    : "mono";
-
-  const activeCodeBlockFontSizeVal = editor && editor.isActive("codeBlock")
-    ? editor.getAttributes("codeBlock").fontSize
-    : "md";
-  const activeCodeBlockFontSize = isCodeBlockFontSize(activeCodeBlockFontSizeVal)
-    ? activeCodeBlockFontSizeVal
-    : "md";
-
   const codeBlockDirectionOptions: {
     readonly value: CodeBlockDirection;
     readonly label: string;
@@ -1303,23 +836,6 @@ export function NoteEditorArea({
     { value: "ltr", label: "LTR" },
     { value: "rtl", label: "RTL" },
   ];
-
-  const codeBlockFontFamilyOptions = [
-    { value: "mono", label: language === "ar" ? "أحادي" : "Mono" },
-    { value: "sans", label: language === "ar" ? "سنس" : "Sans" },
-    { value: "serif", label: language === "ar" ? "سيريف" : "Serif" },
-    { value: "arabic", label: language === "ar" ? "عربي" : "Arabic" },
-    { value: "system", label: language === "ar" ? "نظام" : "System" },
-  ] as const;
-
-
-  const codeBlockFontSizeOptions = [
-    { value: "sm", label: language === "ar" ? "صغير" : "Small" },
-    { value: "md", label: language === "ar" ? "متوسط" : "Medium" },
-    { value: "lg", label: language === "ar" ? "كبير" : "Large" },
-    { value: "xl", label: language === "ar" ? "ضخم" : "X Large" },
-  ] as const;
-
 
   const handleLinkConfirm = (url: string) => {
     if (editor) {
@@ -1335,502 +851,6 @@ export function NoteEditorArea({
     setIsLinkDialogOpen(false);
   };
 
-  const handleEditorContextMenu = (
-    event: React.MouseEvent<HTMLDivElement>,
-  ): void => {
-    if (!editor) {
-      return;
-    }
-    // Suppress the native Chromium menu and the app-level menu, but only here
-    // inside the editor surface.
-    event.preventDefault();
-    event.stopPropagation();
-    setContextMenu({ x: event.clientX, y: event.clientY });
-  };
-
-  const buildContextMenuNodes = (): MenuNode[] => {
-    const L = (ar: string, en: string): string => (language === "ar" ? ar : en);
-    const ed = editor;
-    if (!ed) {
-      return [];
-    }
-
-    const editable = !isTrashView && hasSelectedNote;
-    const hasSelection = !ed.state.selection.empty;
-    const inCodeBlock = ed.isActive("codeBlock");
-    const hasLink = ed.isActive("link");
-
-    const selectAllInContext = (): void => {
-      if (inCodeBlock) {
-        const { state, view } = ed;
-        const { $from } = state.selection;
-        for (let depth = $from.depth; depth > 0; depth -= 1) {
-          if ($from.node(depth).type.name === "codeBlock") {
-            const start = $from.start(depth);
-            const end = $from.end(depth);
-            view.focus();
-            view.dispatch(
-              state.tr.setSelection(TextSelection.create(state.doc, start, end)),
-            );
-            return;
-          }
-        }
-      }
-      ed.chain().focus().selectAll().run();
-    };
-
-    const selectCurrentBlock = (): void => {
-      const { state, view } = ed;
-      const { $from } = state.selection;
-      let depth = $from.depth;
-      while (depth > 0 && !$from.node(depth).isTextblock) {
-        depth -= 1;
-      }
-      if (depth <= 0) {
-        ed.chain().focus().selectAll().run();
-        return;
-      }
-      const start = $from.start(depth);
-      const end = $from.end(depth);
-      view.focus();
-      view.dispatch(
-        state.tr.setSelection(TextSelection.create(state.doc, start, end)),
-      );
-    };
-
-    const copySelectedText = (): void => {
-      const { state } = ed;
-      const { from, to } = state.selection;
-      void copyPlainText(state.doc.textBetween(from, to, "\n"));
-    };
-
-    const copyCurrentCodeBlock = (): void => {
-      const { $from } = ed.state.selection;
-      for (let depth = $from.depth; depth > 0; depth -= 1) {
-        if ($from.node(depth).type.name === "codeBlock") {
-          void copyPlainText($from.node(depth).textContent);
-          return;
-        }
-      }
-    };
-
-    const copySelectionAsMarkdown = (): void => {
-      const { state } = ed;
-      const { from, to, empty } = state.selection;
-      if (empty) {
-        return;
-      }
-      const slice = state.doc.slice(from, to);
-      const fragment = DOMSerializer.fromSchema(ed.schema).serializeFragment(
-        slice.content,
-      );
-      const container = document.createElement("div");
-      container.appendChild(fragment);
-      void copyPlainText(htmlToMarkdown(container.innerHTML));
-    };
-
-    const copyNoteAsMarkdown = (): void => {
-      void copyPlainText(htmlToMarkdown(ed.getHTML()));
-    };
-
-    const exportCurrentNote = (): void => {
-      void window.nasNotesbook?.markdown.exportFile({
-        defaultFilename: `${toSafeFilename(draftTitle || "note")}.md`,
-        markdown: htmlToMarkdown(ed.getHTML()),
-      });
-    };
-
-    const pastePlainText = (): void => {
-      void navigator.clipboard
-        .readText()
-        .then((text) => {
-          ed.chain().focus().insertContent(text).run();
-        })
-        .catch(() => {
-          /* clipboard unavailable */
-        });
-    };
-
-    const execClipboard = (command: "cut" | "copy"): void => {
-      if (!hasSelection) {
-        return;
-      }
-      ed.commands.focus();
-      document.execCommand(command);
-    };
-
-    const focusTitle = (): void => {
-      const el = titleInputRef.current;
-      if (el) {
-        el.focus();
-        el.select();
-      }
-    };
-
-    const setCodeBlockAttr = (attr: string, value: string): void => {
-      ed.chain().focus().updateAttributes("codeBlock", { [attr]: value }).run();
-    };
-
-    const headingNode = (
-      id: string,
-      label: string,
-      value: string,
-    ): MenuNode => ({
-      kind: "item",
-      id,
-      label,
-      checked: activeHeadingType === value,
-      disabled: !editable,
-      onSelect: () => {
-        if (value === "paragraph") {
-          ed.chain().focus().setParagraph().run();
-        } else {
-          const level = Number(value.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6;
-          ed.chain().focus().toggleHeading({ level }).run();
-        }
-      },
-    });
-
-    return [
-      { kind: "header", id: "h-edit", label: L("تحرير", "Editing") },
-      {
-        kind: "item",
-        id: "cut",
-        label: L("قص", "Cut"),
-        shortcut: "Ctrl+X",
-        disabled: !editable || !hasSelection,
-        onSelect: () => execClipboard("cut"),
-      },
-      {
-        kind: "item",
-        id: "copy",
-        label: L("نسخ", "Copy"),
-        shortcut: "Ctrl+C",
-        disabled: !hasSelection,
-        onSelect: () => execClipboard("copy"),
-      },
-      {
-        kind: "item",
-        id: "paste",
-        label: L("لصق", "Paste"),
-        shortcut: "Ctrl+V",
-        disabled: !editable,
-        onSelect: pastePlainText,
-      },
-      {
-        kind: "item",
-        id: "paste-plain",
-        label: L("لصق كنص عادي", "Paste as plain text"),
-        shortcut: "Ctrl+Shift+V",
-        disabled: !editable,
-        onSelect: pastePlainText,
-      },
-      { kind: "separator", id: "sep-1" },
-      { kind: "header", id: "h-sel", label: L("التحديد", "Selection") },
-      {
-        kind: "item",
-        id: "select-all",
-        label: L("تحديد الكل", "Select All"),
-        shortcut: "Ctrl+A",
-        disabled: !hasSelectedNote,
-        onSelect: selectAllInContext,
-      },
-      {
-        kind: "item",
-        id: "select-block",
-        label: L("تحديد الكتلة", "Select Block"),
-        disabled: !hasSelectedNote,
-        onSelect: selectCurrentBlock,
-      },
-      {
-        kind: "item",
-        id: "copy-selected",
-        label: L("نسخ النص المحدد", "Copy Selected Text"),
-        disabled: !hasSelection,
-        onSelect: copySelectedText,
-      },
-      { kind: "separator", id: "sep-2" },
-      {
-        kind: "item",
-        id: "markdown",
-        label: L("ماركداون", "Markdown"),
-        submenu: [
-          {
-            kind: "item",
-            id: "md-import",
-            label: L("استيراد Markdown", "Import Markdown"),
-            disabled: true,
-          },
-          {
-            kind: "item",
-            id: "md-export-note",
-            label: L("تصدير الملاحظة الحالية", "Export Current Note"),
-            disabled: !hasSelectedNote,
-            onSelect: exportCurrentNote,
-          },
-          {
-            kind: "item",
-            id: "md-export-cat",
-            label: L("تصدير التصنيف الحالي", "Export Current Category"),
-            disabled: true,
-          },
-          { kind: "separator", id: "md-sep" },
-          {
-            kind: "item",
-            id: "md-copy-sel",
-            label: L("نسخ التحديد كـ Markdown", "Copy Selection as Markdown"),
-            disabled: !hasSelection,
-            onSelect: copySelectionAsMarkdown,
-          },
-          {
-            kind: "item",
-            id: "md-copy-note",
-            label: L("نسخ الملاحظة كـ Markdown", "Copy Note as Markdown"),
-            disabled: !hasSelectedNote,
-            onSelect: copyNoteAsMarkdown,
-          },
-        ],
-      },
-      {
-        kind: "item",
-        id: "format",
-        label: L("تنسيق", "Format"),
-        disabled: !editable,
-        submenu: [
-          headingNode("fmt-p", L("فقرة", "Paragraph"), "paragraph"),
-          headingNode("fmt-h1", L("عنوان 1", "Heading 1"), "h1"),
-          headingNode("fmt-h2", L("عنوان 2", "Heading 2"), "h2"),
-          headingNode("fmt-h3", L("عنوان 3", "Heading 3"), "h3"),
-          headingNode("fmt-h4", L("عنوان 4", "Heading 4"), "h4"),
-          headingNode("fmt-h5", L("عنوان 5", "Heading 5"), "h5"),
-          headingNode("fmt-h6", L("عنوان 6", "Heading 6"), "h6"),
-          { kind: "separator", id: "fmt-sep-1" },
-          {
-            kind: "item",
-            id: "fmt-bold",
-            label: L("غامق", "Bold"),
-            shortcut: "Ctrl+B",
-            checked: ed.isActive("bold"),
-            onSelect: () => ed.chain().focus().toggleBold().run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-italic",
-            label: L("مائل", "Italic"),
-            shortcut: "Ctrl+I",
-            checked: ed.isActive("italic"),
-            onSelect: () => ed.chain().focus().toggleItalic().run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-underline",
-            label: L("تسطير", "Underline"),
-            shortcut: "Ctrl+U",
-            checked: ed.isActive("underline"),
-            onSelect: () => ed.chain().focus().toggleUnderline().run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-strike",
-            label: L("يتوسطه خط", "Strike"),
-            checked: ed.isActive("strike"),
-            onSelect: () => ed.chain().focus().toggleStrike().run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-code",
-            label: L("كود سطري", "Inline Code"),
-            checked: ed.isActive("code"),
-            onSelect: () => ed.chain().focus().toggleCode().run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-quote",
-            label: L("اقتباس", "Blockquote"),
-            checked: ed.isActive("blockquote"),
-            onSelect: () => ed.chain().focus().toggleBlockquote().run(),
-          },
-          { kind: "separator", id: "fmt-sep-2" },
-          {
-            kind: "item",
-            id: "fmt-bullet",
-            label: L("قائمة نقطية", "Bullet List"),
-            checked: ed.isActive("bulletList"),
-            onSelect: () => ed.chain().focus().toggleBulletList().run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-ordered",
-            label: L("قائمة مرقمة", "Ordered List"),
-            checked: ed.isActive("orderedList"),
-            onSelect: () => ed.chain().focus().toggleOrderedList().run(),
-          },
-          { kind: "separator", id: "fmt-sep-3" },
-          {
-            kind: "item",
-            id: "fmt-align-left",
-            label: L("محاذاة لليسار", "Align Left"),
-            checked: ed.isActive({ textAlign: "left" }),
-            onSelect: () => ed.chain().focus().setTextAlign("left").run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-align-center",
-            label: L("توسيط", "Align Center"),
-            checked: ed.isActive({ textAlign: "center" }),
-            onSelect: () => ed.chain().focus().setTextAlign("center").run(),
-          },
-          {
-            kind: "item",
-            id: "fmt-align-right",
-            label: L("محاذاة لليمين", "Align Right"),
-            checked: ed.isActive({ textAlign: "right" }),
-            onSelect: () => ed.chain().focus().setTextAlign("right").run(),
-          },
-          { kind: "separator", id: "fmt-sep-4" },
-          {
-            kind: "item",
-            id: "fmt-clear",
-            label: L("مسح التنسيق", "Clear Formatting"),
-            onSelect: () =>
-              ed.chain().focus().clearNodes().unsetAllMarks().run(),
-          },
-        ],
-      },
-      {
-        kind: "item",
-        id: "codeblock",
-        label: L("كتلة كود", "Code Block"),
-        disabled: !editable,
-        submenu: [
-          {
-            kind: "item",
-            id: "cb-toggle",
-            label: L("تبديل كتلة الكود", "Toggle Code Block"),
-            checked: inCodeBlock,
-            onSelect: () => ed.chain().focus().toggleCodeBlock().run(),
-          },
-          {
-            kind: "item",
-            id: "cb-copy",
-            label: L("نسخ كتلة الكود", "Copy Code Block"),
-            disabled: !inCodeBlock,
-            onSelect: copyCurrentCodeBlock,
-          },
-          {
-            kind: "item",
-            id: "cb-select",
-            label: L("تحديد كتلة الكود", "Select Code Block"),
-            disabled: !inCodeBlock,
-            onSelect: selectAllInContext,
-          },
-          { kind: "separator", id: "cb-sep-1" },
-          {
-            kind: "item",
-            id: "cb-dir",
-            label: L("الاتجاه", "Direction"),
-            disabled: !inCodeBlock,
-            submenu: codeBlockDirectionOptions.map((opt) => ({
-              kind: "item" as const,
-              id: `cb-dir-${opt.value}`,
-              label: opt.label,
-              checked: activeCodeBlockDir === opt.value,
-              onSelect: () => setCodeBlockAttr("dir", opt.value),
-            })),
-          },
-          {
-            kind: "item",
-            id: "cb-color",
-            label: L("لون الصندوق", "Box Color"),
-            disabled: !inCodeBlock,
-            submenu: CODE_BLOCK_BOX_COLORS.map((color) => ({
-              kind: "item" as const,
-              id: `cb-color-${color}`,
-              label: codeBlockBoxColorLabel(color, language),
-              checked: activeCodeBlockColor === color,
-              onSelect: () => setCodeBlockAttr("boxColor", color),
-            })),
-          },
-          {
-            kind: "item",
-            id: "cb-font",
-            label: L("الخط", "Font Family"),
-            disabled: !inCodeBlock,
-            submenu: codeBlockFontFamilyOptions.map((opt) => ({
-              kind: "item" as const,
-              id: `cb-font-${opt.value}`,
-              label: opt.label,
-              checked: activeCodeBlockFontFamily === opt.value,
-              onSelect: () => setCodeBlockAttr("fontFamily", opt.value),
-            })),
-          },
-          {
-            kind: "item",
-            id: "cb-size",
-            label: L("حجم الخط", "Font Size"),
-            disabled: !inCodeBlock,
-            submenu: codeBlockFontSizeOptions.map((opt) => ({
-              kind: "item" as const,
-              id: `cb-size-${opt.value}`,
-              label: opt.label,
-              checked: activeCodeBlockFontSize === opt.value,
-              onSelect: () => setCodeBlockAttr("fontSize", opt.value),
-            })),
-          },
-        ],
-      },
-      { kind: "separator", id: "sep-3" },
-      { kind: "header", id: "h-link", label: L("رابط", "Link") },
-      {
-        kind: "item",
-        id: "link-add",
-        label: L("إضافة/تعديل رابط", "Add/Edit Link"),
-        shortcut: "Ctrl+K",
-        disabled: !editable,
-        onSelect: () => setIsLinkDialogOpen(true),
-      },
-      {
-        kind: "item",
-        id: "link-remove",
-        label: L("إزالة الرابط", "Remove Link"),
-        disabled: !editable || !hasLink,
-        onSelect: handleLinkRemove,
-      },
-      { kind: "separator", id: "sep-4" },
-      { kind: "header", id: "h-note", label: L("الملاحظة", "Note") },
-      {
-        kind: "item",
-        id: "note-save",
-        label: L("حفظ الآن", "Save Now"),
-        shortcut: "Ctrl+S",
-        disabled: !editable,
-        onSelect: onSave,
-      },
-      {
-        kind: "item",
-        id: "note-copy-title",
-        label: L("نسخ عنوان الملاحظة", "Copy Note Title"),
-        disabled: !hasSelectedNote,
-        onSelect: () => void copyPlainText(draftTitle),
-      },
-      {
-        kind: "item",
-        id: "note-rename",
-        label: L("إعادة تسمية الملاحظة", "Rename Note"),
-        disabled: !editable,
-        onSelect: focusTitle,
-      },
-      {
-        kind: "item",
-        id: "note-delete",
-        label: L("نقل إلى المهملات", "Delete Note to Trash"),
-        danger: true,
-        disabled: !hasSelectedNote || isTrashView,
-        onSelect: onDeleteToTrash,
-      },
-    ];
-  };
-
   return (
     <section
       className="editor-area"
@@ -1840,60 +860,48 @@ export function NoteEditorArea({
       dir={language === "ar" ? "rtl" : "ltr"}
     >
       <header className="editor-header">
-        <div className="editor-header-inner">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span className="editor-eyebrow">{activeCategoryName}</span>
-            <input
-              ref={titleInputRef}
-              className="note-title-input"
-              disabled={!hasSelectedNote || isTrashView}
-              onChange={(event) => onTitleChange(event.target.value)}
-              placeholder={t("noteTitlePlaceholder", language)}
-              type="text"
-              value={draftTitle}
-              dir={editorDirection}
-            />
-            {hasSelectedNote && showMetadata && (
-              <div className="note-metadata-row">
-                {selectedNote.createdAt && (
-                  <span className="metadata-item">
-                    {t("createdAt", language)} {formatDateTime(selectedNote.createdAt)}
-                  </span>
-                )}
-                {selectedNote.updatedAt && (
-                  <span className="metadata-item">
-                    {t("updatedAt", language)} {formatDateTime(selectedNote.updatedAt)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="editor-header-actions">
-            <button
-              aria-label={isFocusMode ? (language === "ar" ? "الخروج من وضع التركيز" : "Exit Focus Mode") : (language === "ar" ? "وضع التركيز" : "Focus Mode")}
-              className="focus-toggle-btn"
-              data-active={isFocusMode ? "true" : "false"}
-              data-tooltip={isFocusMode ? (language === "ar" ? "الخروج من وضع التركيز" : "Exit Focus Mode") : (language === "ar" ? "وضع التركيز" : "Focus Mode")}
-              onClick={onToggleFocusMode}
-              type="button"
-            >
-              {isFocusMode ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
-                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                </svg>
+        <div style={{ flex: 1 }}>
+          <span className="editor-eyebrow">{activeCategoryName}</span>
+          <input
+            className="note-title-input"
+            disabled={!hasSelectedNote || isTrashView}
+            onChange={(event) => onTitleChange(event.target.value)}
+            placeholder={t("noteTitlePlaceholder", language)}
+            type="text"
+            value={draftTitle}
+            dir={editorDirection}
+          />
+          {hasSelectedNote && showMetadata && (
+            <div className="note-metadata-row">
+              {selectedNote.createdAt && (
+                <span className="metadata-item">
+                  {t("createdAt", language)} {formatDateTime(selectedNote.createdAt)}
+                </span>
               )}
-            </button>
-            <ThemeDropdown theme={theme} language={language} onChange={onThemeChange} />
-            <div
-              className="direction-chip"
-              data-tooltip={t("tooltipDirection", language)}
-            >
-              {editorDirection.toUpperCase()}
+              {selectedNote.updatedAt && (
+                <span className="metadata-item">
+                  {t("updatedAt", language)} {formatDateTime(selectedNote.updatedAt)}
+                </span>
+              )}
             </div>
+          )}
+        </div>
+        <div className="editor-header-actions">
+          <button
+            aria-label={isLightMode ? (language === "ar" ? "تبديل للسمة الداكنة" : "Switch to dark theme") : (language === "ar" ? "تبديل للسمة الفاتحة" : "Switch to light theme")}
+            className="theme-toggle"
+            data-light={isLightMode ? "true" : "false"}
+            data-tooltip={t("tooltipTheme", language)}
+            onClick={onToggleTheme}
+            type="button"
+          >
+            <span aria-hidden="true" />
+          </button>
+          <div
+            className="direction-chip"
+            data-tooltip={t("tooltipDirection", language)}
+          >
+            {editorDirection.toUpperCase()}
           </div>
         </div>
       </header>
@@ -2064,24 +1072,8 @@ export function NoteEditorArea({
           <>
             <div className="toolbar-divider" />
             
-            {/* Group 2: Typography */}
+            {/* Group 3: Font Family / Font Size / Heading */}
             <div className="toolbar-group font-and-type-actions">
-              <Dropdown
-                label={getHeadingShortLabel(activeHeadingType)}
-                value={activeHeadingType}
-                options={headingTypes}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
-                className="text-type-dropdown"
-                onChange={(val) => {
-                  if (val === "paragraph") {
-                    editor.chain().focus().setParagraph().run();
-                  } else if (val.startsWith("h")) {
-                    const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
-                    editor.chain().focus().toggleHeading({ level }).run();
-                  }
-                }}
-              />
               <Dropdown
                 label={getFontFamilyShortLabel(activeFontFamily)}
                 value={activeFontFamily}
@@ -2112,11 +1104,27 @@ export function NoteEditorArea({
                   }
                 }}
               />
+              <Dropdown
+                label={getHeadingShortLabel(activeHeadingType)}
+                value={activeHeadingType}
+                options={headingTypes}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
+                className="text-type-dropdown"
+                onChange={(val) => {
+                  if (val === "paragraph") {
+                    editor.chain().focus().setParagraph().run();
+                  } else if (val.startsWith("h")) {
+                    const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+                    editor.chain().focus().toggleHeading({ level }).run();
+                  }
+                }}
+              />
             </div>
 
             <div className="toolbar-divider" />
 
-            {/* Group 3: Inline Formatting */}
+            {/* Group 4: Bold / Italic / Underline / Text Color / Link */}
             <div className="toolbar-group formatting-actions">
               <button
                 aria-label="Bold"
@@ -2151,17 +1159,6 @@ export function NoteEditorArea({
               >
                 <ToolbarIconSvg icon="underline" />
               </button>
-              <button
-                aria-label="Strikethrough"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleStrike().run()}
-                data-active={editor.isActive("strike") ? "true" : "false"}
-                data-tooltip={language === "ar" ? "يتوسطه خط" : "Strikethrough"}
-              >
-                <ToolbarIconSvg icon="strike" />
-              </button>
               <ColorPicker
                 value={activeTextColor}
                 disabled={!hasSelectedNote || isTrashView}
@@ -2175,12 +1172,6 @@ export function NoteEditorArea({
                   }
                 }}
               />
-            </div>
-
-            <div className="toolbar-divider" />
-
-            {/* Group 4: Insert / Code / Link */}
-            <div className="toolbar-group insert-actions">
               <button
                 aria-label="Link"
                 className="toolbar-icon-button"
@@ -2203,36 +1194,39 @@ export function NoteEditorArea({
               >
                 <ToolbarIconSvg icon="codeBlock" />
               </button>
-              
-              {editor.isActive("codeBlock") && (
-                <>
-                  <CodeBlockColorPicker
-                    value={activeCodeBlockColor}
-                    disabled={!hasSelectedNote || isTrashView}
-                    tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
-                    language={language}
-                    onChange={(val) => {
-                      editor.chain().focus().updateAttributes("codeBlock", { boxColor: val }).run();
-                    }}
-                  />
-                  <Dropdown
-                    label={activeCodeBlockDir.toUpperCase()}
-                    value={activeCodeBlockDir}
-                    options={codeBlockDirectionOptions}
-                    disabled={!hasSelectedNote || isTrashView}
-                    tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
-                    className="code-direction-dropdown"
-                    onChange={(val) => {
-                      editor.chain().focus().updateAttributes("codeBlock", { dir: val }).run();
-                    }}
-                  />
-                </>
-              )}
+              <CodeBlockColorPicker
+                value={activeCodeBlockColor}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
+                language={language}
+                onChange={(val) => {
+                  const chain = editor.chain().focus();
+                  if (!editor.isActive("codeBlock")) {
+                    chain.setCodeBlock();
+                  }
+                  chain.updateAttributes("codeBlock", { boxColor: val }).run();
+                }}
+              />
+              <Dropdown
+                label={activeCodeBlockDir.toUpperCase()}
+                value={activeCodeBlockDir}
+                options={codeBlockDirectionOptions}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
+                className="code-direction-dropdown"
+                onChange={(val) => {
+                  const chain = editor.chain().focus();
+                  if (!editor.isActive("codeBlock")) {
+                    chain.setCodeBlock();
+                  }
+                  chain.updateAttributes("codeBlock", { dir: val }).run();
+                }}
+              />
             </div>
 
             <div className="toolbar-divider" />
 
-            {/* Group 5: Lists & Alignment */}
+            {/* Group 5: Bullet / Numbered / Align Left / Align Center / Align Right */}
             <div className="toolbar-group layout-actions">
               <button
                 aria-label="Bullets"
@@ -2293,7 +1287,7 @@ export function NoteEditorArea({
 
             <div className="toolbar-divider" />
 
-            {/* Group 6: Cleanup */}
+            {/* Group 6: Clear Formatting */}
             <div className="toolbar-group clear-actions">
               <button
                 aria-label="Clear formatting"
@@ -2326,10 +1320,8 @@ export function NoteEditorArea({
           className={`note-editor-content-wrapper${
             isEditorEmpty ? " is-editor-empty" : ""
           }`}
-          data-placeholder={language === "ar" ? "اكتب الملاحظة هنا..." : "Write your note here..."}
           data-readonly={isTrashView ? "true" : "false"}
           dir={editorDirection}
-          onContextMenu={handleEditorContextMenu}
         >
           <EditorContent editor={editor} />
         </div>
@@ -2368,16 +1360,6 @@ export function NoteEditorArea({
         onConfirm={handleLinkConfirm}
         onRemove={handleLinkRemove}
       />
-
-      {contextMenu && editor && (
-        <EditorContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          nodes={buildContextMenuNodes()}
-          rtl={language === "ar"}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
     </section>
   );
 }

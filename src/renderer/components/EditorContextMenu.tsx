@@ -64,7 +64,13 @@ function MenuList({
               disabled={node.disabled}
               aria-haspopup={hasSub ? "menu" : undefined}
               aria-expanded={hasSub ? isOpen : undefined}
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 if (node.disabled) {
                   return;
                 }
