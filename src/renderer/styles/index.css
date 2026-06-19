@@ -49,12 +49,13 @@
   --app-text-subtle: #78716c;
   --app-focus: #57534e;
   --editor-page-bg: #1c1917;
-  --rail-icon-color: rgba(244, 247, 251, 0.72);
+  --rail-icon-color: rgba(244, 247, 251, 0.65);
   --rail-icon-active-color: #ffffff;
-  --rail-icon-muted-color: rgba(244, 247, 251, 0.42);
+  --rail-icon-muted-color: rgba(244, 247, 251, 0.35);
   --rail-button-bg: transparent;
-  --rail-button-active-bg: rgba(255, 255, 255, 0.10);
-  --rail-button-border: rgba(255, 255, 255, 0.10);
+  --rail-button-active-bg: rgba(255, 255, 255, 0.08);
+  --rail-button-border: rgba(255, 255, 255, 0.08);
+  --rail-active-marker-x: 3px;
   --tooltip-bg: rgba(31, 29, 27, 0.96);
   --tooltip-color: #fafaf9;
   --tooltip-border: rgba(255, 255, 255, 0.12);
@@ -70,6 +71,7 @@
 
 :root[dir="rtl"] {
   --trash-indicator-inset: 4px;
+  --rail-active-marker-x: -3px;
 }
 
 [data-theme="light"] {
@@ -85,11 +87,11 @@
   --app-text-subtle: #7a828c;
   --app-focus: #68707a;
   --editor-page-bg: #ffffff;
-  --rail-icon-color: rgba(16, 18, 23, 0.72);
-  --rail-icon-active-color: #101217;
-  --rail-icon-muted-color: rgba(16, 18, 23, 0.42);
-  --rail-button-active-bg: rgba(0, 0, 0, 0.08);
-  --rail-button-border: rgba(0, 0, 0, 0.10);
+  --rail-icon-color: rgba(15, 23, 42, 0.6);
+  --rail-icon-active-color: #0f172a;
+  --rail-icon-muted-color: rgba(15, 23, 42, 0.35);
+  --rail-button-active-bg: rgba(15, 23, 42, 0.06);
+  --rail-button-border: rgba(15, 23, 42, 0.08);
   --tooltip-bg: rgba(255, 255, 255, 0.98);
   --tooltip-color: #101217;
   --tooltip-border: rgba(16, 18, 23, 0.14);
@@ -109,6 +111,10 @@
   --app-text-subtle: #747f88;
   --app-focus: #6b7785;
   --editor-page-bg: #171b1f;
+  --rail-icon-color: rgba(216, 222, 228, 0.65);
+  --rail-icon-active-color: #f0f3f6;
+  --rail-button-active-bg: rgba(116, 127, 136, 0.12);
+  --rail-button-border: rgba(116, 127, 136, 0.12);
 }
 
 [data-theme="material-dark"] {
@@ -139,10 +145,10 @@
   --app-text-subtle: #908477;
   --app-focus: #9c8c78;
   --editor-page-bg: #fffdf7;
-  --rail-icon-color: rgba(49, 43, 36, 0.72);
+  --rail-icon-color: rgba(49, 43, 36, 0.6);
   --rail-icon-active-color: #1f1a15;
-  --rail-button-active-bg: rgba(49, 43, 36, 0.08);
-  --rail-button-border: rgba(49, 43, 36, 0.12);
+  --rail-button-active-bg: rgba(49, 43, 36, 0.06);
+  --rail-button-border: rgba(49, 43, 36, 0.08);
   --tooltip-bg: rgba(255, 253, 247, 0.98);
   --tooltip-color: #1f1a15;
   --tooltip-border: rgba(49, 43, 36, 0.16);
@@ -238,7 +244,7 @@ pre {
 
 .workspace-frame {
   display: grid;
-  grid-template-columns: 64px 320px minmax(0, 1fr);
+  grid-template-columns: 60px 320px minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -250,14 +256,14 @@ pre {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  width: 64px;
-  min-width: 64px;
-  max-width: 64px;
+  gap: 8px;
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
   overflow: visible;
   border-inline-end: 1px solid var(--app-border);
   background: var(--app-surface);
-  padding: 12px 8px;
+  padding: 8px;
   direction: inherit;
 }
 
@@ -419,11 +425,11 @@ pre {
 
 .rail-brand {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid var(--app-border);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--app-text-strong);
   font-size: 12px;
   font-weight: 800;
@@ -445,11 +451,11 @@ pre {
 
 .rail-button {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--rail-button-bg);
   color: var(--rail-icon-color);
   cursor: pointer;
@@ -471,13 +477,20 @@ pre {
 .rail-icon-image,
 .rail-icon-mask,
 .rail-icon-inline {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
 .rail-icon-image {
   display: block;
   object-fit: contain;
+  filter: saturate(60%) opacity(0.65);
+  transition: filter 0.15s ease-in-out;
+}
+
+.rail-button:hover .rail-icon-image,
+.rail-button[data-active="true"] .rail-icon-image {
+  filter: none;
 }
 
 .rail-icon-mask {
@@ -493,8 +506,8 @@ pre {
 }
 
 .rail-icon-inline svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: block;
 }
 
@@ -509,25 +522,10 @@ pre {
   background: var(--rail-button-active-bg);
   color: var(--rail-icon-active-color);
   box-shadow:
-    inset 3px 0 0 var(--rail-icon-active-color),
+    inset var(--rail-active-marker-x) 0 0 var(--rail-icon-active-color),
     inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* Distinct Trash active style in Navigation Rail */
-.rail-button[data-trash="true"][data-active="true"] {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  box-shadow:
-    inset 3px 0 0 #ef4444,
-    inset 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.rail-button[data-trash="true"]:not([data-active="true"]):hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: #ef4444;
-  color: #f87171;
-}
 
 .notes-list-column {
   display: flex;

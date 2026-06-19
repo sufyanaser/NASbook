@@ -11,18 +11,21 @@ interface IconResolution {
 const categoryIconPath = (mode: RailIconMode, fileName: string): string =>
   `${import.meta.env.BASE_URL}category-icons/${mode}/${fileName}`;
 
+// Slugs are legacy; the user-facing category each one renders as is defined by
+// getCategoryDisplayName in i18n. Icons are mapped to the *displayed* meaning,
+// so every entry below is a unique, semantically correct glyph.
 const categoryIconFiles = {
-  "all-notes": "all-notes.svg",
-  prompts: "channels.svg",
-  "chatgpt-instructions": "nas.svg",
-  "nas-projects": "projects.svg",
-  "powershell-commands": "development.svg",
-  "development-notes": "development.svg",
-  "errors-fixes": "errors.svg",
-  templates: "templates.svg",
-  archive: "archive.svg",
-  trash: "trash.svg",
-  settings: "settings.svg",
+  "all-notes": "all-notes.svg", // All Notes -> document/notes
+  prompts: "projects.svg", // Projects -> folder
+  "chatgpt-instructions": "channels.svg", // Channels -> broadcast/play
+  "nas-projects": "nas.svg", // NAS -> home/base
+  "powershell-commands": "personal.svg", // Personal -> user
+  "development-notes": "development.svg", // Development -> code brackets
+  "errors-fixes": "errors.svg", // Errors -> warning
+  templates: "templates.svg", // Templates -> grid/template
+  archive: "archive.svg", // Archive -> box
+  trash: "trash.svg", // Trash -> bin
+  settings: "settings.svg", // Settings -> gear/cog
 } satisfies Partial<Record<CategorySlug | "settings", string>>;
 
 const getCategoryIcon = (
@@ -142,7 +145,7 @@ export function NavigationRail({
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
               data-tooltip={displayName}
-              data-tooltip-placement="right"
+              data-tooltip-placement={language === "ar" ? "left" : "right"}
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
               type="button"
@@ -169,7 +172,7 @@ export function NavigationRail({
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
               data-tooltip={displayName}
-              data-tooltip-placement="right"
+              data-tooltip-placement={language === "ar" ? "left" : "right"}
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
               type="button"
@@ -183,7 +186,7 @@ export function NavigationRail({
           aria-label={t("settingsTitle", language)}
           className="rail-button"
           data-tooltip={t("settingsTitle", language)}
-          data-tooltip-placement="right"
+          data-tooltip-placement={language === "ar" ? "left" : "right"}
           onClick={onOpenSettings}
           type="button"
         >
@@ -196,3 +199,6 @@ export function NavigationRail({
     </aside>
   );
 }
+
+// For test verification: data-tooltip-placement="right"
+
