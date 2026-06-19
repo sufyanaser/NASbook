@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
+
 import type { CategoryDefinition, CategorySlug } from "../../shared/categories";
-import type { RailIconMode, AppLanguage } from "../../shared/settings";
+import type { RailIconMode, AppLanguage, AppTheme } from "../../shared/settings";
 import { t, getCategoryDisplayName } from "../../shared/i18n";
 
 interface IconResolution {
@@ -109,7 +111,28 @@ interface NavigationRailProps {
   readonly onSelectCategory: (category: CategorySlug) => void;
   readonly expanded: boolean;
   readonly onToggleExpanded: () => void;
+  readonly theme: AppTheme;
+  readonly onThemeChange: (theme: AppTheme) => void;
 }
+
+function ThemeIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ width: '20px', height: '20px' }}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2v20M12 12h10" />
+      <path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" />
+    </svg>
+  );
+}
+
+const themesList = [
+  { value: "light", labelEn: "Light", labelAr: "فاتح", colors: ["#f5f5f4", "#ffffff", "#4f46e5"] },
+  { value: "dark", labelEn: "Dark", labelAr: "داكن", colors: ["#0c0a09", "#1c1917", "#6366f1"] },
+  { value: "graphite", labelEn: "Graphite", labelAr: "غرافيت", colors: ["#101214", "#1b1f23", "#3b82f6"] },
+  { value: "material-dark", labelEn: "Material Dark", labelAr: "ماتيريال داكن", colors: ["#121212", "#1e1e1e", "#b39ddb"] },
+  { value: "ulysses", labelEn: "Ulysses", labelAr: "يوليسيس", colors: ["#f8f5ee", "#fffdf7", "#d84b20"] },
+  { value: "one-dark", labelEn: "One Dark", labelAr: "ون دارك", colors: ["#1e2127", "#282c34", "#61afef"] },
+] as const;
 
 export function NavigationRail({
   activeCategory,
@@ -120,7 +143,55 @@ export function NavigationRail({
   onSelectCategory,
   expanded,
   onToggleExpanded,
+  theme,
+  onThemeChange,
 }: NavigationRailProps): JSX.Element {
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (isThemeOpen && themeMenuRef.current) {
+      const rect = themeMenuRef.current.getBoundingClientRect();
+      if (language === "ar") {
+        setCoords({
+          top: rect.top,
+          left: rect.left - 6,
+        });
+      } else {
+        setCoords({
+          top: rect.top,
+          left: rect.right + 6,
+        });
+      }
+    }
+  }, [isThemeOpen, language]);
+
+  useEffect(() => {
+    if (!isThemeOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedMenuButton = themeMenuRef.current && themeMenuRef.current.contains(target);
+      const clickedPopover = popoverRef.current && popoverRef.current.contains(target);
+      if (!clickedMenuButton && !clickedPopover) {
+        setIsThemeOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsThemeOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isThemeOpen]);
+
+
   const primaryCategories = categories.filter(
     (category) => category.placement === "primary",
   );
@@ -201,6 +272,75 @@ export function NavigationRail({
             </button>
           );
         })}
+        <div className="rail-theme-control" ref={themeMenuRef}>
+          <button
+            aria-label={language === "ar" ? "السمات" : "Themes"}
+            className="rail-button"
+            data-active={isThemeOpen}
+            data-tooltip={expanded ? "" : (language === "ar" ? "السمات" : "Themes")}
+            data-tooltip-placement={language === "ar" ? "left" : "right"}
+            onClick={() => setIsThemeOpen(!isThemeOpen)}
+            type="button"
+          >
+            <span aria-hidden="true">
+              <ThemeIcon />
+            </span>
+            {expanded && <span className="rail-button-label">{language === "ar" ? "السمات" : "Themes"}</span>}
+            <span className="sr-only">Themes</span>
+          </button>
+          
+          {isThemeOpen && createPortal(
+            <div
+              className="rail-theme-popover"
+              ref={popoverRef}
+              role="menu"
+              dir={language === "ar" ? "rtl" : "ltr"}
+              style={{
+                position: "fixed",
+                top: `${coords.top}px`,
+                left: `${coords.left}px`,
+                transform: language === "ar" ? "translateX(-100%)" : "none",
+                zIndex: "var(--z-popover, 2000)",
+              }}
+            >
+              {themesList.map((tItem) => {
+                const isSelected = tItem.value === theme;
+                return (
+                  <button
+                    key={tItem.value}
+                    className="rail-theme-item"
+                    role="menuitem"
+                    data-active={isSelected ? "true" : "false"}
+                    onClick={() => {
+                      onThemeChange(tItem.value);
+                      setIsThemeOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <div className="theme-item-left">
+                      <span className="theme-item-name">
+                        {language === "ar" ? tItem.labelAr : tItem.labelEn}
+                      </span>
+                      <div className="theme-item-swatches">
+                        {tItem.colors.map((c, idx) => (
+                          <span
+                            key={idx}
+                            className="theme-item-swatch"
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {isSelected && <span className="theme-item-checkmark">✓</span>}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body
+          )}
+
+        </div>
+
         <button
           aria-label={t("settingsTitle", language)}
           className="rail-button"

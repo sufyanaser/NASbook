@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TextSelection } from "@tiptap/pm/state";
+import { DOMSerializer } from "@tiptap/pm/model";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -11,6 +12,9 @@ import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
 import { LinkDialog } from "./LinkDialog";
+import { EditorContextMenu } from "./EditorContextMenu";
+import type { MenuNode } from "./EditorContextMenu";
+import { htmlToMarkdown } from "../markdown";
 import type { NoteRecord } from "../../shared/ipc";
 import { isLightLikeTheme } from "../../shared/settings";
 import type {
@@ -42,6 +46,7 @@ interface NoteEditorAreaProps {
   readonly onSave: () => void;
   readonly onToggleTheme: () => void;
   readonly onTitleChange: (title: string) => void;
+  readonly onExportNote?: () => void;
 }
 
 type ToolbarIcon =
@@ -613,6 +618,22 @@ async function copyPlainText(text: string): Promise<void> {
   document.body.removeChild(textArea);
 }
 
+function SlidersIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="toolbar-button-icon" aria-hidden="true">
+      <line x1="4" y1="21" x2="4" y2="14" />
+      <line x1="4" y1="10" x2="4" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12" y2="3" />
+      <line x1="20" y1="21" x2="20" y2="16" />
+      <line x1="20" y1="12" x2="20" y2="3" />
+      <line x1="1" y1="14" x2="7" y2="14" />
+      <line x1="9" y1="8" x2="15" y2="8" />
+      <line x1="17" y1="16" x2="23" y2="16" />
+    </svg>
+  );
+}
+
 export function NoteEditorArea({
   activeCategoryName,
   draftContent,
@@ -633,6 +654,7 @@ export function NoteEditorArea({
   onSave,
   onToggleTheme,
   onTitleChange,
+  onExportNote,
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
   const isSettingContentRef = useRef(false);
@@ -640,6 +662,103 @@ export function NoteEditorArea({
   
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
+  const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    setEditorMenuPos(null);
+  }, [selectedNote?.id]);
+
+  const [isArrangeOpen, setIsArrangeOpen] = useState(false);
+  const [visibleTools, setVisibleTools] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem("nas-notesbook.editor.visibleTools");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return {
+      fontFamily: true,
+      fontSize: true,
+      heading: true,
+      bold: true,
+      italic: true,
+      underline: true,
+      textColor: true,
+      link: true,
+      codeBlock: true,
+      bullets: true,
+      numbered: true,
+      alignLeft: true,
+      alignCenter: true,
+      alignRight: true,
+      clear: true,
+    };
+  });
+  const [tempVisibleTools, setTempVisibleTools] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (isArrangeOpen) {
+      setTempVisibleTools(visibleTools);
+    }
+  }, [isArrangeOpen, visibleTools]);
+
+  const arrangePopoverRef = useRef<HTMLDivElement | null>(null);
+
+  const handleToggleTool = (toolId: string) => {
+    setTempVisibleTools((prev) => ({
+      ...prev,
+      [toolId]: !prev[toolId],
+    }));
+  };
+
+  const handleResetTools = () => {
+    setTempVisibleTools({
+      fontFamily: true,
+      fontSize: true,
+      heading: true,
+      bold: true,
+      italic: true,
+      underline: true,
+      textColor: true,
+      link: true,
+      codeBlock: true,
+      bullets: true,
+      numbered: true,
+      alignLeft: true,
+      alignCenter: true,
+      alignRight: true,
+      clear: true,
+    });
+  };
+
+  const handleDoneTools = () => {
+    setVisibleTools(tempVisibleTools);
+    localStorage.setItem("nas-notesbook.editor.visibleTools", JSON.stringify(tempVisibleTools));
+    setIsArrangeOpen(false);
+  };
+
+
+  useEffect(() => {
+    if (!isArrangeOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (arrangePopoverRef.current && !arrangePopoverRef.current.contains(event.target as Node)) {
+        setIsArrangeOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsArrangeOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isArrangeOpen]);
 
   const editor = useEditor({
     extensions: [
@@ -836,6 +955,417 @@ export function NoteEditorArea({
     { value: "ltr", label: "LTR" },
     { value: "rtl", label: "RTL" },
   ];
+
+  const convertSelectionToSingleCodeBlock = () => {
+    if (!editor || isTrashView || !selectedNote) return;
+
+    const { state } = editor;
+    const { from, to, empty } = state.selection;
+
+    if (editor.isActive("codeBlock")) {
+      editor.chain().focus().toggleCodeBlock().run();
+      return;
+    }
+
+    if (empty) {
+      editor.chain().focus().toggleCodeBlock().run();
+      return;
+    }
+
+    const selectedText = state.doc.textBetween(from, to, "\n", "\n");
+
+    if (!selectedText.trim()) {
+      editor.chain().focus().toggleCodeBlock().run();
+      return;
+    }
+
+    editor
+      .chain()
+      .focus()
+      .deleteSelection()
+      .insertContent({
+        type: "codeBlock",
+        content: [
+          {
+            type: "text",
+            text: selectedText,
+          },
+        ],
+      })
+      .run();
+  };
+
+  const handleEditorContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!editor || isTrashView || !hasSelectedNote) {
+      return;
+    }
+
+    setEditorMenuPos({ x: event.clientX, y: event.clientY });
+  };
+
+  const getContextMenuNodes = (): readonly MenuNode[] => {
+    if (!editor) return [];
+
+    const isAr = language === "ar";
+    const selection = editor.state.selection;
+    const isSelectionEmpty = selection.empty;
+    const hasLink = editor.isActive("link");
+
+    const getSelectionText = () => {
+      const { from, to } = editor.state.selection;
+      return editor.state.doc.textBetween(from, to, "\n");
+    };
+
+    const handleCopy = () => {
+      const txt = getSelectionText();
+      if (txt) {
+        navigator.clipboard.writeText(txt);
+      }
+    };
+
+    const handleCut = () => {
+      const txt = getSelectionText();
+      if (txt) {
+        navigator.clipboard.writeText(txt);
+        editor.chain().focus().deleteSelection().run();
+      }
+    };
+
+    const handlePaste = async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        editor.chain().focus().insertContent(text).run();
+      } catch {
+        document.execCommand("paste");
+      }
+    };
+
+    const handlePastePlain = async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        editor.chain().focus().insertContent(text).run();
+      } catch {
+        document.execCommand("paste");
+      }
+    };
+
+    const handleCopySelectionAsMarkdown = () => {
+      const { from, to } = editor.state.selection;
+      if (from === to) return;
+      let html = "";
+      try {
+        const fragment = editor.state.doc.slice(from, to).content;
+        const serializer = DOMSerializer.fromSchema(editor.schema);
+        const div = document.createElement("div");
+        div.appendChild(serializer.serializeFragment(fragment));
+        html = div.innerHTML;
+      } catch {
+        html = getSelectionText();
+      }
+      
+      const md = htmlToMarkdown(html);
+      navigator.clipboard.writeText(md);
+    };
+
+    const handleCopyNoteAsMarkdown = () => {
+      const html = editor.getHTML();
+      const md = htmlToMarkdown(html);
+      navigator.clipboard.writeText(md);
+    };
+
+    const editingNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "cut",
+        label: isAr ? "قص" : "Cut",
+        shortcut: "Ctrl+X",
+        disabled: isSelectionEmpty,
+        onSelect: handleCut,
+      },
+      {
+        kind: "item",
+        id: "copy",
+        label: isAr ? "نسخ" : "Copy",
+        shortcut: "Ctrl+C",
+        disabled: isSelectionEmpty,
+        onSelect: handleCopy,
+      },
+      {
+        kind: "item",
+        id: "paste",
+        label: isAr ? "لصق" : "Paste",
+        shortcut: "Ctrl+V",
+        onSelect: handlePaste,
+      },
+      {
+        kind: "item",
+        id: "pastePlain",
+        label: isAr ? "لصق كنص عادي" : "Paste as plain text",
+        shortcut: "Ctrl+Shift+V",
+        onSelect: handlePastePlain,
+      },
+      {
+        kind: "item",
+        id: "selectAll",
+        label: isAr ? "تحديد الكل" : "Select All",
+        shortcut: "Ctrl+A",
+        onSelect: () => editor.chain().focus().selectAll().run(),
+      },
+    ];
+
+    const formatNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "paragraph",
+        label: isAr ? "فقرة" : "Paragraph",
+        checked: editor.isActive("paragraph"),
+        onSelect: () => editor.chain().focus().setParagraph().run(),
+      },
+      {
+        kind: "item",
+        id: "h1",
+        label: isAr ? "عنوان 1" : "Heading 1",
+        checked: editor.isActive("heading", { level: 1 }),
+        onSelect: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+      },
+      {
+        kind: "item",
+        id: "h2",
+        label: isAr ? "عنوان 2" : "Heading 2",
+        checked: editor.isActive("heading", { level: 2 }),
+        onSelect: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+      },
+      {
+        kind: "item",
+        id: "h3",
+        label: isAr ? "عنوان 3" : "Heading 3",
+        checked: editor.isActive("heading", { level: 3 }),
+        onSelect: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+      },
+      { kind: "separator", id: "fmt-sep-1" },
+      {
+        kind: "item",
+        id: "bold",
+        label: isAr ? "عريض" : "Bold",
+        shortcut: "Ctrl+B",
+        checked: editor.isActive("bold"),
+        onSelect: () => editor.chain().focus().toggleBold().run(),
+      },
+      {
+        kind: "item",
+        id: "italic",
+        label: isAr ? "مائل" : "Italic",
+        shortcut: "Ctrl+I",
+        checked: editor.isActive("italic"),
+        onSelect: () => editor.chain().focus().toggleItalic().run(),
+      },
+      {
+        kind: "item",
+        id: "underline",
+        label: isAr ? "مسطر" : "Underline",
+        shortcut: "Ctrl+U",
+        checked: editor.isActive("underline"),
+        onSelect: () => editor.chain().focus().toggleUnderline().run(),
+      },
+      {
+        kind: "item",
+        id: "strike",
+        label: isAr ? "يتوسطه خط" : "Strike",
+        checked: editor.isActive("strike"),
+        onSelect: () => editor.chain().focus().toggleStrike().run(),
+      },
+      {
+        kind: "item",
+        id: "code",
+        label: isAr ? "كود برمجى" : "Inline Code",
+        checked: editor.isActive("code"),
+        onSelect: () => editor.chain().focus().toggleCode().run(),
+      },
+      { kind: "separator", id: "fmt-sep-2" },
+      {
+        kind: "item",
+        id: "clearFormatting",
+        label: isAr ? "مسح التنسيق" : "Clear formatting",
+        onSelect: () => editor.chain().focus().clearNodes().unsetAllMarks().unsetColor().unsetFontFamily().unsetFontSize().unsetLink().run(),
+      },
+    ];
+
+    const blocksNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "quote",
+        label: isAr ? "اقتباس" : "Quote",
+        checked: editor.isActive("blockquote"),
+        onSelect: () => editor.chain().focus().toggleBlockquote().run(),
+      },
+      {
+        kind: "item",
+        id: "codeBlock",
+        label: isAr ? "كتلة كود" : "Code Block",
+        checked: editor.isActive("codeBlock"),
+        onSelect: () => convertSelectionToSingleCodeBlock(),
+      },
+      {
+        kind: "item",
+        id: "bulletList",
+        label: isAr ? "قائمة نقطية" : "Bullet List",
+        checked: editor.isActive("bulletList"),
+        onSelect: () => editor.chain().focus().toggleBulletList().run(),
+      },
+      {
+        kind: "item",
+        id: "numberList",
+        label: isAr ? "قائمة رقمية" : "Number List",
+        checked: editor.isActive("orderedList"),
+        onSelect: () => editor.chain().focus().toggleOrderedList().run(),
+      },
+      {
+        kind: "item",
+        id: "checklist",
+        label: isAr ? "قائمة مهام (قريباً)" : "Checklist (Coming soon)",
+        disabled: true,
+      },
+    ];
+
+    const alignmentNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "alignLeft",
+        label: isAr ? "محاذاة لليسار" : "Align left",
+        checked: editor.isActive({ textAlign: "left" }),
+        onSelect: () => editor.chain().focus().setTextAlign("left").run(),
+      },
+      {
+        kind: "item",
+        id: "alignCenter",
+        label: isAr ? "محاذاة للوسط" : "Align center",
+        checked: editor.isActive({ textAlign: "center" }),
+        onSelect: () => editor.chain().focus().setTextAlign("center").run(),
+      },
+      {
+        kind: "item",
+        id: "alignRight",
+        label: isAr ? "محاذاة لليمين" : "Align right",
+        checked: editor.isActive({ textAlign: "right" }),
+        onSelect: () => editor.chain().focus().setTextAlign("right").run(),
+      },
+    ];
+
+    const linkNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "addLink",
+        label: hasLink ? (isAr ? "تعديل الرابط" : "Edit Link") : (isAr ? "إضافة رابط" : "Add Link"),
+        onSelect: () => setIsLinkDialogOpen(true),
+      },
+      {
+        kind: "item",
+        id: "removeLink",
+        label: isAr ? "إزالة الرابط" : "Remove Link",
+        disabled: !hasLink,
+        onSelect: handleLinkRemove,
+      },
+    ];
+
+    const markdownNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "copySelectionMarkdown",
+        label: isAr ? "نسخ التحديد كـ Markdown" : "Copy selection as Markdown",
+        disabled: isSelectionEmpty,
+        onSelect: handleCopySelectionAsMarkdown,
+      },
+      {
+        kind: "item",
+        id: "copyNoteMarkdown",
+        label: isAr ? "نسخ الملاحظة كـ Markdown" : "Copy note as Markdown",
+        onSelect: handleCopyNoteAsMarkdown,
+      },
+      {
+        kind: "item",
+        id: "exportNoteMarkdown",
+        label: isAr ? "تصدير الملاحظة" : "Export current note",
+        disabled: !onExportNote,
+        onSelect: () => onExportNote?.(),
+      },
+    ];
+
+    const noteNodes: MenuNode[] = [
+      {
+        kind: "item",
+        id: "renameNote",
+        label: isAr ? "إعادة تسمية" : "Rename",
+        onSelect: () => {
+          const titleInput = document.querySelector(".note-title-input") as HTMLInputElement | null;
+          if (titleInput) {
+            titleInput.focus();
+            titleInput.select();
+          }
+        },
+      },
+      {
+        kind: "item",
+        id: "moveNote",
+        label: isAr ? "نقل إلى مجلد (استخدم قائمة الملاحظات)" : "Move to folder (Use note list)",
+        disabled: true,
+      },
+      {
+        kind: "item",
+        id: "deleteNote",
+        label: isAr ? "حذف إلى سلة المهملات" : "Delete to Trash",
+        danger: true,
+        onSelect: onDeleteToTrash,
+      },
+    ];
+
+    return [
+      { kind: "header", id: "h-editing", label: isAr ? "تعديل" : "Editing" },
+      ...editingNodes,
+      { kind: "separator", id: "sep-1" },
+      {
+        kind: "item",
+        id: "fmt-submenu",
+        label: isAr ? "تنسيق" : "Format",
+        submenu: formatNodes,
+      },
+      {
+        kind: "item",
+        id: "blocks-submenu",
+        label: isAr ? "كتل" : "Blocks",
+        submenu: blocksNodes,
+      },
+      {
+        kind: "item",
+        id: "align-submenu",
+        label: isAr ? "محاذاة" : "Alignment",
+        submenu: alignmentNodes,
+      },
+      { kind: "separator", id: "sep-2" },
+      {
+        kind: "item",
+        id: "link-submenu",
+        label: isAr ? "رابط" : "Link",
+        submenu: linkNodes,
+      },
+      { kind: "separator", id: "sep-3" },
+      {
+        kind: "item",
+        id: "md-submenu",
+        label: isAr ? "Markdown تصدير" : "Markdown / Export",
+        submenu: markdownNodes,
+      },
+      { kind: "separator", id: "sep-4" },
+      {
+        kind: "item",
+        id: "note-submenu",
+        label: isAr ? "ملاحظة" : "Note",
+        submenu: noteNodes,
+      },
+    ];
+  };
 
   const handleLinkConfirm = (url: string) => {
     if (editor) {
@@ -1070,246 +1600,394 @@ export function NoteEditorArea({
  
         {editor && (
           <>
-            <div className="toolbar-divider" />
-            
-            {/* Group 3: Font Family / Font Size / Heading */}
-            <div className="toolbar-group font-and-type-actions">
-              <Dropdown
-                label={getFontFamilyShortLabel(activeFontFamily)}
-                value={activeFontFamily}
-                options={fontFamilies}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={`${t("tooltipFontFamily", language)}: ${language === "ar" && activeFontFamily === "System" ? "نظام" : activeFontFamily}`}
-                className="font-family-dropdown"
-                onChange={(val) => {
-                  if (val === "System") {
-                    editor.chain().focus().unsetFontFamily().run();
-                  } else {
-                    editor.chain().focus().setFontFamily(val).run();
-                  }
-                }}
-              />
-              <Dropdown
-                label={getFontSizeShortLabel(activeFontSize)}
-                value={activeFontSize}
-                options={fontSizes}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={`${t("tooltipFontSize", language)}: ${language === "ar" && activeFontSize === "Default" ? "الافتراضي" : activeFontSize}`}
-                className="font-size-dropdown"
-                onChange={(val) => {
-                  if (val === "Default") {
-                    editor.chain().focus().unsetFontSize().run();
-                  } else {
-                    editor.chain().focus().setFontSize(val).run();
-                  }
-                }}
-              />
-              <Dropdown
-                label={getHeadingShortLabel(activeHeadingType)}
-                value={activeHeadingType}
-                options={headingTypes}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
-                className="text-type-dropdown"
-                onChange={(val) => {
-                  if (val === "paragraph") {
-                    editor.chain().focus().setParagraph().run();
-                  } else if (val.startsWith("h")) {
-                    const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
-                    editor.chain().focus().toggleHeading({ level }).run();
-                  }
-                }}
-              />
-            </div>
+            {(visibleTools.fontFamily !== false || visibleTools.fontSize !== false || visibleTools.heading !== false) && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group font-and-type-actions">
+                  {visibleTools.fontFamily !== false && (
+                    <Dropdown
+                      label={getFontFamilyShortLabel(activeFontFamily)}
+                      value={activeFontFamily}
+                      options={fontFamilies}
+                      disabled={!hasSelectedNote || isTrashView}
+                      tooltip={`${t("tooltipFontFamily", language)}: ${language === "ar" && activeFontFamily === "System" ? "نظام" : activeFontFamily}`}
+                      className="font-family-dropdown"
+                      onChange={(val) => {
+                        if (val === "System") {
+                          editor.chain().focus().unsetFontFamily().run();
+                        } else {
+                          editor.chain().focus().setFontFamily(val).run();
+                        }
+                      }}
+                    />
+                  )}
+                  {visibleTools.fontSize !== false && (
+                    <Dropdown
+                      label={getFontSizeShortLabel(activeFontSize)}
+                      value={activeFontSize}
+                      options={fontSizes}
+                      disabled={!hasSelectedNote || isTrashView}
+                      tooltip={`${t("tooltipFontSize", language)}: ${language === "ar" && activeFontSize === "Default" ? "الافتراضي" : activeFontSize}`}
+                      className="font-size-dropdown"
+                      onChange={(val) => {
+                        if (val === "Default") {
+                          editor.chain().focus().unsetFontSize().run();
+                        } else {
+                          editor.chain().focus().setFontSize(val).run();
+                        }
+                      }}
+                    />
+                  )}
+                  {visibleTools.heading !== false && (
+                    <Dropdown
+                      label={getHeadingShortLabel(activeHeadingType)}
+                      value={activeHeadingType}
+                      options={headingTypes}
+                      disabled={!hasSelectedNote || isTrashView}
+                      tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
+                      className="text-type-dropdown"
+                      onChange={(val) => {
+                        if (val === "paragraph") {
+                          editor.chain().focus().setParagraph().run();
+                        } else if (val.startsWith("h")) {
+                          const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+                          editor.chain().focus().toggleHeading({ level }).run();
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+
+            {(visibleTools.bold !== false || visibleTools.italic !== false || visibleTools.underline !== false || visibleTools.textColor !== false || visibleTools.link !== false || visibleTools.codeBlock !== false) && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group formatting-actions">
+                  {visibleTools.bold !== false && (
+                    <button
+                      aria-label="Bold"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().toggleBold().run();
+                      }}
+                      data-active={editor.isActive("bold") ? "true" : "false"}
+                      data-tooltip={t("tooltipBold", language)}
+                    >
+                      <ToolbarIconSvg icon="bold" />
+                    </button>
+                  )}
+                  {visibleTools.italic !== false && (
+                    <button
+                      aria-label="Italic"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().toggleItalic().run();
+                      }}
+                      data-active={editor.isActive("italic") ? "true" : "false"}
+                      data-tooltip={t("tooltipItalic", language)}
+                    >
+                      <ToolbarIconSvg icon="italic" />
+                    </button>
+                  )}
+                  {visibleTools.underline !== false && (
+                    <button
+                      aria-label="Underline"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().toggleUnderline().run();
+                      }}
+                      data-active={editor.isActive("underline") ? "true" : "false"}
+                      data-tooltip={t("tooltipUnderline", language)}
+                    >
+                      <ToolbarIconSvg icon="underline" />
+                    </button>
+                  )}
+                  {visibleTools.textColor !== false && (
+                    <ColorPicker
+                      value={activeTextColor}
+                      disabled={!hasSelectedNote || isTrashView}
+                      tooltip={t("tooltipTextColor", language)}
+                      language={language}
+                      onChange={(val) => {
+                        if (val === null) {
+                          editor.chain().focus().unsetColor().run();
+                        } else {
+                          editor.chain().focus().setColor(val).run();
+                        }
+                      }}
+                    />
+                  )}
+                  {visibleTools.link !== false && (
+                    <button
+                      aria-label="Link"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onClick={() => setIsLinkDialogOpen(true)}
+                      data-active={editor.isActive("link") ? "true" : "false"}
+                      data-tooltip={t("tooltipLink", language)}
+                    >
+                      <ToolbarIconSvg icon="link" />
+                    </button>
+                  )}
+                  {visibleTools.codeBlock !== false && (
+                    <>
+                      <button
+                        aria-label={language === "ar" ? "كتلة كود" : "Code block"}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          convertSelectionToSingleCodeBlock();
+                        }}
+                        data-active={editor.isActive("codeBlock") ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "كتلة كود" : "Code block"}
+                      >
+                        <ToolbarIconSvg icon="codeBlock" />
+                      </button>
+                      <CodeBlockColorPicker
+                        value={activeCodeBlockColor}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
+                        language={language}
+                        onChange={(val) => {
+                          const chain = editor.chain().focus();
+                          if (!editor.isActive("codeBlock")) {
+                            chain.setCodeBlock();
+                          }
+                          chain.updateAttributes("codeBlock", { boxColor: val }).run();
+                        }}
+                      />
+                      <Dropdown
+                        label={activeCodeBlockDir.toUpperCase()}
+                        value={activeCodeBlockDir}
+                        options={codeBlockDirectionOptions}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
+                        className="code-direction-dropdown"
+                        onChange={(val) => {
+                          const chain = editor.chain().focus();
+                          if (!editor.isActive("codeBlock")) {
+                            chain.setCodeBlock();
+                          }
+                          chain.updateAttributes("codeBlock", { dir: val }).run();
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
+            {(visibleTools.bullets !== false || visibleTools.numbered !== false || visibleTools.alignLeft !== false || visibleTools.alignCenter !== false || visibleTools.alignRight !== false) && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group layout-actions">
+                  {visibleTools.bullets !== false && (
+                    <button
+                      aria-label="Bullets"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().toggleBulletList().run();
+                      }}
+                      data-active={editor.isActive("bulletList") ? "true" : "false"}
+                      data-tooltip={t("tooltipBullets", language)}
+                    >
+                      <ToolbarIconSvg icon="bullets" />
+                    </button>
+                  )}
+                  {visibleTools.numbered !== false && (
+                    <button
+                      aria-label="Numbered"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().toggleOrderedList().run();
+                      }}
+                      data-active={editor.isActive("orderedList") ? "true" : "false"}
+                      data-tooltip={t("tooltipNumbered", language)}
+                    >
+                      <ToolbarIconSvg icon="numbered" />
+                    </button>
+                  )}
+                  {visibleTools.alignLeft !== false && (
+                    <button
+                      aria-label="Align Left"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().setTextAlign("left").run();
+                      }}
+                      data-active={editor.isActive({ textAlign: "left" }) ? "true" : "false"}
+                      data-tooltip={t("tooltipAlignLeft", language)}
+                    >
+                      <ToolbarIconSvg icon="alignLeft" />
+                    </button>
+                  )}
+                  {visibleTools.alignCenter !== false && (
+                    <button
+                      aria-label="Align Center"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().setTextAlign("center").run();
+                      }}
+                      data-active={editor.isActive({ textAlign: "center" }) ? "true" : "false"}
+                      data-tooltip={t("tooltipAlignCenter", language)}
+                    >
+                      <ToolbarIconSvg icon="alignCenter" />
+                    </button>
+                  )}
+                  {visibleTools.alignRight !== false && (
+                    <button
+                      aria-label="Align Right"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().setTextAlign("right").run();
+                      }}
+                      data-active={editor.isActive({ textAlign: "right" }) ? "true" : "false"}
+                      data-tooltip={t("tooltipAlignRight", language)}
+                    >
+                      <ToolbarIconSvg icon="alignRight" />
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {visibleTools.clear !== false && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group clear-actions">
+                  <button
+                    aria-label="Clear formatting"
+                    className="toolbar-icon-button"
+                    type="button"
+                    disabled={!hasSelectedNote || isTrashView}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      editor
+                        .chain()
+                        .focus()
+                        .clearNodes()
+                        .unsetAllMarks()
+                        .unsetColor()
+                        .unsetFontFamily()
+                        .unsetFontSize()
+                        .unsetLink()
+                        .run();
+                    }}
+                    data-tooltip={t("tooltipClearFormatting", language)}
+                  >
+                    <ToolbarIconSvg icon="clear" />
+                  </button>
+                </div>
+              </>
+            )}
 
             <div className="toolbar-divider" />
+            <div className="toolbar-arrange-container" style={{ position: "relative" }}>
+              <button
+                aria-label={language === "ar" ? "تخصيص شريط الأدوات" : "Customize toolbar"}
+                className="toolbar-icon-button"
+                type="button"
+                onClick={() => setIsArrangeOpen(!isArrangeOpen)}
+                data-active={isArrangeOpen ? "true" : "false"}
+                data-tooltip={language === "ar" ? "تخصيص شريط الأدوات" : "Customize toolbar"}
+              >
+                <SlidersIcon />
+              </button>
+              {isArrangeOpen && (
+                <div
+                  className="toolbar-arrange-popover"
+                  ref={arrangePopoverRef}
+                  dir={language === "ar" ? "rtl" : "ltr"}
+                >
+                  <div className="arrange-popover-header">
+                    {language === "ar" ? "تخصيص شريط الأدوات" : "Customize Toolbar"}
+                  </div>
+                  <div className="arrange-popover-list">
+                    {Object.entries(tempVisibleTools).map(([toolId, isVisible]) => {
+                      let label = toolId;
+                      if (toolId === "fontFamily") label = language === "ar" ? "نوع الخط" : "Font Family";
+                      else if (toolId === "fontSize") label = language === "ar" ? "حجم الخط" : "Font Size";
+                      else if (toolId === "heading") label = language === "ar" ? "العناوين" : "Headings";
+                      else if (toolId === "bold") label = language === "ar" ? "عريض" : "Bold";
+                      else if (toolId === "italic") label = language === "ar" ? "مائل" : "Italic";
+                      else if (toolId === "underline") label = language === "ar" ? "تحته خط" : "Underline";
+                      else if (toolId === "textColor") label = language === "ar" ? "لون النص" : "Text Color";
+                      else if (toolId === "link") label = language === "ar" ? "رابط" : "Link";
+                      else if (toolId === "codeBlock") label = language === "ar" ? "كتلة كود" : "Code Block";
+                      else if (toolId === "bullets") label = language === "ar" ? "قائمة نقطية" : "Bullet List";
+                      else if (toolId === "numbered") label = language === "ar" ? "قائمة مرقمة" : "Numbered List";
+                      else if (toolId === "alignLeft") label = language === "ar" ? "محاذاة لليسار" : "Align Left";
+                      else if (toolId === "alignCenter") label = language === "ar" ? "محاذاة للوسط" : "Align Center";
+                      else if (toolId === "alignRight") label = language === "ar" ? "محاذاة لليمين" : "Align Right";
+                      else if (toolId === "clear") label = language === "ar" ? "مسح التنسيق" : "Clear Formatting";
 
-            {/* Group 4: Bold / Italic / Underline / Text Color / Link */}
-            <div className="toolbar-group formatting-actions">
-              <button
-                aria-label="Bold"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                data-active={editor.isActive("bold") ? "true" : "false"}
-                data-tooltip={t("tooltipBold", language)}
-              >
-                <ToolbarIconSvg icon="bold" />
-              </button>
-              <button
-                aria-label="Italic"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                data-active={editor.isActive("italic") ? "true" : "false"}
-                data-tooltip={t("tooltipItalic", language)}
-              >
-                <ToolbarIconSvg icon="italic" />
-              </button>
-              <button
-                aria-label="Underline"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleUnderline().run()}
-                data-active={editor.isActive("underline") ? "true" : "false"}
-                data-tooltip={t("tooltipUnderline", language)}
-              >
-                <ToolbarIconSvg icon="underline" />
-              </button>
-              <ColorPicker
-                value={activeTextColor}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={t("tooltipTextColor", language)}
-                language={language}
-                onChange={(val) => {
-                  if (val === null) {
-                    editor.chain().focus().unsetColor().run();
-                  } else {
-                    editor.chain().focus().setColor(val).run();
-                  }
-                }}
-              />
-              <button
-                aria-label="Link"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => setIsLinkDialogOpen(true)}
-                data-active={editor.isActive("link") ? "true" : "false"}
-                data-tooltip={t("tooltipLink", language)}
-              >
-                <ToolbarIconSvg icon="link" />
-              </button>
-              <button
-                aria-label={language === "ar" ? "كتلة كود" : "Code block"}
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                data-active={editor.isActive("codeBlock") ? "true" : "false"}
-                data-tooltip={language === "ar" ? "كتلة كود" : "Code block"}
-              >
-                <ToolbarIconSvg icon="codeBlock" />
-              </button>
-              <CodeBlockColorPicker
-                value={activeCodeBlockColor}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
-                language={language}
-                onChange={(val) => {
-                  const chain = editor.chain().focus();
-                  if (!editor.isActive("codeBlock")) {
-                    chain.setCodeBlock();
-                  }
-                  chain.updateAttributes("codeBlock", { boxColor: val }).run();
-                }}
-              />
-              <Dropdown
-                label={activeCodeBlockDir.toUpperCase()}
-                value={activeCodeBlockDir}
-                options={codeBlockDirectionOptions}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
-                className="code-direction-dropdown"
-                onChange={(val) => {
-                  const chain = editor.chain().focus();
-                  if (!editor.isActive("codeBlock")) {
-                    chain.setCodeBlock();
-                  }
-                  chain.updateAttributes("codeBlock", { dir: val }).run();
-                }}
-              />
-            </div>
-
-            <div className="toolbar-divider" />
-
-            {/* Group 5: Bullet / Numbered / Align Left / Align Center / Align Right */}
-            <div className="toolbar-group layout-actions">
-              <button
-                aria-label="Bullets"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-                data-active={editor.isActive("bulletList") ? "true" : "false"}
-                data-tooltip={t("tooltipBullets", language)}
-              >
-                <ToolbarIconSvg icon="bullets" />
-              </button>
-              <button
-                aria-label="Numbered"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                data-active={editor.isActive("orderedList") ? "true" : "false"}
-                data-tooltip={t("tooltipNumbered", language)}
-              >
-                <ToolbarIconSvg icon="numbered" />
-              </button>
-              <button
-                aria-label="Align Left"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().setTextAlign("left").run()}
-                data-active={editor.isActive({ textAlign: "left" }) ? "true" : "false"}
-                data-tooltip={t("tooltipAlignLeft", language)}
-              >
-                <ToolbarIconSvg icon="alignLeft" />
-              </button>
-              <button
-                aria-label="Align Center"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().setTextAlign("center").run()}
-                data-active={editor.isActive({ textAlign: "center" }) ? "true" : "false"}
-                data-tooltip={t("tooltipAlignCenter", language)}
-              >
-                <ToolbarIconSvg icon="alignCenter" />
-              </button>
-              <button
-                aria-label="Align Right"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() => editor.chain().focus().setTextAlign("right").run()}
-                data-active={editor.isActive({ textAlign: "right" }) ? "true" : "false"}
-                data-tooltip={t("tooltipAlignRight", language)}
-              >
-                <ToolbarIconSvg icon="alignRight" />
-              </button>
-            </div>
-
-            <div className="toolbar-divider" />
-
-            {/* Group 6: Clear Formatting */}
-            <div className="toolbar-group clear-actions">
-              <button
-                aria-label="Clear formatting"
-                className="toolbar-icon-button"
-                type="button"
-                disabled={!hasSelectedNote || isTrashView}
-                onClick={() =>
-                  editor
-                    .chain()
-                    .focus()
-                    .clearNodes()
-                    .unsetAllMarks()
-                    .unsetColor()
-                    .unsetFontFamily()
-                    .unsetFontSize()
-                    .unsetLink()
-                    .run()
-                }
-                data-tooltip={t("tooltipClearFormatting", language)}
-              >
-                <ToolbarIconSvg icon="clear" />
-              </button>
+                      return (
+                        <label key={toolId} className="arrange-popover-item">
+                          <input
+                            type="checkbox"
+                            checked={isVisible}
+                            onChange={() => handleToggleTool(toolId)}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="arrange-popover-actions">
+                    <button
+                      className="arrange-btn-reset"
+                      type="button"
+                      onClick={handleResetTools}
+                    >
+                      {language === "ar" ? "إعادة ضبط" : "Reset"}
+                    </button>
+                    <button
+                      className="arrange-btn-done"
+                      type="button"
+                      onClick={handleDoneTools}
+                    >
+                      {language === "ar" ? "تم" : "Done"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1322,6 +2000,7 @@ export function NoteEditorArea({
           }`}
           data-readonly={isTrashView ? "true" : "false"}
           dir={editorDirection}
+          onContextMenu={handleEditorContextMenu}
         >
           <EditorContent editor={editor} />
         </div>
@@ -1360,6 +2039,16 @@ export function NoteEditorArea({
         onConfirm={handleLinkConfirm}
         onRemove={handleLinkRemove}
       />
+
+      {editorMenuPos && (
+        <EditorContextMenu
+          x={editorMenuPos.x}
+          y={editorMenuPos.y}
+          nodes={getContextMenuNodes()}
+          rtl={language === "ar"}
+          onClose={() => setEditorMenuPos(null)}
+        />
+      )}
     </section>
   );
 }

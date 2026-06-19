@@ -8,6 +8,7 @@ import { hasUnsavedNoteChanges } from "../shared/dirtyState";
 import type { AppInfo, NoteRecord, NoteListItem } from "../shared/ipc";
 import {
   defaultAppSettings,
+  getToggledLightDarkTheme,
   type AppSettings,
 } from "../shared/settings";
 import { NavigationRail } from "./components/NavigationRail";
@@ -83,7 +84,7 @@ export function App(): JSX.Element {
     content: "",
   });
   const activeCategoryRef = useRef<CategorySlug>("all-notes");
-  const refreshNotesRef = useRef<() => Promise<void>>(async () => {});
+  const refreshNotesRef = useRef<() => Promise<readonly NoteListItem[]>>(async () => []);
   const confirmUnsavedSwitchRef = useRef(true);
 
   const [notesListWidth, setNotesListWidth] = useState<number>(() => {
@@ -100,18 +101,11 @@ export function App(): JSX.Element {
     return saved === "true";
   });
 
-  const [isFocusMode, setIsFocusMode] = useState<boolean>(() => {
+  const isFocusMode = useMemo(() => {
     const saved = sessionStorage.getItem("nas-notesbook.focusMode");
     return saved === "true";
-  });
-
-  const handleToggleFocusMode = useCallback(() => {
-    setIsFocusMode((prev) => {
-      const next = !prev;
-      sessionStorage.setItem("nas-notesbook.focusMode", String(next));
-      return next;
-    });
   }, []);
+
 
   const handleToggleNavRail = useCallback(() => {
     setNavRailExpanded((prev) => {
@@ -193,18 +187,19 @@ export function App(): JSX.Element {
     return api.notes.list({ categoryId });
   };
 
-  const refreshNotes = async (): Promise<void> => {
+  const refreshNotes = async (): Promise<readonly NoteListItem[]> => {
     const api = window.nasNotesbook;
 
     if (!api) {
       setDatabaseStatus("unavailable");
-      return;
+      return [];
     }
 
     const categoryId = activeCategoryRecord?.id ?? null;
     const nextNotes = await loadNotes(api, activeCategory, categoryId);
     setNotes(nextNotes);
     setNotesCount(nextNotes.length);
+    return nextNotes;
   };
 
   refreshNotesRef.current = refreshNotes;
@@ -613,13 +608,26 @@ export function App(): JSX.Element {
       categoryId,
       isRtl: base.isRtl,
     });
-    await refreshNotes();
+    const nextNotes = await refreshNotes();
 
     if (selectedNoteRef.current?.id === id) {
-      setSelectedNote(updated);
-      setDraftTitle(updated.title);
-      setDraftContent(updated.contentMarkdown);
-      setSaveStatus("Saved");
+      const belongsToActiveCategory =
+        activeCategory === "all-notes" ||
+        (activeCategoryRecord && categoryId === activeCategoryRecord.id);
+
+      if (!belongsToActiveCategory) {
+        const next = nextNotes[0] ?? null;
+        if (next) {
+          void doSelectNote(next.id);
+        } else {
+          clearSelectedNote();
+        }
+      } else {
+        setSelectedNote(updated);
+        setDraftTitle(updated.title);
+        setDraftContent(updated.contentMarkdown);
+        setSaveStatus("Saved");
+      }
     }
   };
 
@@ -860,6 +868,8 @@ export function App(): JSX.Element {
         onSelectCategory={handleSelectCategory}
         expanded={navRailExpanded}
         onToggleExpanded={handleToggleNavRail}
+        theme={settings.theme}
+        onThemeChange={(theme) => handleUpdateSettings({ theme })}
       />
       <NotesListColumn
         activeCategoryName={activeCategoryName}
@@ -919,8 +929,6 @@ export function App(): JSX.Element {
         showMetadata={settings.showMetadata}
         theme={settings.theme}
         language={settings.language}
-        isFocusMode={isFocusMode}
-        onToggleFocusMode={handleToggleFocusMode}
         onContentChange={handleDraftContentChange}
         onDeletePermanent={() => {
           handleDeletePermanent();
@@ -934,8 +942,15 @@ export function App(): JSX.Element {
         onSave={() => {
           void handleSaveNote();
         }}
-        onThemeChange={(theme) => handleUpdateSettings({ theme })}
+        onToggleTheme={() => {
+          handleUpdateSettings({
+            theme: getToggledLightDarkTheme(settings.theme),
+          });
+        }}
         onTitleChange={handleDraftTitleChange}
+        onExportNote={() => {
+          void handleExportNote();
+        }}
       />
       <AppContextMenu
         menu={contextMenu}
@@ -988,8 +1003,8 @@ export function App(): JSX.Element {
         saveStatus={saveStatus}
         language={settings.language}
         editorDirection={settings.editorDirection}
-        isFocusMode={isFocusMode}
       />
     </main>
   );
 }
+
