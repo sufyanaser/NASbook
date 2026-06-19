@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { redactSensitive } from "./googleAuthService";
+import { redactSensitive, isRecord, getErrorMessage } from "./googleAuthService";
+import type { AppLanguage } from "../../src/shared/settings";
 import type { GoogleAuthService } from "./googleAuthService";
 import type { SettingsStore } from "./settingsStore";
 import type { CloudBackupInfo, CloudBackupUploadResult } from "../../src/shared/ipc";
@@ -68,9 +69,15 @@ async function findFileInFolder(
   });
   
   if (response.ok) {
-    const data = (await response.json()) as any;
-    if (data.files && data.files.length > 0) {
-      return data.files[0].id as string;
+    const data = await response.json();
+    if (
+      isRecord(data) &&
+      Array.isArray(data.files) &&
+      data.files.length > 0 &&
+      isRecord(data.files[0]) &&
+      typeof data.files[0].id === "string"
+    ) {
+      return data.files[0].id;
     }
   }
   return null;
@@ -95,9 +102,15 @@ async function getOrCreateFolder(
     throw new Error(`Failed to search Drive folder: ${searchRes.status} ${errBody}`);
   }
 
-  const searchData = (await searchRes.json()) as any;
-  if (searchData.files && searchData.files.length > 0) {
-    return searchData.files[0].id as string;
+  const searchData = await searchRes.json();
+  if (
+    isRecord(searchData) &&
+    Array.isArray(searchData.files) &&
+    searchData.files.length > 0 &&
+    isRecord(searchData.files[0]) &&
+    typeof searchData.files[0].id === "string"
+  ) {
+    return searchData.files[0].id;
   }
 
   const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
@@ -117,8 +130,11 @@ async function getOrCreateFolder(
     throw new Error(`Failed to create Drive folder: ${createRes.status} ${errBody}`);
   }
 
-  const createData = (await createRes.json()) as any;
-  return createData.id as string;
+  const createData = await createRes.json();
+  if (isRecord(createData) && typeof createData.id === "string") {
+    return createData.id;
+  }
+  throw new Error("Invalid response during folder creation");
 }
 
 // Upload a single file using multipart
@@ -185,21 +201,24 @@ async function uploadFile(
     throw new Error(`Failed to upload ${filename}: ${res.status} ${errBody}`);
   }
 
-  const data = (await res.json()) as any;
-  return data.id as string;
+  const data = await res.json();
+  if (isRecord(data) && typeof data.id === "string") {
+    return data.id;
+  }
+  throw new Error("Invalid upload response");
 }
 
 // Helper to translate typical API/network errors into clear localized string.
-export function getLocalizedUploadError(errStr: string, lang: string): string {
+export function getLocalizedUploadError(errStr: string, lang: AppLanguage): string {
   const lower = errStr.toLowerCase();
   if (lower.includes("quotaexceeded") || lower.includes("quota") || lower.includes("storage") || lower.includes("403")) {
-    return t("googleQuotaExceeded", lang as any);
+    return t("googleQuotaExceeded", lang);
   }
   if (lower.includes("fetch failed") || lower.includes("network") || lower.includes("enotfound") || lower.includes("econnrefused")) {
-    return t("googleNetworkUnavailable", lang as any);
+    return t("googleNetworkUnavailable", lang);
   }
   if (lower.includes("invalid_grant") || lower.includes("revoked") || lower.includes("expired") || lower.includes("auth")) {
-    return t("googlePermissionRevoked", lang as any);
+    return t("googlePermissionRevoked", lang);
   }
   return errStr;
 }
@@ -222,7 +241,7 @@ export function createGoogleDriveBackupService(
     const lang = settings.language;
 
     let status: CloudBackupInfo["status"] = "ready";
-    let lastError: string | null = lastUploadError || (authStatus.error ? getLocalizedUploadError(authStatus.error, lang) : null);
+    const lastError: string | null = lastUploadError || (authStatus.error ? getLocalizedUploadError(authStatus.error, lang) : null);
 
     if (!authStatus.configured) {
       status = "not_configured";
@@ -338,8 +357,8 @@ export function createGoogleDriveBackupService(
         folderName,
         uploadedAt: now,
       };
-    } catch (err: any) {
-      const errMsg = err.message || String(err);
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err);
       const redactedMsg = redactSensitive(errMsg);
       const localizedError = getLocalizedUploadError(redactedMsg, lang);
       lastUploadError = localizedError;

@@ -149,7 +149,7 @@ export function createBackupService(
         }
         lastBackupAt = await getLatestBackupTime(files);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to retrieve backup directory status:", err);
     }
 
@@ -228,8 +228,8 @@ export function createBackupService(
         success: true,
         lastBackupAt: metadata.timestamp,
       };
-    } catch (err: any) {
-      const errMsg = err.message || String(err);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       console.error("Backup creation failed:", err);
       lastError = errMsg;
       return {

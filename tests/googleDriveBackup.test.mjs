@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
+import { Buffer } from "node:buffer";
 
 const require = createRequire(import.meta.url);
 const Module = require("node:module");

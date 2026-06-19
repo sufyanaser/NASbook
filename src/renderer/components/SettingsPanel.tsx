@@ -207,8 +207,8 @@ export function SettingsPanel({
           message: `${t("settingsDataBackupFailed", lang)}: ${errMsg}`,
         });
       }
-    } catch (err: any) {
-      const errMsg = err.message || String(err);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       setBackupError(errMsg);
       setFeedback({
         type: "error",
@@ -223,7 +223,7 @@ export function SettingsPanel({
     if (!window.nasNotesbook) return;
     try {
       await window.nasNotesbook.backup.openFolder();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to open backups folder:", err);
     }
   };
@@ -246,10 +246,10 @@ export function SettingsPanel({
           message: t("googleStatusLinked", lang),
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setCloudFeedback({
         type: "error",
-        message: err.message || String(err),
+        message: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setIsCloudActionRunning(false);
@@ -267,10 +267,10 @@ export function SettingsPanel({
         type: "success",
         message: t("googleAccountUnlinked", lang),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setCloudFeedback({
         type: "error",
-        message: err.message || String(err),
+        message: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setIsCloudActionRunning(false);
@@ -305,8 +305,8 @@ export function SettingsPanel({
           message: `${t("googleUploadFailed", lang)}: ${errMsg}`,
         });
       }
-    } catch (err: any) {
-      const errMsg = err.message || String(err);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       setCloudFeedback({
         type: "error",
         message: `${t("googleUploadFailed", lang)}: ${errMsg}`,

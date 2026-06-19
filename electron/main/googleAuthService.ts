@@ -30,8 +30,16 @@ interface SavedSession {
 export function redactSensitive(text: string): string {
   if (!text) return text;
   return text
-    .replace(/(access_token|refresh_token|id_token|client_secret|code)([:=]\s*["']?)[a-zA-Z0-9_\-\.\/]+/gi, "$1$2[REDACTED]")
-    .replace(/(Bearer\s+)[a-zA-Z0-9_\-\.\/]+/gi, "$1[REDACTED]");
+    .replace(/(access_token|refresh_token|id_token|client_secret|code)([:=]\s*["']?)[a-zA-Z0-9_./-]+/gi, "$1$2[REDACTED]")
+    .replace(/(Bearer\s+)[a-zA-Z0-9_./-]+/gi, "$1[REDACTED]");
+}
+
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function createGoogleAuthService(
@@ -148,8 +156,8 @@ export function createGoogleAuthService(
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (response.ok) {
-        const data = (await response.json()) as any;
-        if (data && typeof data.email === "string") {
+        const data = await response.json();
+        if (isRecord(data) && typeof data.email === "string") {
           return data.email;
         }
       }
@@ -184,7 +192,20 @@ export function createGoogleAuthService(
       throw new Error(redactSensitive(`Token exchange failed: ${response.status} ${errBody}`));
     }
 
-    return (await response.json()) as any;
+    const data = await response.json();
+    if (
+      isRecord(data) &&
+      typeof data.refresh_token === "string" &&
+      typeof data.access_token === "string" &&
+      typeof data.expires_in === "number"
+    ) {
+      return {
+        refresh_token: data.refresh_token,
+        access_token: data.access_token,
+        expires_in: data.expires_in,
+      };
+    }
+    throw new Error("Invalid token exchange response");
   };
 
   // Refresh access token
@@ -210,7 +231,18 @@ export function createGoogleAuthService(
       throw new Error(redactSensitive(`Token refresh failed: ${response.status} ${errBody}`));
     }
 
-    return (await response.json()) as any;
+    const data = await response.json();
+    if (
+      isRecord(data) &&
+      typeof data.access_token === "string" &&
+      typeof data.expires_in === "number"
+    ) {
+      return {
+        access_token: data.access_token,
+        expires_in: data.expires_in,
+      };
+    }
+    throw new Error("Invalid token refresh response");
   };
 
   // Expose decrypted access token, automatically refreshing if expired
@@ -247,9 +279,9 @@ export function createGoogleAuthService(
         saveSession(session);
         
         return refreshed.access_token;
-      } catch (err: any) {
+      } catch (err: unknown) {
         const lang = settingsStore.getSettings().language;
-        const errStr = err.message || String(err);
+        const errStr = getErrorMessage(err);
         const isPermissionError = errStr.includes("invalid_grant") || errStr.includes("revoked");
         const errMsg = isPermissionError
           ? t("googlePermissionRevoked", lang)
@@ -316,8 +348,8 @@ export function createGoogleAuthService(
       if (!token) {
         return authState;
       }
-    } catch (err: any) {
-      const errStr = err.message || String(err);
+    } catch (err: unknown) {
+      const errStr = getErrorMessage(err);
       const isPermissionError = errStr.includes("invalid_grant") || errStr.includes("revoked");
       const errMsg = isPermissionError
         ? t("googlePermissionRevoked", lang)
@@ -492,11 +524,11 @@ export function createGoogleAuthService(
             message: t("googleStatusLinked", lang),
           };
           resolve(authState);
-        } catch (err: any) {
+        } catch (err: unknown) {
           res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
           res.end("<h1>خطأ داخلي</h1><p>حدث خطأ أثناء تبادل الرموز.</p>");
           server.close();
-          const errStr = err.message || String(err);
+          const errStr = getErrorMessage(err);
           const errMsg = `${t("googleSignInFailed", lang)}: ${errStr}`;
           resolve({
             configured: true,
@@ -531,9 +563,9 @@ export function createGoogleAuthService(
         console.log(`Opening system browser for Google auth callback on port ${port}...`);
         try {
           await shell.openExternal(oauthUrl.toString());
-        } catch (err: any) {
+        } catch (err: unknown) {
           server.close();
-          const errStr = err.message || String(err);
+          const errStr = getErrorMessage(err);
           resolve({
             configured: true,
             linked: false,
