@@ -173,7 +173,16 @@ export type TranslationKeys =
   | "googleUploading"
   | "googleUploadSuccess"
   | "googleUploadFailed"
-  | "googleLastBackup";
+  | "googleLastBackup"
+  | "googleAccountLabel"
+  | "googleCredentialsMissingHint"
+  | "googleLinkFirstHint"
+  | "googleStatusReady"
+  | "googleLatestLocalBackup"
+  | "googleUploadedFiles"
+  | "googleCloudFolder"
+  | "googleNetworkUnavailable"
+  | "googleQuotaExceeded";
 
 const ar: Record<TranslationKeys, string> = {
   appTitle: "NAS Notesbook",
@@ -330,6 +339,15 @@ const ar: Record<TranslationKeys, string> = {
   googleUploadSuccess: "تم رفع النسخة الاحتياطية إلى Google Drive",
   googleUploadFailed: "فشل رفع النسخة إلى Google Drive",
   googleLastBackup: "آخر نسخة احتياطية سحابية",
+  googleAccountLabel: "حساب Google",
+  googleCredentialsMissingHint: "أضف ملف google-credentials.json لتفعيل الربط.",
+  googleLinkFirstHint: "اربط حساب Google أولاً.",
+  googleStatusReady: "جاهز للرفع إلى Google Drive",
+  googleLatestLocalBackup: "آخر نسخة احتياطية محلية",
+  googleUploadedFiles: "الملفات المرفوعة",
+  googleCloudFolder: "مجلد النسخ الاحتياطي السحابي",
+  googleNetworkUnavailable: "الشبكة غير متوفرة",
+  googleQuotaExceeded: "تم تجاوز الحصة المحددة",
 };
 
 const en: Record<TranslationKeys, string> = {
@@ -487,6 +505,15 @@ const en: Record<TranslationKeys, string> = {
   googleUploadSuccess: "Backup uploaded to Google Drive",
   googleUploadFailed: "Google Drive upload failed",
   googleLastBackup: "Last cloud backup",
+  googleAccountLabel: "Google account",
+  googleCredentialsMissingHint: "Add google-credentials.json to enable Google linking.",
+  googleLinkFirstHint: "Link your Google account first.",
+  googleStatusReady: "Ready to upload to Google Drive",
+  googleLatestLocalBackup: "Latest local backup",
+  googleUploadedFiles: "Uploaded files",
+  googleCloudFolder: "Cloud backup folder",
+  googleNetworkUnavailable: "Network unavailable",
+  googleQuotaExceeded: "Quota exceeded",
 };
 
 export function t(key: TranslationKeys, lang: AppLanguage): string {

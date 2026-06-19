@@ -711,7 +711,7 @@ export function SettingsPanel({
                   <p>{lang === "ar" ? "إدارة النسخ الاحتياطي السحابي لبياناتك وإعداداتك." : "Manage cloud backup for your data and settings."}</p>
                 </div>
 
-                <div className="settings-data-grid">
+                <div className="settings-data-grid" style={{ gridTemplateColumns: "180px minmax(0, 1fr)" }}>
                   <span>{t("settingsDataBackupStatus", lang)}</span>
                   <strong>
                     {cloudStatus ? (
@@ -725,17 +725,30 @@ export function SettingsPanel({
                         </span>
                       ) : cloudStatus.status === "not_linked" ? (
                         t("googleStatusNotLinked", lang)
-                      ) : cloudStatus.status === "error" ? (
-                        <span style={{ color: "var(--app-error, #ff4d4f)" }}>
-                          {cloudStatus.lastError || t("googleUploadFailed", lang)}
-                        </span>
                       ) : cloudStatus.status === "uploading" ? (
                         t("googleUploading", lang)
+                      ) : cloudStatus.status === "success" ? (
+                        <span style={{ color: "rgb(16, 185, 129)" }}>
+                          {t("googleUploadSuccess", lang)}
+                        </span>
+                      ) : cloudStatus.status === "error" ? (
+                        <span style={{ color: "var(--app-error, #ff4d4f)" }}>
+                          {t("googleUploadFailed", lang)}
+                        </span>
                       ) : (
-                        t("googleStatusLinked", lang) + (cloudStatus.email ? ` (${cloudStatus.email})` : "")
+                        t("googleStatusReady", lang)
                       )
                     ) : (
                       t("settingsDataUnavailable", lang)
+                    )}
+                  </strong>
+
+                  <span>{t("googleLatestLocalBackup", lang)}</span>
+                  <strong>
+                    {backupStatus?.lastBackupFileName ? (
+                      <code>{backupStatus.lastBackupFileName}</code>
+                    ) : (
+                      t("googleNoLocalBackup", lang)
                     )}
                   </strong>
 
@@ -749,6 +762,18 @@ export function SettingsPanel({
                       : t("settingsDataBackupNoBackups", lang)}
                   </strong>
                 </div>
+
+                {!cloudStatus?.configured && (
+                  <p style={{ color: "var(--app-warning, #faad14)", fontSize: "12px", marginTop: "-8px", marginBottom: "16px" }}>
+                    ⚠️ {t("googleCredentialsMissingHint", lang)}
+                  </p>
+                )}
+
+                {cloudStatus?.configured && !cloudStatus?.linked && (
+                  <p style={{ color: "var(--app-warning, #faad14)", fontSize: "12px", marginTop: "-8px", marginBottom: "16px" }}>
+                    ⚠️ {t("googleLinkFirstHint", lang)}
+                  </p>
+                )}
 
                 {cloudFeedback && (
                   <div
@@ -782,7 +807,17 @@ export function SettingsPanel({
                 )}
 
                 <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
-                  {cloudStatus?.configured && cloudStatus?.status !== "token_storage_unavailable" && (
+                  {!cloudStatus?.configured ? (
+                    <button
+                      className="settings-primary-button"
+                      disabled={true}
+                      type="button"
+                    >
+                      {t("googleBtnLink", lang)}
+                    </button>
+                  ) : cloudStatus?.status === "token_storage_unavailable" ? (
+                    null
+                  ) : (
                     <button
                       className="settings-primary-button"
                       disabled={isCloudActionRunning}

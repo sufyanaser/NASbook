@@ -189,6 +189,21 @@ async function uploadFile(
   return data.id as string;
 }
 
+// Helper to translate typical API/network errors into clear localized string.
+export function getLocalizedUploadError(errStr: string, lang: string): string {
+  const lower = errStr.toLowerCase();
+  if (lower.includes("quotaexceeded") || lower.includes("quota") || lower.includes("storage") || lower.includes("403")) {
+    return t("googleQuotaExceeded", lang as any);
+  }
+  if (lower.includes("fetch failed") || lower.includes("network") || lower.includes("enotfound") || lower.includes("econnrefused")) {
+    return t("googleNetworkUnavailable", lang as any);
+  }
+  if (lower.includes("invalid_grant") || lower.includes("revoked") || lower.includes("expired") || lower.includes("auth")) {
+    return t("googlePermissionRevoked", lang as any);
+  }
+  return errStr;
+}
+
 export function createGoogleDriveBackupService(
   userDataPath: string,
   googleAuthService: GoogleAuthService,
@@ -204,9 +219,10 @@ export function createGoogleDriveBackupService(
   const getStatus = async (): Promise<CloudBackupInfo> => {
     const authStatus = await googleAuthService.getStatus();
     const settings = settingsStore.getSettings();
+    const lang = settings.language;
 
     let status: CloudBackupInfo["status"] = "ready";
-    let lastError: string | null = lastUploadError || authStatus.error;
+    let lastError: string | null = lastUploadError || (authStatus.error ? getLocalizedUploadError(authStatus.error, lang) : null);
 
     if (!authStatus.configured) {
       status = "not_configured";
@@ -325,14 +341,15 @@ export function createGoogleDriveBackupService(
     } catch (err: any) {
       const errMsg = err.message || String(err);
       const redactedMsg = redactSensitive(errMsg);
-      lastUploadError = redactedMsg;
+      const localizedError = getLocalizedUploadError(redactedMsg, lang);
+      lastUploadError = localizedError;
       
       return {
         ok: false,
         uploadedFiles: [],
         folderName,
         uploadedAt: new Date().toISOString(),
-        error: redactedMsg,
+        error: localizedError,
       };
     } finally {
       uploadInProgress = false;

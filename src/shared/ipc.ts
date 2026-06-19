@@ -49,6 +49,7 @@ export interface UpdateNoteInput {
 export interface BackupStatus {
   readonly backupsFolder: string;
   readonly lastBackupAt: string | null;
+  readonly lastBackupFileName: string | null;
   readonly backupCount: number;
   readonly autoBackupEnabled: boolean;
   readonly retentionCount: number;

@@ -3,12 +3,9 @@ import http from "node:http";
 import path from "node:path";
 import { shell, safeStorage } from "electron";
 import type { AddressInfo } from "node:net";
-
-export interface GoogleAuthState {
-  readonly linked: boolean;
-  readonly email: string | null;
-  readonly error: string | null;
-}
+import { t } from "../../src/shared/i18n";
+import type { GoogleAuthState } from "../../src/shared/ipc";
+import type { SettingsStore } from "./settingsStore";
 
 export interface GoogleAuthService {
   getStatus: () => Promise<GoogleAuthState>;
@@ -29,47 +26,75 @@ interface SavedSession {
   expiryTime: number; // timestamp in ms
 }
 
-export function createGoogleAuthService(userDataPath: string): GoogleAuthService {
+// Redact any sensitive tokens/secrets/codes from log messages and errors
+export function redactSensitive(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/(access_token|refresh_token|id_token|client_secret|code)([:=]\s*["']?)[a-zA-Z0-9_\-\.\/]+/gi, "$1$2[REDACTED]")
+    .replace(/(Bearer\s+)[a-zA-Z0-9_\-\.\/]+/gi, "$1[REDACTED]");
+}
+
+export function createGoogleAuthService(
+  userDataPath: string,
+  settingsStore: SettingsStore
+): GoogleAuthService {
   const sessionPath = path.join(userDataPath, "google-session.json");
   const localCredentialsPath = path.join(process.cwd(), "google-credentials.json");
 
+  // Validate loaded credentials. Returns false if they are empty or match the template placeholders.
+  const isValidCredentials = (creds: Credentials): boolean => {
+    if (!creds.client_id || !creds.client_secret) return false;
+    const cid = creds.client_id.trim();
+    const sec = creds.client_secret.trim();
+    if (cid === "" || sec === "") return false;
+    if (cid.includes("YOUR_CLIENT_ID_HERE")) return false;
+    if (sec.includes("YOUR_CLIENT_SECRET_HERE")) return false;
+    return true;
+  };
+
+  const isSafeStorageAvailable = (): boolean => {
+    try {
+      return typeof safeStorage !== "undefined" && safeStorage.isEncryptionAvailable();
+    } catch {
+      return false;
+    }
+  };
+
   let authState: GoogleAuthState = {
+    configured: false,
     linked: false,
+    status: "not_configured",
     email: null,
     error: null,
+    message: "",
   };
 
   // Safe encryption helpers
   const encrypt = (plain: string): string => {
-    try {
-      if (safeStorage.isEncryptionAvailable()) {
-        return safeStorage.encryptString(plain).toString("hex");
-      }
-    } catch (err) {
-      console.error("Encryption failed, falling back to base64:", err);
+    if (!isSafeStorageAvailable()) {
+      throw new Error("safeStorage encryption is unavailable");
     }
-    return Buffer.from(plain).toString("base64");
+    return safeStorage.encryptString(plain).toString("hex");
   };
 
   const decrypt = (encrypted: string): string => {
-    try {
-      if (safeStorage.isEncryptionAvailable()) {
-        return safeStorage.decryptString(Buffer.from(encrypted, "hex"));
-      }
-    } catch (err) {
-      console.error("Decryption failed, falling back to base64:", err);
+    if (!isSafeStorageAvailable()) {
+      throw new Error("safeStorage encryption is unavailable");
     }
-    return Buffer.from(encrypted, "base64").toString("utf8");
+    return safeStorage.decryptString(Buffer.from(encrypted, "hex"));
   };
 
   // Load client credentials safely
   const loadCredentials = (): Credentials | null => {
     // 1. Check environment variables
     if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-      return {
+      const creds = {
         client_id: process.env.GOOGLE_CLIENT_ID,
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
       };
+      if (isValidCredentials(creds)) {
+        return creds;
+      }
     }
 
     // 2. Check local credentials file in root directory
@@ -78,10 +103,13 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
         const raw = readFileSync(localCredentialsPath, "utf8");
         const parsed = JSON.parse(raw);
         if (parsed.client_id && parsed.client_secret) {
-          return {
+          const creds = {
             client_id: parsed.client_id,
             client_secret: parsed.client_secret,
           };
+          if (isValidCredentials(creds)) {
+            return creds;
+          }
         }
       } catch (err) {
         console.error("Failed to parse google-credentials.json:", err);
@@ -153,7 +181,7 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
 
     if (!response.ok) {
       const errBody = await response.text();
-      throw new Error(`Token exchange failed: ${response.status} ${errBody}`);
+      throw new Error(redactSensitive(`Token exchange failed: ${response.status} ${errBody}`));
     }
 
     return (await response.json()) as any;
@@ -179,7 +207,7 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
 
     if (!response.ok) {
       const errBody = await response.text();
-      throw new Error(`Token refresh failed: ${response.status} ${errBody}`);
+      throw new Error(redactSensitive(`Token refresh failed: ${response.status} ${errBody}`));
     }
 
     return (await response.json()) as any;
@@ -193,8 +221,19 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
     const creds = loadCredentials();
     if (!creds) return null;
 
-    const refreshToken = decrypt(session.encryptedRefreshToken);
-    const accessToken = decrypt(session.encryptedAccessToken);
+    if (!isSafeStorageAvailable()) {
+      return null;
+    }
+
+    let refreshToken: string;
+    let accessToken: string;
+    try {
+      refreshToken = decrypt(session.encryptedRefreshToken);
+      accessToken = decrypt(session.encryptedAccessToken);
+    } catch (err) {
+      console.error("Failed to decrypt tokens:", err);
+      return null;
+    }
 
     const now = Date.now();
     // Refresh if token is expired or expiring in the next 2 minutes
@@ -209,11 +248,21 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
         
         return refreshed.access_token;
       } catch (err: any) {
-        console.error("Token refresh operation failed:", err);
+        const lang = settingsStore.getSettings().language;
+        const errStr = err.message || String(err);
+        const isPermissionError = errStr.includes("invalid_grant") || errStr.includes("revoked");
+        const errMsg = isPermissionError
+          ? t("googlePermissionRevoked", lang)
+          : `${t("googleSignInFailed", lang)}: ${errStr}`;
+
+        console.error("Token refresh operation failed:", redactSensitive(errStr));
         authState = {
+          configured: true,
           linked: true,
+          status: "error",
           email: session.email,
-          error: `Refresh failed: ${err.message || String(err)}`,
+          error: redactSensitive(errMsg),
+          message: redactSensitive(errMsg),
         };
         return null;
       }
@@ -223,40 +272,91 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
   };
 
   const getStatus = async (): Promise<GoogleAuthState> => {
+    const lang = settingsStore.getSettings().language;
+    const creds = loadCredentials();
+    const isConfigured = creds !== null;
+
+    if (!isSafeStorageAvailable()) {
+      return {
+        configured: isConfigured,
+        linked: false,
+        status: "token_storage_unavailable",
+        email: null,
+        error: "Google token storage unavailable",
+        message: t("googleStatusStorageUnavailable", lang),
+      };
+    }
+
+    if (!isConfigured) {
+      return {
+        configured: false,
+        linked: false,
+        status: "not_configured",
+        email: null,
+        error: null,
+        message: t("googleStatusNotConfigured", lang),
+      };
+    }
+
     const session = loadSession();
     if (!session) {
-      return { linked: false, email: null, error: null };
+      return {
+        configured: true,
+        linked: false,
+        status: "unlinked",
+        email: null,
+        error: null,
+        message: t("googleStatusNotLinked", lang),
+      };
     }
 
     // Attempt token validation / refresh to keep authState sync'd
-    const token = await getAccessToken();
-    if (!token) {
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        return authState;
+      }
+    } catch (err: any) {
+      const errStr = err.message || String(err);
+      const isPermissionError = errStr.includes("invalid_grant") || errStr.includes("revoked");
+      const errMsg = isPermissionError
+        ? t("googlePermissionRevoked", lang)
+        : `${t("googleSignInFailed", lang)}: ${errStr}`;
+      
       return {
+        configured: true,
         linked: true,
+        status: "error",
         email: session.email,
-        error: authState.error || "Token validation failed",
+        error: redactSensitive(errMsg),
+        message: redactSensitive(errMsg),
       };
     }
 
     return {
+      configured: true,
       linked: true,
+      status: "linked",
       email: session.email,
       error: null,
+      message: t("googleStatusLinked", lang),
     };
   };
 
   const unlink = async (): Promise<void> => {
     const session = loadSession();
     if (session) {
-      const refreshToken = decrypt(session.encryptedRefreshToken);
       try {
-        // Revoke token on Google servers
-        await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        });
+        if (isSafeStorageAvailable()) {
+          const refreshToken = decrypt(session.encryptedRefreshToken);
+          // Revoke token on Google servers
+          await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          });
+        }
       } catch (err) {
-        console.error("Failed to revoke token remotely:", err);
+        console.error("Failed to revoke token remotely:", redactSensitive(err instanceof Error ? err.message : String(err)));
       }
     }
 
@@ -269,21 +369,45 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
       }
     }
 
+    const lang = settingsStore.getSettings().language;
+    const isConfigured = loadCredentials() !== null;
+    
     authState = {
+      configured: isConfigured,
       linked: false,
+      status: isConfigured ? "unlinked" : "not_configured",
       email: null,
       error: null,
+      message: isConfigured ? t("googleStatusNotLinked", lang) : t("googleStatusNotConfigured", lang),
     };
   };
 
   const link = (): Promise<GoogleAuthState> => {
     return new Promise((resolve) => {
+      const lang = settingsStore.getSettings().language;
       const creds = loadCredentials();
+      const isConfigured = creds !== null;
+
+      if (!isSafeStorageAvailable()) {
+        resolve({
+          configured: isConfigured,
+          linked: false,
+          status: "token_storage_unavailable",
+          email: null,
+          error: "Google token storage unavailable",
+          message: t("googleStatusStorageUnavailable", lang),
+        });
+        return;
+      }
+
       if (!creds) {
         resolve({
+          configured: false,
           linked: false,
+          status: "not_configured",
           email: null,
-          error: "Credentials missing. Set GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET or add google-credentials.json.",
+          error: "Google credentials not configured",
+          message: t("googleStatusNotConfigured", lang),
         });
         return;
       }
@@ -307,7 +431,15 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
           res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
           res.end("<h1>فشلت عملية الربط</h1><p>تم رفض الإذن أو حدث خطأ أثناء عملية الربط.</p>");
           server.close();
-          resolve({ linked: false, email: null, error: `Auth error: ${error}` });
+          const errMsg = error === "access_denied" ? t("googlePermissionRevoked", lang) : `${t("googleSignInFailed", lang)}: ${error}`;
+          resolve({
+            configured: true,
+            linked: false,
+            status: "error",
+            email: null,
+            error: redactSensitive(errMsg),
+            message: redactSensitive(errMsg),
+          });
           return;
         }
 
@@ -315,7 +447,14 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
           res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           res.end("<h1>طلب غير صالح</h1>");
           server.close();
-          resolve({ linked: false, email: null, error: "No code received" });
+          resolve({
+            configured: true,
+            linked: false,
+            status: "error",
+            email: null,
+            error: "No code received",
+            message: t("googleSignInFailed", lang),
+          });
           return;
         }
 
@@ -344,13 +483,29 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
           
           server.close();
           
-          authState = { linked: true, email, error: null };
+          authState = {
+            configured: true,
+            linked: true,
+            status: "linked",
+            email,
+            error: null,
+            message: t("googleStatusLinked", lang),
+          };
           resolve(authState);
         } catch (err: any) {
           res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
           res.end("<h1>خطأ داخلي</h1><p>حدث خطأ أثناء تبادل الرموز.</p>");
           server.close();
-          resolve({ linked: false, email: null, error: err.message || String(err) });
+          const errStr = err.message || String(err);
+          const errMsg = `${t("googleSignInFailed", lang)}: ${errStr}`;
+          resolve({
+            configured: true,
+            linked: false,
+            status: "error",
+            email: null,
+            error: redactSensitive(errMsg),
+            message: redactSensitive(errMsg),
+          });
         }
       });
 
@@ -359,9 +514,9 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
         const port = address.port;
         const redirectUri = `http://127.0.0.1:${port}/callback`;
 
-        // Scopes: drive.appdata and userinfo.email
+        // Scopes: drive.file and userinfo.email
         const scopes = [
-          "https://www.googleapis.com/auth/drive.appdata",
+          "https://www.googleapis.com/auth/drive.file",
           "https://www.googleapis.com/auth/userinfo.email",
         ];
 
@@ -378,10 +533,14 @@ export function createGoogleAuthService(userDataPath: string): GoogleAuthService
           await shell.openExternal(oauthUrl.toString());
         } catch (err: any) {
           server.close();
+          const errStr = err.message || String(err);
           resolve({
+            configured: true,
             linked: false,
+            status: "error",
             email: null,
-            error: `Failed to open system browser: ${err.message || String(err)}`,
+            error: redactSensitive(`Failed to open system browser: ${errStr}`),
+            message: redactSensitive(`${t("googleSignInFailed", lang)}: ${errStr}`),
           });
         }
       });
