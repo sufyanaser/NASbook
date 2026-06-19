@@ -46,6 +46,26 @@ export interface UpdateNoteInput {
   readonly isRtl: boolean;
 }
 
+export interface MarkdownImportResult {
+  readonly ok: boolean;
+  readonly canceled?: boolean;
+  readonly filename?: string;
+  readonly markdown?: string;
+  readonly error?: string;
+}
+
+export interface MarkdownExportInput {
+  readonly defaultFilename: string;
+  readonly markdown: string;
+}
+
+export interface MarkdownExportResult {
+  readonly ok: boolean;
+  readonly canceled?: boolean;
+  readonly path?: string;
+  readonly error?: string;
+}
+
 export interface BackupStatus {
   readonly backupsFolder: string;
   readonly lastBackupAt: string | null;
@@ -129,6 +149,12 @@ export interface NasNotesbookApi {
     readonly deleteToTrash: (id: number) => Promise<void>;
     readonly restore: (id: number) => Promise<void>;
     readonly deletePermanent: (id: number) => Promise<void>;
+  };
+  readonly markdown: {
+    readonly importFile: () => Promise<MarkdownImportResult>;
+    readonly exportFile: (
+      input: MarkdownExportInput,
+    ) => Promise<MarkdownExportResult>;
   };
   readonly backup: {
     readonly create: () => Promise<BackupResult>;

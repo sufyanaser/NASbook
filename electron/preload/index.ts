@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   CreateNoteInput,
+  MarkdownExportInput,
   NasNotesbookApi,
   NoteListOptions,
   UpdateNoteInput,
@@ -33,6 +34,11 @@ const api: NasNotesbookApi = Object.freeze({
     restore: (id: number) => ipcRenderer.invoke("notes:restore", id),
     deletePermanent: (id: number) =>
       ipcRenderer.invoke("notes:deletePermanent", id),
+  }),
+  markdown: Object.freeze({
+    importFile: () => ipcRenderer.invoke("markdown:importFile"),
+    exportFile: (input: MarkdownExportInput) =>
+      ipcRenderer.invoke("markdown:exportFile", input),
   }),
   backup: Object.freeze({
     create: () => ipcRenderer.invoke("backup:create"),

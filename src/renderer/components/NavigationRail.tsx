@@ -107,6 +107,8 @@ interface NavigationRailProps {
   readonly language: AppLanguage;
   readonly onOpenSettings: () => void;
   readonly onSelectCategory: (category: CategorySlug) => void;
+  readonly expanded: boolean;
+  readonly onToggleExpanded: () => void;
 }
 
 export function NavigationRail({
@@ -116,6 +118,8 @@ export function NavigationRail({
   language,
   onOpenSettings,
   onSelectCategory,
+  expanded,
+  onToggleExpanded,
 }: NavigationRailProps): JSX.Element {
   const primaryCategories = categories.filter(
     (category) => category.placement === "primary",
@@ -125,9 +129,10 @@ export function NavigationRail({
   );
 
   return (
-    <aside className="navigation-rail" aria-label="Categories">
+    <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label="Categories">
       <div className="rail-brand" aria-label="NAS Notesbook">
-        NAS
+        <span className="rail-brand-icon">NAS</span>
+        {expanded && <span className="rail-brand-label">Notesbook</span>}
       </div>
 
       <nav className="rail-section" aria-label="Primary categories">
@@ -144,13 +149,14 @@ export function NavigationRail({
               className="rail-button"
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
-              data-tooltip={displayName}
+              data-tooltip={expanded ? "" : displayName}
               data-tooltip-placement={language === "ar" ? "left" : "right"}
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
               type="button"
             >
               <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
+              {expanded && <span className="rail-button-label">{displayName}</span>}
               <span className="sr-only">{displayName}</span>
             </button>
           );
@@ -171,13 +177,14 @@ export function NavigationRail({
               className="rail-button"
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
-              data-tooltip={displayName}
+              data-tooltip={expanded ? "" : displayName}
               data-tooltip-placement={language === "ar" ? "left" : "right"}
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
               type="button"
             >
               <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
+              {expanded && <span className="rail-button-label">{displayName}</span>}
               <span className="sr-only">{displayName}</span>
             </button>
           );
@@ -185,7 +192,7 @@ export function NavigationRail({
         <button
           aria-label={t("settingsTitle", language)}
           className="rail-button"
-          data-tooltip={t("settingsTitle", language)}
+          data-tooltip={expanded ? "" : t("settingsTitle", language)}
           data-tooltip-placement={language === "ar" ? "left" : "right"}
           onClick={onOpenSettings}
           type="button"
@@ -193,7 +200,25 @@ export function NavigationRail({
           <span aria-hidden="true">
             {renderRailIcon(getCategoryIcon(railIconMode, "settings", "Settings"))}
           </span>
+          {expanded && <span className="rail-button-label">{t("settingsTitle", language)}</span>}
           <span className="sr-only">{t("settingsTitle", language)}</span>
+        </button>
+
+        <button
+          aria-label={expanded ? (language === "ar" ? "طي" : "Collapse") : (language === "ar" ? "توسيع" : "Expand")}
+          className="rail-button rail-toggle-button"
+          onClick={onToggleExpanded}
+          type="button"
+          data-tooltip={expanded ? "" : (language === "ar" ? "توسيع القائمة" : "Expand sidebar")}
+          data-tooltip-placement={language === "ar" ? "left" : "right"}
+        >
+          <span aria-hidden="true" className="rail-toggle-icon">
+            <svg viewBox="0 0 24 24" className="rail-toggle-svg" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', width: '20px', height: '20px' }}>
+              <path d={language === "ar" ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} />
+            </svg>
+          </span>
+          {expanded && <span className="rail-button-label">{language === "ar" ? "طي" : "Collapse"}</span>}
+          <span className="sr-only">Toggle Rail</span>
         </button>
       </nav>
     </aside>

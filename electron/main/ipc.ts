@@ -1,8 +1,12 @@
-import { ipcMain, shell } from "electron";
+import { ipcMain, shell, dialog } from "electron";
 import path from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import type {
   AppInfo,
   CreateNoteInput,
+  MarkdownExportInput,
+  MarkdownExportResult,
+  MarkdownImportResult,
   NoteListOptions,
   UpdateNoteInput,
 } from "../../src/shared/ipc";
@@ -93,6 +97,62 @@ export function registerIpcHandlers({
   ipcMain.handle("notes:deletePermanent", (_event, id: number) => {
     database.deleteNotePermanent(id);
   });
+
+  ipcMain.handle(
+    "markdown:importFile",
+    async (): Promise<MarkdownImportResult> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          title: "Import Markdown",
+          properties: ["openFile"],
+          filters: [
+            { name: "Markdown", extensions: ["md", "markdown", "txt"] },
+          ],
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+          return { ok: false, canceled: true };
+        }
+
+        const filePath = result.filePaths[0];
+        const markdown = await readFile(filePath, "utf8");
+        return { ok: true, filename: path.basename(filePath), markdown };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "markdown:exportFile",
+    async (
+      _event,
+      input: MarkdownExportInput,
+    ): Promise<MarkdownExportResult> => {
+      try {
+        const result = await dialog.showSaveDialog({
+          title: "Export Markdown",
+          defaultPath: input.defaultFilename,
+          filters: [{ name: "Markdown", extensions: ["md"] }],
+        });
+
+        if (result.canceled || !result.filePath) {
+          return { ok: false, canceled: true };
+        }
+
+        await writeFile(result.filePath, input.markdown, "utf8");
+        return { ok: true, path: result.filePath };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  );
 
   ipcMain.handle("backup:create", async () => {
     return backupService.createBackup();

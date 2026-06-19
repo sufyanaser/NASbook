@@ -29,6 +29,10 @@ export type TranslationKeys =
   | "unsavedChanges"
   | "saving"
   | "saveError"
+  | "saveFailedDialogTitle"
+  | "saveFailedDialogBody"
+  | "saveFailedDialogConfirm"
+  | "saveFailedDialogCancel"
   // Editor
   | "createdAt"
   | "updatedAt"
@@ -206,9 +210,9 @@ const ar: Record<TranslationKeys, string> = {
   noContentYet: "لا يوجد محتوى بعد.",
   updatedAtShort: "آخر تعديل:",
   saved: "تم الحفظ",
-  unsavedChanges: "تغييرات غير محفوظة",
-  saving: "جاري الحفظ...",
-  saveError: "خطأ في الحفظ",
+  unsavedChanges: "جارٍ التحرير...",
+  saving: "جارٍ الحفظ التلقائي...",
+  saveError: "فشل الحفظ",
   createdAt: "أنشئت:",
   updatedAt: "تعديل:",
   trashBanner: "⚠️ هذه الملاحظة في سلة المهملات. التعديل معطل. قم باستعادة الملاحظة لتعديلها.",
@@ -243,6 +247,10 @@ const ar: Record<TranslationKeys, string> = {
   dialogPermanentDeleteConfirm: "حذف نهائي",
   dialogPermanentDeleteCancel: "إلغاء",
   dialogDeleteDiscardPrompt: "لديك تغييرات غير محفوظة. هل تريد تجاهلها؟",
+  saveFailedDialogTitle: "تعذر حفظ التغييرات",
+  saveFailedDialogBody: "هناك تغييرات لم يتم حفظها. هل تريد تجاهلها والمتابعة؟",
+  saveFailedDialogConfirm: "تجاهل والمتابعة",
+  saveFailedDialogCancel: "إلغاء",
   linkDialogAddTitle: "إضافة رابط",
   linkDialogEditTitle: "تعديل الرابط",
   linkDialogUrlLabel: "أدخل عنوان URL للرابط المحدد:",
@@ -372,9 +380,9 @@ const en: Record<TranslationKeys, string> = {
   noContentYet: "No content yet.",
   updatedAtShort: "Updated:",
   saved: "Saved",
-  unsavedChanges: "Unsaved changes",
-  saving: "Saving...",
-  saveError: "Save Error",
+  unsavedChanges: "Editing...",
+  saving: "Autosaving...",
+  saveError: "Save failed",
   createdAt: "Created:",
   updatedAt: "Updated:",
   trashBanner: "⚠️ This note is in Trash. Editing is disabled. Restore the note to edit it.",
@@ -409,6 +417,10 @@ const en: Record<TranslationKeys, string> = {
   dialogPermanentDeleteConfirm: "Delete permanently",
   dialogPermanentDeleteCancel: "Cancel",
   dialogDeleteDiscardPrompt: "You have unsaved changes. Discard them?",
+  saveFailedDialogTitle: "Couldn't save changes",
+  saveFailedDialogBody: "There are unsaved changes. Discard them and continue?",
+  saveFailedDialogConfirm: "Discard and continue",
+  saveFailedDialogCancel: "Cancel",
   linkDialogAddTitle: "Add Link",
   linkDialogEditTitle: "Edit Link",
   linkDialogUrlLabel: "Enter URL for the selected link:",

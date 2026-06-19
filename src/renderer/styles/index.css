@@ -232,40 +232,144 @@ pre {
 }
 
 .app-shell {
+  --nav-rail-width: 60px;
+  --notes-list-width: 320px;
+  width: 100vw;
+  height: 100vh;
   display: grid;
-  grid-template-rows: 1fr 28px;
-  width: 100%;
-  height: 100%;
+  grid-template-columns: var(--nav-rail-width) var(--notes-list-width) 6px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 28px;
+  grid-template-areas:
+    "nav notes divider editor"
+    "nav status status status";
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--app-bg);
   direction: inherit;
+  transition: grid-template-columns 0.2s ease;
 }
 
-.workspace-frame {
-  display: grid;
-  grid-template-columns: 60px 320px minmax(0, 1fr);
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  direction: inherit;
+/* Draggable Resizable Split Divider */
+.notes-split-divider {
+  grid-area: divider;
+  width: 6px;
+  min-width: 6px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 40;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.notes-split-divider::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--app-border);
+  transform: translateX(-50%);
+  transition: background 0.15s ease, width 0.15s ease;
+}
+
+.notes-split-divider:hover::after,
+.notes-split-divider:active::after,
+.notes-split-divider:focus-visible::after {
+  background: var(--app-border-strong);
+  width: 3px;
+}
+
+.notes-split-divider:focus-visible {
+  outline: none;
+}
+
+body.is-resizing-notes-pane {
+  cursor: col-resize;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+body.is-resizing-notes-pane * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: none !important;
+}
+
+body.is-resizing-notes-pane .notes-split-divider {
+  pointer-events: auto !important;
 }
 
 .navigation-rail {
+  grid-area: nav;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  width: 60px;
-  min-width: 60px;
-  max-width: 60px;
-  overflow: visible;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   border-inline-end: 1px solid var(--app-border);
   background: var(--app-surface);
   padding: 8px;
   direction: inherit;
+}
+
+/* Collapsible Navigation Rail Expanded Styles */
+.navigation-rail--expanded .rail-brand {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  padding: 0 12px !important;
+  gap: 12px !important;
+  font-size: 15px !important;
+}
+
+.navigation-rail--expanded .rail-button {
+  display: flex !important;
+  width: 100% !important;
+  padding: 0 12px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+}
+
+.navigation-rail--expanded .rail-button span[aria-hidden="true"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.rail-button-label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+.rail-brand-label {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--app-text-strong);
+}
+
+.rail-toggle-button {
+  margin-top: 8px;
+  border-top: 1px solid var(--app-border) !important;
+  border-radius: 0 !important;
+  padding-top: 12px !important;
 }
 
 [data-tooltip]:not([data-tooltip=""]) {
@@ -529,10 +633,12 @@ pre {
 
 
 .notes-list-column {
+  grid-area: notes;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   border-inline-end: 1px solid var(--app-border);
   background: var(--app-surface);
@@ -560,6 +666,63 @@ pre {
   font-size: 16px;
   font-weight: 700;
   color: var(--app-text-strong);
+}
+
+.notes-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-export-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.notes-header-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 8px;
+  background: var(--app-surface-raised);
+  color: var(--app-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.notes-header-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.notes-header-button:hover:not(:disabled) {
+  background: var(--app-border-strong);
+  border-color: var(--app-focus);
+  color: var(--app-text-strong);
+}
+
+.notes-header-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.note-export-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 10px;
+  background: var(--app-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .new-note-button {
@@ -611,6 +774,7 @@ pre {
 }
 
 .note-list-card {
+  position: relative;
   width: 100%;
   border: 1px solid var(--app-border);
   border-inline-end-width: 4px;
@@ -674,6 +838,138 @@ pre {
   text-overflow: ellipsis;
 }
 
+/* Icon-only quick actions on each note row */
+.note-actions {
+  position: absolute;
+  inset-inline-end: 8px;
+  bottom: 8px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface-raised);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease-in-out, visibility 0.12s ease-in-out;
+}
+
+.note-list-card:hover .note-actions,
+.note-list-card[data-selected="true"] .note-actions,
+.note-list-card:focus-within .note-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+.note-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  transition: all 0.12s ease-in-out;
+}
+
+.note-action-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.note-action-button:hover {
+  background: var(--app-surface);
+  border-color: var(--app-border-strong);
+  color: var(--app-text-strong);
+}
+
+.note-action-delete:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+
+.note-move-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.note-move-popover {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: calc(100% + 6px);
+  z-index: 60;
+  min-width: 180px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 10px;
+  background: var(--app-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.note-move-heading {
+  padding: 4px 8px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.note-move-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: start;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-text-strong);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s ease-in-out;
+}
+
+.note-move-item:hover:not(:disabled) {
+  background: var(--app-surface-raised);
+}
+
+.note-move-item:disabled {
+  color: var(--app-text-subtle);
+  cursor: default;
+}
+
+.note-move-item[data-current="true"]::after {
+  content: "✓";
+  margin-inline-start: 8px;
+}
+
+.note-rename-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--app-focus);
+  border-radius: 6px;
+  background: var(--app-bg);
+  padding: 4px 8px;
+  color: var(--app-text-strong);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  outline: none;
+}
+
 .notes-empty-state {
   display: flex;
   flex-direction: column;
@@ -700,6 +996,7 @@ pre {
 }
 
 .editor-area {
+  grid-area: editor;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -735,13 +1032,17 @@ pre {
   background: transparent;
   padding: 4px 8px 6px;
   text-align: start;
-  font: inherit;
-  margin: 4px 0 0 0;
+  font-family: "Inter", "Segoe UI", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  margin: 2px 0 0 0;
   margin-inline-end: -8px;
   color: var(--app-text-strong);
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: all 0.15s ease-in-out;
 }
 
@@ -992,15 +1293,28 @@ pre {
 .font-family-dropdown,
 .font-size-dropdown,
 .text-type-dropdown,
-.code-direction-dropdown {
+.code-direction-dropdown,
+.code-font-size-dropdown {
   width: 48px;
+}
+
+.code-font-family-dropdown {
+  width: 64px;
 }
 
 .font-family-dropdown .custom-dropdown-trigger,
 .font-size-dropdown .custom-dropdown-trigger,
 .text-type-dropdown .custom-dropdown-trigger,
-.code-direction-dropdown .custom-dropdown-trigger {
+.code-direction-dropdown .custom-dropdown-trigger,
+.code-font-size-dropdown .custom-dropdown-trigger {
   width: 48px !important;
+  padding: 0 4px !important;
+  justify-content: center !important;
+  gap: 2px !important;
+}
+
+.code-font-family-dropdown .custom-dropdown-trigger {
+  width: 64px !important;
   padding: 0 4px !important;
   justify-content: center !important;
   gap: 2px !important;
@@ -1052,6 +1366,50 @@ pre {
   background: var(--app-border-strong);
   color: var(--app-text-strong);
   font-weight: 600;
+}
+
+/* Typography dropdown previews */
+.text-type-option {
+  display: block;
+  text-align: start;
+}
+
+.text-type-option--paragraph {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.text-type-option--h1 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.text-type-option--h2 {
+  font-size: 18px;
+  font-weight: 780;
+}
+
+.text-type-option--h3 {
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.text-type-option--h4 {
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.text-type-option--h5 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.text-type-option--h6 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-text-muted);
 }
 
 /* Color Picker styles */
@@ -1175,6 +1533,7 @@ pre {
 }
 
 .status-footer {
+  grid-area: status;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -1200,14 +1559,14 @@ pre {
 }
 
 .note-editor-content-wrapper .ProseMirror {
-  max-width: 760px;
-  margin: 32px auto;
-  padding: 40px 48px;
-  min-height: calc(100% - 64px);
-  background: var(--editor-page-bg);
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  max-width: 860px;
+  margin: 8px auto 0;
+  padding: 24px 40px 64px;
+  min-height: calc(100% - 8px);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   line-height: 1.8;
   outline: 0;
   color: var(--app-text-strong);
@@ -1292,6 +1651,48 @@ pre {
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+/* Code block typography and flexible styling */
+.ProseMirror pre[data-font-family="mono"],
+.ProseMirror pre[data-font-family="mono"] code {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace !important;
+}
+
+.ProseMirror pre[data-font-family="sans"],
+.ProseMirror pre[data-font-family="sans"] code {
+  font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+}
+
+.ProseMirror pre[data-font-family="serif"],
+.ProseMirror pre[data-font-family="serif"] code {
+  font-family: Georgia, "Times New Roman", serif !important;
+}
+
+.ProseMirror pre[data-font-family="arabic"],
+.ProseMirror pre[data-font-family="arabic"] code {
+  font-family: "IBM Plex Sans Arabic Local", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif !important;
+}
+
+.ProseMirror pre[data-font-family="system"],
+.ProseMirror pre[data-font-family="system"] code {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.ProseMirror pre[data-font-size="sm"] code {
+  font-size: 13px !important;
+}
+
+.ProseMirror pre[data-font-size="md"] code {
+  font-size: 15px !important;
+}
+
+.ProseMirror pre[data-font-size="lg"] code {
+  font-size: 17px !important;
+}
+
+.ProseMirror pre[data-font-size="xl"] code {
+  font-size: 19px !important;
 }
 
 .note-editor-content-wrapper .ProseMirror pre[dir="auto"] {
@@ -1941,4 +2342,160 @@ pre {
 .modal-secondary-button:hover,
 .modal-primary-button:hover {
   border-color: var(--app-focus);
+}
+
+/* ===== Editor context menu =====
+   Theme-aware tokens. The base values reference app tokens so bg/text/border
+   adapt automatically to every theme (dark default at :root, plus the explicit
+   light/dark refinements below). The component CSS uses only --context-menu-*. */
+:root {
+  --context-menu-bg: var(--app-surface-raised);
+  --context-menu-text: var(--app-text-strong);
+  --context-menu-muted: var(--app-text-muted);
+  --context-menu-border: var(--app-border-strong);
+  --context-menu-hover-bg: var(--app-surface);
+  --context-menu-active-bg: var(--app-surface);
+  --context-menu-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  --context-menu-separator: var(--app-border);
+  --context-menu-danger: #f87171;
+  --context-menu-danger-hover-bg: rgba(248, 113, 113, 0.16);
+  --context-menu-shortcut-text: var(--app-text-subtle);
+}
+
+[data-theme="graphite"],
+[data-theme="material-dark"],
+[data-theme="one-dark"] {
+  --context-menu-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"],
+[data-theme="ulysses"] {
+  --context-menu-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  --context-menu-danger: #dc2626;
+  --context-menu-danger-hover-bg: rgba(220, 38, 38, 0.1);
+}
+
+.editor-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 232px;
+  max-width: 320px;
+  padding: 6px;
+  border: 1px solid var(--context-menu-border);
+  border-radius: 12px;
+  background: var(--context-menu-bg);
+  color: var(--context-menu-text);
+  box-shadow: var(--context-menu-shadow);
+  font-size: 13px;
+  user-select: none;
+}
+
+.editor-context-menu .ecm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ecm-separator {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--context-menu-separator);
+}
+
+.ecm-header {
+  padding: 6px 10px 2px;
+  color: var(--context-menu-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ecm-item-wrap {
+  position: relative;
+}
+
+.ecm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--context-menu-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ecm-item:hover:not(:disabled) {
+  background: var(--context-menu-hover-bg);
+}
+
+.ecm-item[aria-expanded="true"] {
+  background: var(--context-menu-active-bg);
+}
+
+.ecm-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ecm-check {
+  flex: 0 0 14px;
+  font-size: 12px;
+  color: var(--context-menu-muted);
+}
+
+.ecm-label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ecm-shortcut {
+  flex: 0 0 auto;
+  color: var(--context-menu-shortcut-text);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.ecm-arrow {
+  flex: 0 0 auto;
+  color: var(--context-menu-muted);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.editor-context-menu[dir="rtl"] .ecm-arrow {
+  transform: scaleX(-1);
+}
+
+.ecm-item--danger {
+  color: var(--context-menu-danger);
+}
+
+.ecm-item--danger:hover:not(:disabled) {
+  background: var(--context-menu-danger-hover-bg);
+  color: var(--context-menu-danger);
+}
+
+.ecm-submenu {
+  position: absolute;
+  top: -6px;
+  inset-inline-start: 100%;
+  z-index: 1001;
+  min-width: 210px;
+  max-width: 300px;
+  padding: 6px;
+  border: 1px solid var(--context-menu-border);
+  border-radius: 12px;
+  background: var(--context-menu-bg);
+  box-shadow: var(--context-menu-shadow);
 }

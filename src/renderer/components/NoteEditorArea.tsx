@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TextSelection } from "@tiptap/pm/state";
+import { DOMSerializer } from "@tiptap/pm/model";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -11,6 +12,8 @@ import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
 import { LinkDialog } from "./LinkDialog";
+import { EditorContextMenu, type MenuNode } from "./EditorContextMenu";
+import { htmlToMarkdown, toSafeFilename } from "../markdown";
 import type { NoteRecord } from "../../shared/ipc";
 import { isLightLikeTheme } from "../../shared/settings";
 import type {
@@ -218,6 +221,33 @@ function isCodeBlockDirection(value: string | null): value is CodeBlockDirection
   return value !== null && CODE_BLOCK_DIRECTIONS.includes(value as CodeBlockDirection);
 }
 
+const CODE_BLOCK_FONT_FAMILIES = ["mono", "sans", "serif", "arabic", "system"] as const;
+type CodeBlockFontFamily = (typeof CODE_BLOCK_FONT_FAMILIES)[number];
+function isCodeBlockFontFamily(value: string | null): value is CodeBlockFontFamily {
+  return value !== null && CODE_BLOCK_FONT_FAMILIES.includes(value as CodeBlockFontFamily);
+}
+
+const CODE_BLOCK_FONT_SIZES = ["sm", "md", "lg", "xl"] as const;
+type CodeBlockFontSize = (typeof CODE_BLOCK_FONT_SIZES)[number];
+function isCodeBlockFontSize(value: string | null): value is CodeBlockFontSize {
+  return value !== null && CODE_BLOCK_FONT_SIZES.includes(value as CodeBlockFontSize);
+}
+
+function codeBlockBoxColorLabel(
+  color: CodeBlockBoxColor,
+  language: AppLanguage,
+): string {
+  const labels: Record<CodeBlockBoxColor, { ar: string; en: string }> = {
+    default: { ar: "افتراضي", en: "Default" },
+    "light-gray": { ar: "رمادي فاتح", en: "Light Gray" },
+    "light-blue": { ar: "أزرق فاتح", en: "Light Blue" },
+    "light-green": { ar: "أخضر فاتح", en: "Light Green" },
+    "light-amber": { ar: "كهرماني فاتح", en: "Light Amber" },
+    "light-rose": { ar: "وردي فاتح", en: "Light Rose" },
+  };
+  return language === "ar" ? labels[color].ar : labels[color].en;
+}
+
 const CustomCodeBlock = CodeBlock.extend({
   addAttributes() {
     return {
@@ -241,6 +271,30 @@ const CustomCodeBlock = CodeBlock.extend({
         },
         renderHTML: (attributes) => ({
           dir: isCodeBlockDirection(attributes.dir) ? attributes.dir : "auto",
+        }),
+      },
+      fontFamily: {
+        default: "mono",
+        parseHTML: (element) => {
+          const value = element.getAttribute("data-font-family");
+          return isCodeBlockFontFamily(value) ? value : "mono";
+        },
+        renderHTML: (attributes) => ({
+          "data-font-family": isCodeBlockFontFamily(attributes.fontFamily)
+            ? attributes.fontFamily
+            : "mono",
+        }),
+      },
+      fontSize: {
+        default: "md",
+        parseHTML: (element) => {
+          const value = element.getAttribute("data-font-size");
+          return isCodeBlockFontSize(value) ? value : "md";
+        },
+        renderHTML: (attributes) => ({
+          "data-font-size": isCodeBlockFontSize(attributes.fontSize)
+            ? attributes.fontSize
+            : "md",
         }),
       },
     };
@@ -294,7 +348,7 @@ function Dropdown<T extends string>({
   label,
   className,
 }: {
-  readonly options: { readonly value: T; readonly label: string }[];
+  readonly options: readonly { readonly value: T; readonly label: string; readonly className?: string }[];
   readonly value: T;
   readonly onChange: (value: T) => void;
   readonly disabled?: boolean;
@@ -346,7 +400,7 @@ function Dropdown<T extends string>({
           {options.map((option) => (
             <li
               key={option.value}
-              className="custom-dropdown-item"
+              className={`custom-dropdown-item ${option.className || ""}`}
               data-selected={option.value === value ? "true" : "false"}
               onClick={() => {
                 onChange(option.value);
@@ -640,6 +694,10 @@ export function NoteEditorArea({
   
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -746,6 +804,11 @@ export function NoteEditorArea({
     }
   }, [selectedNote?.id, editor]);
 
+  // Close the editor context menu whenever the open note changes.
+  useEffect(() => {
+    setContextMenu(null);
+  }, [selectedNote?.id]);
+
   const isEditorEmpty = editor
     ? editor.getText().trim() === "" ||
       editor.getHTML() === "<p></p>" ||
@@ -775,13 +838,13 @@ export function NoteEditorArea({
   ];
 
   const headingTypes = [
-    { value: "paragraph", label: language === "ar" ? "فقرة" : "Paragraph" },
-    { value: "h1", label: language === "ar" ? "عنوان 1" : "Heading 1" },
-    { value: "h2", label: language === "ar" ? "عنوان 2" : "Heading 2" },
-    { value: "h3", label: language === "ar" ? "عنوان 3" : "Heading 3" },
-    { value: "h4", label: language === "ar" ? "عنوان 4" : "Heading 4" },
-    { value: "h5", label: language === "ar" ? "عنوان 5" : "Heading 5" },
-    { value: "h6", label: language === "ar" ? "عنوان 6" : "Heading 6" },
+    { value: "paragraph", label: language === "ar" ? "فقرة" : "Paragraph", className: "text-type-option text-type-option--paragraph" },
+    { value: "h1", label: language === "ar" ? "عنوان 1" : "Heading 1", className: "text-type-option text-type-option--h1" },
+    { value: "h2", label: language === "ar" ? "عنوان 2" : "Heading 2", className: "text-type-option text-type-option--h2" },
+    { value: "h3", label: language === "ar" ? "عنوان 3" : "Heading 3", className: "text-type-option text-type-option--h3" },
+    { value: "h4", label: language === "ar" ? "عنوان 4" : "Heading 4", className: "text-type-option text-type-option--h4" },
+    { value: "h5", label: language === "ar" ? "عنوان 5" : "Heading 5", className: "text-type-option text-type-option--h5" },
+    { value: "h6", label: language === "ar" ? "عنوان 6" : "Heading 6", className: "text-type-option text-type-option--h6" },
   ];
 
   const activeFontFamily = editor
@@ -828,6 +891,20 @@ export function NoteEditorArea({
     ? activeCodeBlockDirValue
     : "auto";
 
+  const activeCodeBlockFontFamilyVal = editor && editor.isActive("codeBlock")
+    ? editor.getAttributes("codeBlock").fontFamily
+    : "mono";
+  const activeCodeBlockFontFamily = isCodeBlockFontFamily(activeCodeBlockFontFamilyVal)
+    ? activeCodeBlockFontFamilyVal
+    : "mono";
+
+  const activeCodeBlockFontSizeVal = editor && editor.isActive("codeBlock")
+    ? editor.getAttributes("codeBlock").fontSize
+    : "md";
+  const activeCodeBlockFontSize = isCodeBlockFontSize(activeCodeBlockFontSizeVal)
+    ? activeCodeBlockFontSizeVal
+    : "md";
+
   const codeBlockDirectionOptions: {
     readonly value: CodeBlockDirection;
     readonly label: string;
@@ -836,6 +913,36 @@ export function NoteEditorArea({
     { value: "ltr", label: "LTR" },
     { value: "rtl", label: "RTL" },
   ];
+
+  const codeBlockFontFamilyOptions = [
+    { value: "mono", label: language === "ar" ? "أحادي" : "Mono" },
+    { value: "sans", label: language === "ar" ? "سنس" : "Sans" },
+    { value: "serif", label: language === "ar" ? "سيريف" : "Serif" },
+    { value: "arabic", label: language === "ar" ? "عربي" : "Arabic" },
+    { value: "system", label: language === "ar" ? "نظام" : "System" },
+  ] as const;
+
+  const codeBlockFontFamilyShortLabels: Record<CodeBlockFontFamily, string> = {
+    mono: language === "ar" ? "أحادي" : "Mono",
+    sans: language === "ar" ? "سنس" : "Sans",
+    serif: language === "ar" ? "سيريف" : "Serif",
+    arabic: language === "ar" ? "عربي" : "Arabic",
+    system: language === "ar" ? "نظام" : "Sys",
+  };
+
+  const codeBlockFontSizeOptions = [
+    { value: "sm", label: language === "ar" ? "صغير" : "Small" },
+    { value: "md", label: language === "ar" ? "متوسط" : "Medium" },
+    { value: "lg", label: language === "ar" ? "كبير" : "Large" },
+    { value: "xl", label: language === "ar" ? "ضخم" : "X Large" },
+  ] as const;
+
+  const codeBlockFontSizeShortLabels: Record<CodeBlockFontSize, string> = {
+    sm: "SM",
+    md: "MD",
+    lg: "LG",
+    xl: "XL",
+  };
 
   const handleLinkConfirm = (url: string) => {
     if (editor) {
@@ -851,6 +958,502 @@ export function NoteEditorArea({
     setIsLinkDialogOpen(false);
   };
 
+  const handleEditorContextMenu = (
+    event: React.MouseEvent<HTMLDivElement>,
+  ): void => {
+    if (!editor) {
+      return;
+    }
+    // Suppress the native Chromium menu and the app-level menu, but only here
+    // inside the editor surface.
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY });
+  };
+
+  const buildContextMenuNodes = (): MenuNode[] => {
+    const L = (ar: string, en: string): string => (language === "ar" ? ar : en);
+    const ed = editor;
+    if (!ed) {
+      return [];
+    }
+
+    const editable = !isTrashView && hasSelectedNote;
+    const hasSelection = !ed.state.selection.empty;
+    const inCodeBlock = ed.isActive("codeBlock");
+    const hasLink = ed.isActive("link");
+
+    const selectAllInContext = (): void => {
+      if (inCodeBlock) {
+        const { state, view } = ed;
+        const { $from } = state.selection;
+        for (let depth = $from.depth; depth > 0; depth -= 1) {
+          if ($from.node(depth).type.name === "codeBlock") {
+            const start = $from.start(depth);
+            const end = $from.end(depth);
+            view.focus();
+            view.dispatch(
+              state.tr.setSelection(TextSelection.create(state.doc, start, end)),
+            );
+            return;
+          }
+        }
+      }
+      ed.chain().focus().selectAll().run();
+    };
+
+    const selectCurrentBlock = (): void => {
+      const { state, view } = ed;
+      const { $from } = state.selection;
+      let depth = $from.depth;
+      while (depth > 0 && !$from.node(depth).isTextblock) {
+        depth -= 1;
+      }
+      if (depth <= 0) {
+        ed.chain().focus().selectAll().run();
+        return;
+      }
+      const start = $from.start(depth);
+      const end = $from.end(depth);
+      view.focus();
+      view.dispatch(
+        state.tr.setSelection(TextSelection.create(state.doc, start, end)),
+      );
+    };
+
+    const copySelectedText = (): void => {
+      const { state } = ed;
+      const { from, to } = state.selection;
+      void copyPlainText(state.doc.textBetween(from, to, "\n"));
+    };
+
+    const copyCurrentCodeBlock = (): void => {
+      const { $from } = ed.state.selection;
+      for (let depth = $from.depth; depth > 0; depth -= 1) {
+        if ($from.node(depth).type.name === "codeBlock") {
+          void copyPlainText($from.node(depth).textContent);
+          return;
+        }
+      }
+    };
+
+    const copySelectionAsMarkdown = (): void => {
+      const { state } = ed;
+      const { from, to, empty } = state.selection;
+      if (empty) {
+        return;
+      }
+      const slice = state.doc.slice(from, to);
+      const fragment = DOMSerializer.fromSchema(ed.schema).serializeFragment(
+        slice.content,
+      );
+      const container = document.createElement("div");
+      container.appendChild(fragment);
+      void copyPlainText(htmlToMarkdown(container.innerHTML));
+    };
+
+    const copyNoteAsMarkdown = (): void => {
+      void copyPlainText(htmlToMarkdown(ed.getHTML()));
+    };
+
+    const exportCurrentNote = (): void => {
+      void window.nasNotesbook?.markdown.exportFile({
+        defaultFilename: `${toSafeFilename(draftTitle || "note")}.md`,
+        markdown: htmlToMarkdown(ed.getHTML()),
+      });
+    };
+
+    const pastePlainText = (): void => {
+      void navigator.clipboard
+        .readText()
+        .then((text) => {
+          ed.chain().focus().insertContent(text).run();
+        })
+        .catch(() => {
+          /* clipboard unavailable */
+        });
+    };
+
+    const execClipboard = (command: "cut" | "copy"): void => {
+      if (!hasSelection) {
+        return;
+      }
+      ed.commands.focus();
+      document.execCommand(command);
+    };
+
+    const focusTitle = (): void => {
+      const el = titleInputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    };
+
+    const setCodeBlockAttr = (attr: string, value: string): void => {
+      ed.chain().focus().updateAttributes("codeBlock", { [attr]: value }).run();
+    };
+
+    const headingNode = (
+      id: string,
+      label: string,
+      value: string,
+    ): MenuNode => ({
+      kind: "item",
+      id,
+      label,
+      checked: activeHeadingType === value,
+      disabled: !editable,
+      onSelect: () => {
+        if (value === "paragraph") {
+          ed.chain().focus().setParagraph().run();
+        } else {
+          const level = Number(value.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6;
+          ed.chain().focus().toggleHeading({ level }).run();
+        }
+      },
+    });
+
+    return [
+      { kind: "header", id: "h-edit", label: L("تحرير", "Editing") },
+      {
+        kind: "item",
+        id: "cut",
+        label: L("قص", "Cut"),
+        shortcut: "Ctrl+X",
+        disabled: !editable || !hasSelection,
+        onSelect: () => execClipboard("cut"),
+      },
+      {
+        kind: "item",
+        id: "copy",
+        label: L("نسخ", "Copy"),
+        shortcut: "Ctrl+C",
+        disabled: !hasSelection,
+        onSelect: () => execClipboard("copy"),
+      },
+      {
+        kind: "item",
+        id: "paste",
+        label: L("لصق", "Paste"),
+        shortcut: "Ctrl+V",
+        disabled: !editable,
+        onSelect: pastePlainText,
+      },
+      {
+        kind: "item",
+        id: "paste-plain",
+        label: L("لصق كنص عادي", "Paste as plain text"),
+        shortcut: "Ctrl+Shift+V",
+        disabled: !editable,
+        onSelect: pastePlainText,
+      },
+      { kind: "separator", id: "sep-1" },
+      { kind: "header", id: "h-sel", label: L("التحديد", "Selection") },
+      {
+        kind: "item",
+        id: "select-all",
+        label: L("تحديد الكل", "Select All"),
+        shortcut: "Ctrl+A",
+        disabled: !hasSelectedNote,
+        onSelect: selectAllInContext,
+      },
+      {
+        kind: "item",
+        id: "select-block",
+        label: L("تحديد الكتلة", "Select Block"),
+        disabled: !hasSelectedNote,
+        onSelect: selectCurrentBlock,
+      },
+      {
+        kind: "item",
+        id: "copy-selected",
+        label: L("نسخ النص المحدد", "Copy Selected Text"),
+        disabled: !hasSelection,
+        onSelect: copySelectedText,
+      },
+      { kind: "separator", id: "sep-2" },
+      {
+        kind: "item",
+        id: "markdown",
+        label: L("ماركداون", "Markdown"),
+        submenu: [
+          {
+            kind: "item",
+            id: "md-import",
+            label: L("استيراد Markdown", "Import Markdown"),
+            disabled: true,
+          },
+          {
+            kind: "item",
+            id: "md-export-note",
+            label: L("تصدير الملاحظة الحالية", "Export Current Note"),
+            disabled: !hasSelectedNote,
+            onSelect: exportCurrentNote,
+          },
+          {
+            kind: "item",
+            id: "md-export-cat",
+            label: L("تصدير التصنيف الحالي", "Export Current Category"),
+            disabled: true,
+          },
+          { kind: "separator", id: "md-sep" },
+          {
+            kind: "item",
+            id: "md-copy-sel",
+            label: L("نسخ التحديد كـ Markdown", "Copy Selection as Markdown"),
+            disabled: !hasSelection,
+            onSelect: copySelectionAsMarkdown,
+          },
+          {
+            kind: "item",
+            id: "md-copy-note",
+            label: L("نسخ الملاحظة كـ Markdown", "Copy Note as Markdown"),
+            disabled: !hasSelectedNote,
+            onSelect: copyNoteAsMarkdown,
+          },
+        ],
+      },
+      {
+        kind: "item",
+        id: "format",
+        label: L("تنسيق", "Format"),
+        disabled: !editable,
+        submenu: [
+          headingNode("fmt-p", L("فقرة", "Paragraph"), "paragraph"),
+          headingNode("fmt-h1", L("عنوان 1", "Heading 1"), "h1"),
+          headingNode("fmt-h2", L("عنوان 2", "Heading 2"), "h2"),
+          headingNode("fmt-h3", L("عنوان 3", "Heading 3"), "h3"),
+          headingNode("fmt-h4", L("عنوان 4", "Heading 4"), "h4"),
+          headingNode("fmt-h5", L("عنوان 5", "Heading 5"), "h5"),
+          headingNode("fmt-h6", L("عنوان 6", "Heading 6"), "h6"),
+          { kind: "separator", id: "fmt-sep-1" },
+          {
+            kind: "item",
+            id: "fmt-bold",
+            label: L("غامق", "Bold"),
+            shortcut: "Ctrl+B",
+            checked: ed.isActive("bold"),
+            onSelect: () => ed.chain().focus().toggleBold().run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-italic",
+            label: L("مائل", "Italic"),
+            shortcut: "Ctrl+I",
+            checked: ed.isActive("italic"),
+            onSelect: () => ed.chain().focus().toggleItalic().run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-underline",
+            label: L("تسطير", "Underline"),
+            shortcut: "Ctrl+U",
+            checked: ed.isActive("underline"),
+            onSelect: () => ed.chain().focus().toggleUnderline().run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-strike",
+            label: L("يتوسطه خط", "Strike"),
+            checked: ed.isActive("strike"),
+            onSelect: () => ed.chain().focus().toggleStrike().run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-code",
+            label: L("كود سطري", "Inline Code"),
+            checked: ed.isActive("code"),
+            onSelect: () => ed.chain().focus().toggleCode().run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-quote",
+            label: L("اقتباس", "Blockquote"),
+            checked: ed.isActive("blockquote"),
+            onSelect: () => ed.chain().focus().toggleBlockquote().run(),
+          },
+          { kind: "separator", id: "fmt-sep-2" },
+          {
+            kind: "item",
+            id: "fmt-bullet",
+            label: L("قائمة نقطية", "Bullet List"),
+            checked: ed.isActive("bulletList"),
+            onSelect: () => ed.chain().focus().toggleBulletList().run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-ordered",
+            label: L("قائمة مرقمة", "Ordered List"),
+            checked: ed.isActive("orderedList"),
+            onSelect: () => ed.chain().focus().toggleOrderedList().run(),
+          },
+          { kind: "separator", id: "fmt-sep-3" },
+          {
+            kind: "item",
+            id: "fmt-align-left",
+            label: L("محاذاة لليسار", "Align Left"),
+            checked: ed.isActive({ textAlign: "left" }),
+            onSelect: () => ed.chain().focus().setTextAlign("left").run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-align-center",
+            label: L("توسيط", "Align Center"),
+            checked: ed.isActive({ textAlign: "center" }),
+            onSelect: () => ed.chain().focus().setTextAlign("center").run(),
+          },
+          {
+            kind: "item",
+            id: "fmt-align-right",
+            label: L("محاذاة لليمين", "Align Right"),
+            checked: ed.isActive({ textAlign: "right" }),
+            onSelect: () => ed.chain().focus().setTextAlign("right").run(),
+          },
+          { kind: "separator", id: "fmt-sep-4" },
+          {
+            kind: "item",
+            id: "fmt-clear",
+            label: L("مسح التنسيق", "Clear Formatting"),
+            onSelect: () =>
+              ed.chain().focus().clearNodes().unsetAllMarks().run(),
+          },
+        ],
+      },
+      {
+        kind: "item",
+        id: "codeblock",
+        label: L("كتلة كود", "Code Block"),
+        disabled: !editable,
+        submenu: [
+          {
+            kind: "item",
+            id: "cb-toggle",
+            label: L("تبديل كتلة الكود", "Toggle Code Block"),
+            checked: inCodeBlock,
+            onSelect: () => ed.chain().focus().toggleCodeBlock().run(),
+          },
+          {
+            kind: "item",
+            id: "cb-copy",
+            label: L("نسخ كتلة الكود", "Copy Code Block"),
+            disabled: !inCodeBlock,
+            onSelect: copyCurrentCodeBlock,
+          },
+          {
+            kind: "item",
+            id: "cb-select",
+            label: L("تحديد كتلة الكود", "Select Code Block"),
+            disabled: !inCodeBlock,
+            onSelect: selectAllInContext,
+          },
+          { kind: "separator", id: "cb-sep-1" },
+          {
+            kind: "item",
+            id: "cb-dir",
+            label: L("الاتجاه", "Direction"),
+            disabled: !inCodeBlock,
+            submenu: codeBlockDirectionOptions.map((opt) => ({
+              kind: "item" as const,
+              id: `cb-dir-${opt.value}`,
+              label: opt.label,
+              checked: activeCodeBlockDir === opt.value,
+              onSelect: () => setCodeBlockAttr("dir", opt.value),
+            })),
+          },
+          {
+            kind: "item",
+            id: "cb-color",
+            label: L("لون الصندوق", "Box Color"),
+            disabled: !inCodeBlock,
+            submenu: CODE_BLOCK_BOX_COLORS.map((color) => ({
+              kind: "item" as const,
+              id: `cb-color-${color}`,
+              label: codeBlockBoxColorLabel(color, language),
+              checked: activeCodeBlockColor === color,
+              onSelect: () => setCodeBlockAttr("boxColor", color),
+            })),
+          },
+          {
+            kind: "item",
+            id: "cb-font",
+            label: L("الخط", "Font Family"),
+            disabled: !inCodeBlock,
+            submenu: codeBlockFontFamilyOptions.map((opt) => ({
+              kind: "item" as const,
+              id: `cb-font-${opt.value}`,
+              label: opt.label,
+              checked: activeCodeBlockFontFamily === opt.value,
+              onSelect: () => setCodeBlockAttr("fontFamily", opt.value),
+            })),
+          },
+          {
+            kind: "item",
+            id: "cb-size",
+            label: L("حجم الخط", "Font Size"),
+            disabled: !inCodeBlock,
+            submenu: codeBlockFontSizeOptions.map((opt) => ({
+              kind: "item" as const,
+              id: `cb-size-${opt.value}`,
+              label: opt.label,
+              checked: activeCodeBlockFontSize === opt.value,
+              onSelect: () => setCodeBlockAttr("fontSize", opt.value),
+            })),
+          },
+        ],
+      },
+      { kind: "separator", id: "sep-3" },
+      { kind: "header", id: "h-link", label: L("رابط", "Link") },
+      {
+        kind: "item",
+        id: "link-add",
+        label: L("إضافة/تعديل رابط", "Add/Edit Link"),
+        shortcut: "Ctrl+K",
+        disabled: !editable,
+        onSelect: () => setIsLinkDialogOpen(true),
+      },
+      {
+        kind: "item",
+        id: "link-remove",
+        label: L("إزالة الرابط", "Remove Link"),
+        disabled: !editable || !hasLink,
+        onSelect: handleLinkRemove,
+      },
+      { kind: "separator", id: "sep-4" },
+      { kind: "header", id: "h-note", label: L("الملاحظة", "Note") },
+      {
+        kind: "item",
+        id: "note-save",
+        label: L("حفظ الآن", "Save Now"),
+        shortcut: "Ctrl+S",
+        disabled: !editable,
+        onSelect: onSave,
+      },
+      {
+        kind: "item",
+        id: "note-copy-title",
+        label: L("نسخ عنوان الملاحظة", "Copy Note Title"),
+        disabled: !hasSelectedNote,
+        onSelect: () => void copyPlainText(draftTitle),
+      },
+      {
+        kind: "item",
+        id: "note-rename",
+        label: L("إعادة تسمية الملاحظة", "Rename Note"),
+        disabled: !editable,
+        onSelect: focusTitle,
+      },
+      {
+        kind: "item",
+        id: "note-delete",
+        label: L("نقل إلى المهملات", "Delete Note to Trash"),
+        danger: true,
+        disabled: !hasSelectedNote || isTrashView,
+        onSelect: onDeleteToTrash,
+      },
+    ];
+  };
+
   return (
     <section
       className="editor-area"
@@ -863,6 +1466,7 @@ export function NoteEditorArea({
         <div style={{ flex: 1 }}>
           <span className="editor-eyebrow">{activeCategoryName}</span>
           <input
+            ref={titleInputRef}
             className="note-title-input"
             disabled={!hasSelectedNote || isTrashView}
             onChange={(event) => onTitleChange(event.target.value)}
@@ -1222,6 +1826,36 @@ export function NoteEditorArea({
                   chain.updateAttributes("codeBlock", { dir: val }).run();
                 }}
               />
+              <Dropdown
+                label={codeBlockFontFamilyShortLabels[activeCodeBlockFontFamily] || "Mono"}
+                value={activeCodeBlockFontFamily}
+                options={codeBlockFontFamilyOptions}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={language === "ar" ? "خط كتلة الكود" : "Code block font family"}
+                className="code-font-family-dropdown"
+                onChange={(val) => {
+                  const chain = editor.chain().focus();
+                  if (!editor.isActive("codeBlock")) {
+                    chain.setCodeBlock();
+                  }
+                  chain.updateAttributes("codeBlock", { fontFamily: val }).run();
+                }}
+              />
+              <Dropdown
+                label={codeBlockFontSizeShortLabels[activeCodeBlockFontSize] || "MD"}
+                value={activeCodeBlockFontSize}
+                options={codeBlockFontSizeOptions}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={language === "ar" ? "حجم خط كتلة الكود" : "Code block font size"}
+                className="code-font-size-dropdown"
+                onChange={(val) => {
+                  const chain = editor.chain().focus();
+                  if (!editor.isActive("codeBlock")) {
+                    chain.setCodeBlock();
+                  }
+                  chain.updateAttributes("codeBlock", { fontSize: val }).run();
+                }}
+              />
             </div>
 
             <div className="toolbar-divider" />
@@ -1322,6 +1956,7 @@ export function NoteEditorArea({
           }`}
           data-readonly={isTrashView ? "true" : "false"}
           dir={editorDirection}
+          onContextMenu={handleEditorContextMenu}
         >
           <EditorContent editor={editor} />
         </div>
@@ -1360,6 +1995,16 @@ export function NoteEditorArea({
         onConfirm={handleLinkConfirm}
         onRemove={handleLinkRemove}
       />
+
+      {contextMenu && editor && (
+        <EditorContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          nodes={buildContextMenuNodes()}
+          rtl={language === "ar"}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </section>
   );
 }
