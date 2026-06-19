@@ -5,6 +5,7 @@ import { registerIpcHandlers } from "./ipc";
 import { createSettingsStore } from "./settingsStore";
 import { createBackupService } from "./backupService";
 import { createGoogleAuthService } from "./googleAuthService";
+import { createGoogleDriveBackupService } from "./googleDriveBackupService";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 let notesbookDatabase: NotesbookDatabase | null = null;
@@ -73,7 +74,12 @@ app.whenReady().then(() => {
     });
   }, 1000);
 
-  const googleAuthService = createGoogleAuthService(userDataPath);
+  const googleAuthService = createGoogleAuthService(userDataPath, settingsStore);
+  const googleDriveBackupService = createGoogleDriveBackupService(
+    userDataPath,
+    googleAuthService,
+    settingsStore
+  );
 
   registerIpcHandlers({
     appName: app.getName(),
@@ -82,6 +88,7 @@ app.whenReady().then(() => {
     settingsStore,
     backupService,
     googleAuthService,
+    googleDriveBackupService,
   });
 
   createMainWindow();
