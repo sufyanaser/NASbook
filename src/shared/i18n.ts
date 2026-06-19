@@ -189,7 +189,7 @@ export type TranslationKeys =
   | "googleQuotaExceeded";
 
 const ar: Record<TranslationKeys, string> = {
-  appTitle: "NAS Notesbook",
+  appTitle: "NASbook",
   allNotes: "كل الملاحظات",
   projects: "المشاريع",
   channels: "القنوات",
@@ -359,7 +359,7 @@ const ar: Record<TranslationKeys, string> = {
 };
 
 const en: Record<TranslationKeys, string> = {
-  appTitle: "NAS Notesbook",
+  appTitle: "NASbook",
   allNotes: "All Notes",
   projects: "Projects",
   channels: "Channels",

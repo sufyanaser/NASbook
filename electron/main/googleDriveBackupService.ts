@@ -229,7 +229,7 @@ export function createGoogleDriveBackupService(
   settingsStore: SettingsStore
 ): GoogleDriveBackupService {
   const backupsFolder = path.join(userDataPath, "backups");
-  const folderName = "NAS Notesbook Backups";
+  const folderName = "NASbook Backups";
 
   let uploadInProgress = false;
   let lastUploadError: string | null = null;

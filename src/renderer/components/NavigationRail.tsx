@@ -130,9 +130,21 @@ export function NavigationRail({
 
   return (
     <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label="Categories">
-      <div className="rail-brand" aria-label="NAS Notesbook">
-        <span className="rail-brand-icon">NAS</span>
-        {expanded && <span className="rail-brand-label">Notesbook</span>}
+      <div className="rail-brand" aria-label="NASbook">
+        <span className="rail-brand-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#ffffff" }}>
+            <rect x="7" y="3" width="12" height="18" rx="1.5" />
+            <path d="M5 7h3M5 12h3M5 17h3" strokeWidth="2.5" />
+            <path d="M11 8h5M11 12h5" />
+            <path d="M9 18v3.5l1.5-1 1.5 1V18" fill="currentColor" strokeWidth="1" />
+          </svg>
+        </span>
+        {expanded && (
+          <span className="rail-brand-label">
+            <strong className="brand-bold" style={{ fontWeight: 800, color: "var(--app-text-strong)" }}>NAS</strong>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>book</span>
+          </span>
+        )}
       </div>
 
       <nav className="rail-section" aria-label="Primary categories">

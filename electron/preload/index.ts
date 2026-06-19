@@ -54,6 +54,12 @@ const api: NasNotesbookApi = Object.freeze({
     getStatus: () => ipcRenderer.invoke("cloudBackup:getStatus"),
     uploadLatest: () => ipcRenderer.invoke("cloudBackup:uploadLatest"),
   }),
+  window: Object.freeze({
+    minimize: () => ipcRenderer.invoke("window:minimize"),
+    toggleMaximize: () => ipcRenderer.invoke("window:toggleMaximize"),
+    close: () => ipcRenderer.invoke("window:close"),
+    isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
+  }),
 });
 
 contextBridge.exposeInMainWorld("nasNotesbook", api);

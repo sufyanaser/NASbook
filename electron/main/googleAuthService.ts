@@ -511,7 +511,7 @@ export function createGoogleAuthService(
 
           // Success HTML page in browser
           res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-          res.end("<h1>تم ربط الحساب بنجاح!</h1><p>لقد قمت بربط حساب Google الخاص بك بتطبيق NAS Notesbook. يمكنك الآن إغلاق هذه الصفحة والعودة للتطبيق.</p>");
+          res.end("<h1>تم ربط الحساب بنجاح!</h1><p>لقد قمت بربط حساب Google الخاص بك بتطبيق NASbook. يمكنك الآن إغلاق هذه الصفحة والعودة للتطبيق.</p>");
           
           server.close();
           

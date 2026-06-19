@@ -1,4 +1,4 @@
-import { ipcMain, shell, dialog } from "electron";
+import { ipcMain, shell, dialog, BrowserWindow } from "electron";
 import path from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import type {
@@ -184,5 +184,31 @@ export function registerIpcHandlers({
 
   ipcMain.handle("cloudBackup:uploadLatest", async () => {
     return googleDriveBackupService.uploadLatest();
+  });
+
+  ipcMain.handle("window:minimize", (event): void => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.minimize();
+  });
+
+  ipcMain.handle("window:toggleMaximize", (event): void => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+    }
+  });
+
+  ipcMain.handle("window:close", (event): void => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.close();
+  });
+
+  ipcMain.handle("window:isMaximized", (event): boolean => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? win.isMaximized() : false;
   });
 }

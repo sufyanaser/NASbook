@@ -2,7 +2,7 @@
   "name": "nas-notesbook",
   "version": "0.5.0",
   "private": true,
-  "description": "RTL-first local desktop notebook scaffold for NAS Notesbook.",
+  "description": "RTL-first local desktop notebook scaffold for NASbook.",
   "main": "dist/electron/main/index.js",
   "scripts": {
     "dev": "npm run build && electron .",
@@ -15,8 +15,9 @@
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "dist:win": "npm run build && electron-builder --win nsis",
-    "pack:win": "npm run build && electron-builder --win dir",
-    "preview": "vite preview --host 127.0.0.1"
+    "pack:win": "npm run build && electron-builder --win nsis --x64 --publish=never",
+    "preview": "vite preview --host 127.0.0.1",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@tiptap/extension-color": "^3.27.0",
@@ -52,7 +53,7 @@
     "vite": "^6.3.5"
   },
   "build": {
-    "productName": "NAS Notesbook",
+    "productName": "NASbook",
     "appId": "com.nasfm.notesbook",
     "directories": {
       "output": "release"
@@ -70,7 +71,7 @@
         "nsis"
       ],
       "icon": "assets/icon.ico",
-      "artifactName": "NAS Notesbook Setup ${version}.exe"
+      "artifactName": "NASbook Setup ${version}.exe"
     },
     "nsis": {
       "oneClick": false,
@@ -78,5 +79,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
-  }
+  },
+  "author": "Sufyan Nasser Ali"
 }

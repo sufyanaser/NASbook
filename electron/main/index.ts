@@ -10,7 +10,7 @@ import { createGoogleDriveBackupService } from "./googleDriveBackupService";
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 let notesbookDatabase: NotesbookDatabase | null = null;
 
-app.setName("NAS Notesbook");
+app.setName("NASbook");
 
 function getPreloadPath(): string {
   return path.join(__dirname, "../preload/index.js");
@@ -26,10 +26,11 @@ function createMainWindow(): void {
     height: 860,
     minWidth: 1080,
     minHeight: 720,
-    title: "NAS Notesbook",
+    title: "NASbook",
     icon: path.join(app.getAppPath(), "assets/icon.ico"),
     backgroundColor: "#FBFBFA",
     show: false,
+    frame: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,

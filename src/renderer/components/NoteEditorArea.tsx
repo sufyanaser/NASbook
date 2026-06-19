@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlock from "@tiptap/extension-code-block";
@@ -15,7 +16,6 @@ import { LinkDialog } from "./LinkDialog";
 import { EditorContextMenu, type MenuNode } from "./EditorContextMenu";
 import { htmlToMarkdown, toSafeFilename } from "../markdown";
 import type { NoteRecord } from "../../shared/ipc";
-import { isLightLikeTheme } from "../../shared/settings";
 import type {
   AppTheme,
   EditorDensity,
@@ -38,12 +38,14 @@ interface NoteEditorAreaProps {
   readonly showMetadata: boolean;
   readonly theme: AppTheme;
   readonly language: AppLanguage;
+  readonly isFocusMode: boolean;
+  readonly onToggleFocusMode: () => void;
   readonly onContentChange: (content: string) => void;
   readonly onDeletePermanent: () => void;
   readonly onDeleteToTrash: () => void;
   readonly onRestore: () => void;
   readonly onSave: () => void;
-  readonly onToggleTheme: () => void;
+  readonly onThemeChange: (theme: AppTheme) => void;
   readonly onTitleChange: (title: string) => void;
 }
 
@@ -51,6 +53,7 @@ type ToolbarIcon =
   | "bold"
   | "italic"
   | "underline"
+  | "strike"
   | "codeBlock"
   | "codeBlockColor"
   | "link"
@@ -105,6 +108,12 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
     >
       {icon === "underline" && (
         <path d="M6 3v7a6 6 0 0 0 12 0V3M4 21h16" {...strokeProps} />
+      )}
+      {icon === "strike" && (
+        <>
+          <path d="M16 4H9a4 4 0 0 0-2.77 6.88L17 14.12A4 4 0 0 1 14.23 21H7" {...strokeProps} />
+          <path d="M4 12h16" {...strokeProps} />
+        </>
       )}
       {icon === "codeBlock" && (
         <>
@@ -357,31 +366,83 @@ function Dropdown<T extends string>({
   readonly className?: string;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const updateCoords = () => {
+      const triggerRect = trigger.getBoundingClientRect();
+      const menu = menuRef.current;
+      const menuWidth = menu ? menu.offsetWidth : 160;
+      const menuHeight = menu ? menu.offsetHeight : 180;
+
+      let left = triggerRect.left;
+      let top = triggerRect.bottom + 4;
+      let openUpward = false;
+
+      // Clamp horizontally
+      if (left + menuWidth > window.innerWidth) {
+        left = window.innerWidth - menuWidth - 12;
       }
+      if (left < 12) {
+        left = 12;
+      }
+
+      // Clamp vertically (flip if it would overflow the bottom)
+      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
+        top = triggerRect.top - menuHeight - 4;
+        openUpward = true;
+      }
+
+      setCoords({ top, left, openUpward });
     };
+
+    const id = requestAnimationFrame(updateCoords);
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        trigger.contains(event.target as Node) ||
+        (menuRef.current && menuRef.current.contains(event.target as Node))
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
+
+    const handleCloseEvent = () => {
+      setIsOpen(false);
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleCloseEvent, true);
+    window.addEventListener("resize", handleCloseEvent);
+
     return () => {
+      cancelAnimationFrame(id);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleCloseEvent, true);
+      window.removeEventListener("resize", handleCloseEvent);
     };
   }, [isOpen]);
 
   return (
-    <div className={`custom-dropdown-container ${className || ""}`} ref={containerRef}>
+    <div className={`custom-dropdown-container ${className || ""}`}>
       <button
+        ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         className="custom-dropdown-trigger"
@@ -395,8 +456,25 @@ function Dropdown<T extends string>({
           <path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {isOpen && (
-        <ul className="custom-dropdown-menu" role="listbox">
+      {isOpen && createPortal(
+        <ul
+          ref={menuRef}
+          className="custom-dropdown-menu"
+          role="listbox"
+          style={coords ? {
+            position: "fixed",
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            zIndex: 9999,
+            margin: 0,
+          } : {
+            position: "fixed",
+            visibility: "hidden",
+            top: 0,
+            left: 0,
+            zIndex: 9999,
+          }}
+        >
           {options.map((option) => (
             <li
               key={option.value}
@@ -412,7 +490,8 @@ function Dropdown<T extends string>({
               {option.label}
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </div>
   );
@@ -433,25 +512,74 @@ function ColorPicker({
   readonly language: AppLanguage;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const updateCoords = () => {
+      const triggerRect = trigger.getBoundingClientRect();
+      const menu = menuRef.current;
+      const menuWidth = menu ? menu.offsetWidth : 140;
+      const menuHeight = menu ? menu.offsetHeight : 140;
+
+      let left = triggerRect.left + triggerRect.width / 2 - menuWidth / 2;
+      let top = triggerRect.bottom + 4;
+      let openUpward = false;
+
+      if (left + menuWidth > window.innerWidth) {
+        left = window.innerWidth - menuWidth - 12;
       }
+      if (left < 12) {
+        left = 12;
+      }
+
+      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
+        top = triggerRect.top - menuHeight - 4;
+        openUpward = true;
+      }
+
+      setCoords({ top, left, openUpward });
     };
+
+    const id = requestAnimationFrame(updateCoords);
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        trigger.contains(event.target as Node) ||
+        (menuRef.current && menuRef.current.contains(event.target as Node))
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
+
+    const handleCloseEvent = () => {
+      setIsOpen(false);
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleCloseEvent, true);
+    window.addEventListener("resize", handleCloseEvent);
+
     return () => {
+      cancelAnimationFrame(id);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleCloseEvent, true);
+      window.removeEventListener("resize", handleCloseEvent);
     };
   }, [isOpen]);
 
@@ -467,8 +595,9 @@ function ColorPicker({
   ];
 
   return (
-    <div className="custom-dropdown-container" ref={containerRef}>
+    <div className="custom-dropdown-container">
       <button
+        ref={triggerRef}
         aria-expanded={isOpen}
         className="toolbar-icon-button color-picker-trigger"
         disabled={disabled}
@@ -491,8 +620,25 @@ function ColorPicker({
           }}
         />
       </button>
-      {isOpen && (
-        <div className="color-picker-menu">
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="color-picker-menu"
+          style={coords ? {
+            position: "fixed",
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            transform: "none",
+            zIndex: 9999,
+            margin: 0,
+          } : {
+            position: "fixed",
+            visibility: "hidden",
+            top: 0,
+            left: 0,
+            zIndex: 9999,
+          }}
+        >
           <div className="color-picker-grid">
             {swatches.map((swatch) => {
               const getSwatchTooltip = (name: string) => {
@@ -532,7 +678,8 @@ function ColorPicker({
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -552,25 +699,74 @@ function CodeBlockColorPicker({
   readonly language: AppLanguage;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const updateCoords = () => {
+      const triggerRect = trigger.getBoundingClientRect();
+      const menu = menuRef.current;
+      const menuWidth = menu ? menu.offsetWidth : 120;
+      const menuHeight = menu ? menu.offsetHeight : 100;
+
+      let left = triggerRect.left + triggerRect.width / 2 - menuWidth / 2;
+      let top = triggerRect.bottom + 4;
+      let openUpward = false;
+
+      if (left + menuWidth > window.innerWidth) {
+        left = window.innerWidth - menuWidth - 12;
       }
+      if (left < 12) {
+        left = 12;
+      }
+
+      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
+        top = triggerRect.top - menuHeight - 4;
+        openUpward = true;
+      }
+
+      setCoords({ top, left, openUpward });
     };
+
+    const id = requestAnimationFrame(updateCoords);
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        trigger.contains(event.target as Node) ||
+        (menuRef.current && menuRef.current.contains(event.target as Node))
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
       }
     };
+
+    const handleCloseEvent = () => {
+      setIsOpen(false);
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleCloseEvent, true);
+    window.addEventListener("resize", handleCloseEvent);
+
     return () => {
+      cancelAnimationFrame(id);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleCloseEvent, true);
+      window.removeEventListener("resize", handleCloseEvent);
     };
   }, [isOpen]);
 
@@ -601,8 +797,9 @@ function CodeBlockColorPicker({
   };
 
   return (
-    <div className="custom-dropdown-container" ref={containerRef}>
+    <div className="custom-dropdown-container">
       <button
+        ref={triggerRef}
         aria-expanded={isOpen}
         className="toolbar-icon-button color-picker-trigger code-block-color-trigger"
         disabled={disabled}
@@ -619,8 +816,25 @@ function CodeBlockColorPicker({
           }}
         />
       </button>
-      {isOpen && (
-        <div className="color-picker-menu code-block-color-menu">
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="color-picker-menu code-block-color-menu"
+          style={coords ? {
+            position: "fixed",
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            transform: "none",
+            zIndex: 9999,
+            margin: 0,
+          } : {
+            position: "fixed",
+            visibility: "hidden",
+            top: 0,
+            left: 0,
+            zIndex: 9999,
+          }}
+        >
           <div className="color-picker-grid code-block-color-grid">
             {swatches.map((swatch) => (
               <button
@@ -638,7 +852,179 @@ function CodeBlockColorPicker({
               />
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// Custom Theme Dropdown Component
+function ThemeDropdown({
+  theme,
+  language,
+  onChange,
+}: {
+  readonly theme: AppTheme;
+  readonly language: AppLanguage;
+  readonly onChange: (theme: AppTheme) => void;
+}): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null);
+
+  const themeOptions = [
+    { value: "light" as AppTheme, labelEn: "Light", labelAr: "فاتح", bgHex: "#f5f5f4", panelHex: "#ffffff", accentHex: "#4f46e5" },
+    { value: "dark" as AppTheme, labelEn: "Dark", labelAr: "داكن", bgHex: "#0c0a09", panelHex: "#1c1917", accentHex: "#6366f1" },
+    { value: "graphite" as AppTheme, labelEn: "Graphite", labelAr: "غرافيت", bgHex: "#101214", panelHex: "#1b1f23", accentHex: "#3b82f6" },
+    { value: "material-dark" as AppTheme, labelEn: "Material Dark", labelAr: "ماتيريال داكن", bgHex: "#121212", panelHex: "#1e1e1e", accentHex: "#b39ddb" },
+    { value: "ulysses" as AppTheme, labelEn: "Ulysses", labelAr: "يوليسيس", bgHex: "#f8f5ee", panelHex: "#fffdf7", accentHex: "#d84b20" },
+    { value: "one-dark" as AppTheme, labelEn: "One Dark", labelAr: "ون دارك", bgHex: "#1e2127", panelHex: "#282c34", accentHex: "#61afef" },
+  ];
+
+  const currentOption = themeOptions.find((opt) => opt.value === theme) || themeOptions[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const updateCoords = () => {
+      const triggerRect = trigger.getBoundingClientRect();
+      const menu = menuRef.current;
+      const menuWidth = menu ? menu.offsetWidth : 200;
+      const menuHeight = menu ? menu.offsetHeight : 240;
+
+      let left = triggerRect.left;
+      let top = triggerRect.bottom + 4;
+      let openUpward = false;
+
+      // Horizontal clamping
+      if (left + menuWidth > window.innerWidth) {
+        left = window.innerWidth - menuWidth - 12;
+      }
+      if (left < 12) {
+        left = 12;
+      }
+
+      // Vertical clamping
+      if (top + menuHeight > window.innerHeight && triggerRect.top - menuHeight - 4 > 0) {
+        top = triggerRect.top - menuHeight - 4;
+        openUpward = true;
+      }
+
+      setCoords({ top, left, openUpward });
+    };
+
+    const id = requestAnimationFrame(updateCoords);
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        trigger.contains(event.target as Node) ||
+        (menuRef.current && menuRef.current.contains(event.target as Node))
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    const handleCloseEvent = () => {
+      setIsOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleCloseEvent, true);
+    window.addEventListener("resize", handleCloseEvent);
+
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleCloseEvent, true);
+      window.removeEventListener("resize", handleCloseEvent);
+    };
+  }, [isOpen]);
+
+  const isRtl = language === "ar";
+
+  return (
+    <div className="custom-dropdown-container">
+      <button
+        ref={triggerRef}
+        aria-expanded={isOpen}
+        className="theme-dropdown-trigger"
+        onClick={() => setIsOpen(!isOpen)}
+        data-tooltip={language === "ar" ? "تغيير السمة" : "Change theme"}
+        type="button"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
+          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35825 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z" />
+          <circle cx="7.5" cy="10.5" r="1.5" fill="currentColor" />
+          <circle cx="11.5" cy="7.5" r="1.5" fill="currentColor" />
+          <circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" />
+          <circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" />
+        </svg>
+        <span className="theme-trigger-label">
+          {isRtl ? currentOption.labelAr : currentOption.labelEn}
+        </span>
+      </button>
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="theme-dropdown-menu"
+          style={coords ? {
+            position: "fixed",
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            zIndex: 9999,
+          } : {
+            position: "fixed",
+            visibility: "hidden",
+            top: 0,
+            left: 0,
+            zIndex: 9999,
+          }}
+        >
+          {themeOptions.map((option) => (
+            <button
+              key={option.value}
+              className="theme-dropdown-item"
+              data-active={option.value === theme ? "true" : "false"}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              type="button"
+            >
+              <div className="theme-item-details">
+                <span className="theme-item-label">
+                  {isRtl ? option.labelAr : option.labelEn}
+                </span>
+                <div className="theme-item-swatches">
+                  <span className="theme-swatch" style={{ backgroundColor: option.bgHex }} title="Background" />
+                  <span className="theme-swatch" style={{ backgroundColor: option.panelHex }} title="Panel" />
+                  <span className="theme-swatch" style={{ backgroundColor: option.accentHex }} title="Accent" />
+                </div>
+              </div>
+              {option.value === theme && (
+                <svg viewBox="0 0 24 24" className="theme-active-checkmark" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -680,12 +1066,14 @@ export function NoteEditorArea({
   showMetadata,
   theme,
   language,
+  isFocusMode,
+  onToggleFocusMode,
   onContentChange,
   onDeletePermanent,
   onDeleteToTrash,
   onRestore,
   onSave,
-  onToggleTheme,
+  onThemeChange,
   onTitleChange,
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
@@ -693,6 +1081,7 @@ export function NoteEditorArea({
   const loadedNoteIdRef = useRef<number | null>(null);
   
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(
     null,
@@ -815,8 +1204,6 @@ export function NoteEditorArea({
       editor.getHTML() === "<p><br></p>" ||
       editor.getHTML() === "<p><br class=\"ProseMirror-trailingBreak\"></p>"
     : true;
-  const isLightMode = isLightLikeTheme(theme);
-
   // Dropdown option maps
   const fontFamilies = [
     { value: "System", label: language === "ar" ? "نظام" : "System" },
@@ -922,13 +1309,6 @@ export function NoteEditorArea({
     { value: "system", label: language === "ar" ? "نظام" : "System" },
   ] as const;
 
-  const codeBlockFontFamilyShortLabels: Record<CodeBlockFontFamily, string> = {
-    mono: language === "ar" ? "أحادي" : "Mono",
-    sans: language === "ar" ? "سنس" : "Sans",
-    serif: language === "ar" ? "سيريف" : "Serif",
-    arabic: language === "ar" ? "عربي" : "Arabic",
-    system: language === "ar" ? "نظام" : "Sys",
-  };
 
   const codeBlockFontSizeOptions = [
     { value: "sm", label: language === "ar" ? "صغير" : "Small" },
@@ -937,12 +1317,6 @@ export function NoteEditorArea({
     { value: "xl", label: language === "ar" ? "ضخم" : "X Large" },
   ] as const;
 
-  const codeBlockFontSizeShortLabels: Record<CodeBlockFontSize, string> = {
-    sm: "SM",
-    md: "MD",
-    lg: "LG",
-    xl: "XL",
-  };
 
   const handleLinkConfirm = (url: string) => {
     if (editor) {
@@ -1463,49 +1837,60 @@ export function NoteEditorArea({
       dir={language === "ar" ? "rtl" : "ltr"}
     >
       <header className="editor-header">
-        <div style={{ flex: 1 }}>
-          <span className="editor-eyebrow">{activeCategoryName}</span>
-          <input
-            ref={titleInputRef}
-            className="note-title-input"
-            disabled={!hasSelectedNote || isTrashView}
-            onChange={(event) => onTitleChange(event.target.value)}
-            placeholder={t("noteTitlePlaceholder", language)}
-            type="text"
-            value={draftTitle}
-            dir={editorDirection}
-          />
-          {hasSelectedNote && showMetadata && (
-            <div className="note-metadata-row">
-              {selectedNote.createdAt && (
-                <span className="metadata-item">
-                  {t("createdAt", language)} {formatDateTime(selectedNote.createdAt)}
-                </span>
+        <div className="editor-header-inner">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span className="editor-eyebrow">{activeCategoryName}</span>
+            <input
+              ref={titleInputRef}
+              className="note-title-input"
+              disabled={!hasSelectedNote || isTrashView}
+              onChange={(event) => onTitleChange(event.target.value)}
+              placeholder={t("noteTitlePlaceholder", language)}
+              type="text"
+              value={draftTitle}
+              dir={editorDirection}
+            />
+            {hasSelectedNote && showMetadata && (
+              <div className="note-metadata-row">
+                {selectedNote.createdAt && (
+                  <span className="metadata-item">
+                    {t("createdAt", language)} {formatDateTime(selectedNote.createdAt)}
+                  </span>
+                )}
+                {selectedNote.updatedAt && (
+                  <span className="metadata-item">
+                    {t("updatedAt", language)} {formatDateTime(selectedNote.updatedAt)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="editor-header-actions">
+            <button
+              aria-label={isFocusMode ? (language === "ar" ? "الخروج من وضع التركيز" : "Exit Focus Mode") : (language === "ar" ? "وضع التركيز" : "Focus Mode")}
+              className="focus-toggle-btn"
+              data-active={isFocusMode ? "true" : "false"}
+              data-tooltip={isFocusMode ? (language === "ar" ? "الخروج من وضع التركيز" : "Exit Focus Mode") : (language === "ar" ? "وضع التركيز" : "Focus Mode")}
+              onClick={onToggleFocusMode}
+              type="button"
+            >
+              {isFocusMode ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
+                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="header-action-icon" style={{ width: "16px", height: "16px" }}>
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
               )}
-              {selectedNote.updatedAt && (
-                <span className="metadata-item">
-                  {t("updatedAt", language)} {formatDateTime(selectedNote.updatedAt)}
-                </span>
-              )}
+            </button>
+            <ThemeDropdown theme={theme} language={language} onChange={onThemeChange} />
+            <div
+              className="direction-chip"
+              data-tooltip={t("tooltipDirection", language)}
+            >
+              {editorDirection.toUpperCase()}
             </div>
-          )}
-        </div>
-        <div className="editor-header-actions">
-          <button
-            aria-label={isLightMode ? (language === "ar" ? "تبديل للسمة الداكنة" : "Switch to dark theme") : (language === "ar" ? "تبديل للسمة الفاتحة" : "Switch to light theme")}
-            className="theme-toggle"
-            data-light={isLightMode ? "true" : "false"}
-            data-tooltip={t("tooltipTheme", language)}
-            onClick={onToggleTheme}
-            type="button"
-          >
-            <span aria-hidden="true" />
-          </button>
-          <div
-            className="direction-chip"
-            data-tooltip={t("tooltipDirection", language)}
-          >
-            {editorDirection.toUpperCase()}
           </div>
         </div>
       </header>
@@ -1676,8 +2061,24 @@ export function NoteEditorArea({
           <>
             <div className="toolbar-divider" />
             
-            {/* Group 3: Font Family / Font Size / Heading */}
+            {/* Group 2: Typography */}
             <div className="toolbar-group font-and-type-actions">
+              <Dropdown
+                label={getHeadingShortLabel(activeHeadingType)}
+                value={activeHeadingType}
+                options={headingTypes}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
+                className="text-type-dropdown"
+                onChange={(val) => {
+                  if (val === "paragraph") {
+                    editor.chain().focus().setParagraph().run();
+                  } else if (val.startsWith("h")) {
+                    const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+                    editor.chain().focus().toggleHeading({ level }).run();
+                  }
+                }}
+              />
               <Dropdown
                 label={getFontFamilyShortLabel(activeFontFamily)}
                 value={activeFontFamily}
@@ -1708,27 +2109,11 @@ export function NoteEditorArea({
                   }
                 }}
               />
-              <Dropdown
-                label={getHeadingShortLabel(activeHeadingType)}
-                value={activeHeadingType}
-                options={headingTypes}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
-                className="text-type-dropdown"
-                onChange={(val) => {
-                  if (val === "paragraph") {
-                    editor.chain().focus().setParagraph().run();
-                  } else if (val.startsWith("h")) {
-                    const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
-                    editor.chain().focus().toggleHeading({ level }).run();
-                  }
-                }}
-              />
             </div>
 
             <div className="toolbar-divider" />
 
-            {/* Group 4: Bold / Italic / Underline / Text Color / Link */}
+            {/* Group 3: Inline Formatting */}
             <div className="toolbar-group formatting-actions">
               <button
                 aria-label="Bold"
@@ -1763,6 +2148,17 @@ export function NoteEditorArea({
               >
                 <ToolbarIconSvg icon="underline" />
               </button>
+              <button
+                aria-label="Strikethrough"
+                className="toolbar-icon-button"
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                data-active={editor.isActive("strike") ? "true" : "false"}
+                data-tooltip={language === "ar" ? "يتوسطه خط" : "Strikethrough"}
+              >
+                <ToolbarIconSvg icon="strike" />
+              </button>
               <ColorPicker
                 value={activeTextColor}
                 disabled={!hasSelectedNote || isTrashView}
@@ -1776,6 +2172,12 @@ export function NoteEditorArea({
                   }
                 }}
               />
+            </div>
+
+            <div className="toolbar-divider" />
+
+            {/* Group 4: Insert / Code / Link */}
+            <div className="toolbar-group insert-actions">
               <button
                 aria-label="Link"
                 className="toolbar-icon-button"
@@ -1798,69 +2200,36 @@ export function NoteEditorArea({
               >
                 <ToolbarIconSvg icon="codeBlock" />
               </button>
-              <CodeBlockColorPicker
-                value={activeCodeBlockColor}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
-                language={language}
-                onChange={(val) => {
-                  const chain = editor.chain().focus();
-                  if (!editor.isActive("codeBlock")) {
-                    chain.setCodeBlock();
-                  }
-                  chain.updateAttributes("codeBlock", { boxColor: val }).run();
-                }}
-              />
-              <Dropdown
-                label={activeCodeBlockDir.toUpperCase()}
-                value={activeCodeBlockDir}
-                options={codeBlockDirectionOptions}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
-                className="code-direction-dropdown"
-                onChange={(val) => {
-                  const chain = editor.chain().focus();
-                  if (!editor.isActive("codeBlock")) {
-                    chain.setCodeBlock();
-                  }
-                  chain.updateAttributes("codeBlock", { dir: val }).run();
-                }}
-              />
-              <Dropdown
-                label={codeBlockFontFamilyShortLabels[activeCodeBlockFontFamily] || "Mono"}
-                value={activeCodeBlockFontFamily}
-                options={codeBlockFontFamilyOptions}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={language === "ar" ? "خط كتلة الكود" : "Code block font family"}
-                className="code-font-family-dropdown"
-                onChange={(val) => {
-                  const chain = editor.chain().focus();
-                  if (!editor.isActive("codeBlock")) {
-                    chain.setCodeBlock();
-                  }
-                  chain.updateAttributes("codeBlock", { fontFamily: val }).run();
-                }}
-              />
-              <Dropdown
-                label={codeBlockFontSizeShortLabels[activeCodeBlockFontSize] || "MD"}
-                value={activeCodeBlockFontSize}
-                options={codeBlockFontSizeOptions}
-                disabled={!hasSelectedNote || isTrashView}
-                tooltip={language === "ar" ? "حجم خط كتلة الكود" : "Code block font size"}
-                className="code-font-size-dropdown"
-                onChange={(val) => {
-                  const chain = editor.chain().focus();
-                  if (!editor.isActive("codeBlock")) {
-                    chain.setCodeBlock();
-                  }
-                  chain.updateAttributes("codeBlock", { fontSize: val }).run();
-                }}
-              />
+              
+              {editor.isActive("codeBlock") && (
+                <>
+                  <CodeBlockColorPicker
+                    value={activeCodeBlockColor}
+                    disabled={!hasSelectedNote || isTrashView}
+                    tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
+                    language={language}
+                    onChange={(val) => {
+                      editor.chain().focus().updateAttributes("codeBlock", { boxColor: val }).run();
+                    }}
+                  />
+                  <Dropdown
+                    label={activeCodeBlockDir.toUpperCase()}
+                    value={activeCodeBlockDir}
+                    options={codeBlockDirectionOptions}
+                    disabled={!hasSelectedNote || isTrashView}
+                    tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
+                    className="code-direction-dropdown"
+                    onChange={(val) => {
+                      editor.chain().focus().updateAttributes("codeBlock", { dir: val }).run();
+                    }}
+                  />
+                </>
+              )}
             </div>
 
             <div className="toolbar-divider" />
 
-            {/* Group 5: Bullet / Numbered / Align Left / Align Center / Align Right */}
+            {/* Group 5: Lists & Alignment */}
             <div className="toolbar-group layout-actions">
               <button
                 aria-label="Bullets"
@@ -1921,7 +2290,7 @@ export function NoteEditorArea({
 
             <div className="toolbar-divider" />
 
-            {/* Group 6: Clear Formatting */}
+            {/* Group 6: Cleanup */}
             <div className="toolbar-group clear-actions">
               <button
                 aria-label="Clear formatting"
@@ -1954,6 +2323,7 @@ export function NoteEditorArea({
           className={`note-editor-content-wrapper${
             isEditorEmpty ? " is-editor-empty" : ""
           }`}
+          data-placeholder={language === "ar" ? "اكتب الملاحظة هنا..." : "Write your note here..."}
           data-readonly={isTrashView ? "true" : "false"}
           dir={editorDirection}
           onContextMenu={handleEditorContextMenu}

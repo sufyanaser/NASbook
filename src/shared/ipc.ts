@@ -170,4 +170,10 @@ export interface NasNotesbookApi {
     readonly getStatus: () => Promise<CloudBackupInfo>;
     readonly uploadLatest: () => Promise<CloudBackupUploadResult>;
   };
+  readonly window: {
+    readonly minimize: () => Promise<void>;
+    readonly toggleMaximize: () => Promise<void>;
+    readonly close: () => Promise<void>;
+    readonly isMaximized: () => Promise<boolean>;
+  };
 }

@@ -2,27 +2,22 @@ import type { AppLanguage } from "../../shared/settings";
 import { t } from "../../shared/i18n";
 
 interface StatusFooterProps {
-  readonly activeCategoryName: string;
-  readonly categoriesCount: number;
   readonly databaseStatus: "ready" | "unavailable";
   readonly notesCount: number;
   readonly saveStatus: string;
   readonly language: AppLanguage;
+  readonly editorDirection?: string;
+  readonly isFocusMode?: boolean;
 }
 
 export function StatusFooter({
-  activeCategoryName,
-  categoriesCount,
   databaseStatus,
   notesCount,
   saveStatus,
   language,
+  editorDirection,
+  isFocusMode,
 }: StatusFooterProps): JSX.Element {
-  const databaseLabel =
-    databaseStatus === "ready"
-      ? t("footerDbReady", language)
-      : t("footerDbUnavailable", language);
-
   const translatedSaveStatus = (() => {
     const s = saveStatus.toLowerCase();
     if (s === "saved" || s === "idle") return t("saved", language);
@@ -33,22 +28,26 @@ export function StatusFooter({
   })();
 
   return (
-    <footer className="status-footer">
-      <span>{t("footerPhaseScaffold", language)}</span>
-      <span>
-        {t("footerCategory", language)} {activeCategoryName}
-      </span>
-      <span>{databaseLabel}</span>
-      <span>
-        {t("footerCategoriesCount", language)} {categoriesCount}
-      </span>
-      <span>
-        {t("footerNotesCount", language)} {notesCount}
-      </span>
-      <span>
-        {t("footerSave", language)} {translatedSaveStatus}
-      </span>
-      <span>{t("footerDir", language)}</span>
+    <footer className="status-footer" data-focus-mode={isFocusMode ? "true" : "false"}>
+      <div className="status-footer-left">
+        <span className="status-item status-db" data-status={databaseStatus}>
+          <span className="status-dot" />
+          {databaseStatus === "ready" ? t("settingsDataReady", language) : t("settingsDataUnavailable", language)}
+        </span>
+        {!isFocusMode && (
+          <span className="status-item">
+            {t("notesListTitle", language)}: {notesCount}
+          </span>
+        )}
+      </div>
+      <div className="status-footer-right">
+        <span className="status-item status-save" data-status={saveStatus.toLowerCase()}>
+          {translatedSaveStatus}
+        </span>
+        <span className="status-item status-dir">
+          {editorDirection ? editorDirection.toUpperCase() : "LTR"}
+        </span>
+      </div>
     </footer>
   );
 }

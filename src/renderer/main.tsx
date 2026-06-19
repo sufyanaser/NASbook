@@ -6,7 +6,7 @@ import "./styles/index.css";
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-  throw new Error("NAS Notesbook root element was not found.");
+  throw new Error("NASbook root element was not found.");
 }
 
 ReactDOM.createRoot(rootElement).render(

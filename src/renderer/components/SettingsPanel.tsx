@@ -341,7 +341,7 @@ export function SettingsPanel({
       >
         <header className="settings-panel-header">
           <div>
-            <span>NAS Notesbook</span>
+            <span>NASbook</span>
             <h2>{t("settingsTitle", lang)}</h2>
           </div>
           <button
@@ -860,7 +860,7 @@ export function SettingsPanel({
                   <p>{t("settingsAboutSub", lang)}</p>
                 </div>
                 <div className="settings-about-list">
-                  <strong>NAS Notesbook</strong>
+                  <strong>NASbook</strong>
                   <span>{t("settingsAboutVersion", lang)} {appInfo?.version ?? "0.1.0"}</span>
                   <span>{t("settingsAboutSQLite", lang)}</span>
                   <span>{t("settingsAboutSaveShort", lang)}</span>

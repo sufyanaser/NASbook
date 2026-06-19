@@ -8,7 +8,6 @@ import { hasUnsavedNoteChanges } from "../shared/dirtyState";
 import type { AppInfo, NoteRecord, NoteListItem } from "../shared/ipc";
 import {
   defaultAppSettings,
-  getToggledLightDarkTheme,
   type AppSettings,
 } from "../shared/settings";
 import { NavigationRail } from "./components/NavigationRail";
@@ -21,6 +20,7 @@ import {
   type ContextMenuState,
 } from "./components/AppContextMenu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { TitleBar } from "./components/TitleBar";
 import { t, getCategoryDisplayName } from "../shared/i18n";
 import {
   extractMarkdownTitle,
@@ -99,6 +99,19 @@ export function App(): JSX.Element {
     const saved = localStorage.getItem("nas-notesbook.layout.navRailExpanded");
     return saved === "true";
   });
+
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(() => {
+    const saved = sessionStorage.getItem("nas-notesbook.focusMode");
+    return saved === "true";
+  });
+
+  const handleToggleFocusMode = useCallback(() => {
+    setIsFocusMode((prev) => {
+      const next = !prev;
+      sessionStorage.setItem("nas-notesbook.focusMode", String(next));
+      return next;
+    });
+  }, []);
 
   const handleToggleNavRail = useCallback(() => {
     setNavRailExpanded((prev) => {
@@ -731,10 +744,6 @@ export function App(): JSX.Element {
     void window.nasNotesbook?.app.openDataFolder();
   };
 
-  const handleToggleLightDarkTheme = (): void => {
-    handleUpdateSettings({ theme: getToggledLightDarkTheme(settings.theme) });
-  };
-
   const handleDeleteToTrash = async (): Promise<void> => {
     if (!selectedNote || !window.nasNotesbook) {
       return;
@@ -833,13 +842,15 @@ export function App(): JSX.Element {
   return (
     <main
       className="app-shell"
-      aria-label="NAS Notesbook workspace"
+      aria-label="NASbook workspace"
       onContextMenu={handleOpenContextMenu}
+      data-focus-mode={isFocusMode ? "true" : "false"}
       style={{
         "--nav-rail-width": `${navRailExpanded ? 196 : 60}px`,
         "--notes-list-width": `${notesListWidth}px`,
       } as React.CSSProperties}
     >
+      <TitleBar language={settings.language} />
       <NavigationRail
         activeCategory={activeCategory}
         categories={categories}
@@ -908,6 +919,8 @@ export function App(): JSX.Element {
         showMetadata={settings.showMetadata}
         theme={settings.theme}
         language={settings.language}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={handleToggleFocusMode}
         onContentChange={handleDraftContentChange}
         onDeletePermanent={() => {
           handleDeletePermanent();
@@ -921,7 +934,7 @@ export function App(): JSX.Element {
         onSave={() => {
           void handleSaveNote();
         }}
-        onToggleTheme={handleToggleLightDarkTheme}
+        onThemeChange={(theme) => handleUpdateSettings({ theme })}
         onTitleChange={handleDraftTitleChange}
       />
       <AppContextMenu
@@ -970,12 +983,12 @@ export function App(): JSX.Element {
         onUpdateSettings={handleUpdateSettings}
       />
       <StatusFooter
-        activeCategoryName={activeCategoryName}
-        categoriesCount={categories.length}
         databaseStatus={databaseStatus}
         notesCount={notesCount}
         saveStatus={saveStatus}
         language={settings.language}
+        editorDirection={settings.editorDirection}
+        isFocusMode={isFocusMode}
       />
     </main>
   );
