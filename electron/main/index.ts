@@ -3,6 +3,7 @@ import path from "node:path";
 import { createNotesbookDatabase, type NotesbookDatabase } from "./db";
 import { registerIpcHandlers } from "./ipc";
 import { createSettingsStore } from "./settingsStore";
+import { createBackupService } from "./backupService";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 let notesbookDatabase: NotesbookDatabase | null = null;
@@ -57,11 +58,26 @@ app.whenReady().then(() => {
   const userDataPath = app.getPath("userData");
   notesbookDatabase = createNotesbookDatabase(userDataPath);
   const settingsStore = createSettingsStore(userDataPath);
+
+  const backupService = createBackupService(
+    userDataPath,
+    notesbookDatabase.databasePath,
+    settingsStore,
+    () => notesbookDatabase?.checkpoint?.()
+  );
+
+  setTimeout(() => {
+    backupService.runStartupBackup().catch((err) => {
+      console.error("Startup auto-backup failed:", err);
+    });
+  }, 1000);
+
   registerIpcHandlers({
     appName: app.getName(),
     appVersion: app.getVersion(),
     database: notesbookDatabase,
     settingsStore,
+    backupService,
   });
 
   createMainWindow();

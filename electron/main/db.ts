@@ -45,6 +45,7 @@ export interface NotesbookDatabase {
   readonly deleteNoteToTrash: (id: number) => void;
   readonly restoreNote: (id: number) => void;
   readonly deleteNotePermanent: (id: number) => void;
+  readonly checkpoint?: () => void;
   readonly close: () => void;
 }
 
@@ -278,6 +279,9 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
     },
     deleteNotePermanent: (id) => {
       database.prepare("DELETE FROM notes WHERE id = ?").run(normalizeId(id));
+    },
+    checkpoint: () => {
+      database.pragma("wal_checkpoint(TRUNCATE)");
     },
     close: () => {
       database.close();
