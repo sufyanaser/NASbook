@@ -134,6 +134,7 @@ test("app settings defaults preserve manual-save behavior", () => {
     showNotePreview: true,
     showNoteDates: true,
     confirmUnsavedSwitch: true,
+    language: "ar",
   });
 });
 
@@ -148,6 +149,7 @@ test("app settings validation rejects unsupported values", () => {
     showNotePreview: "yes",
     showNoteDates: false,
     confirmUnsavedSwitch: false,
+    language: "fr",
   });
 
   assert.equal(settings.theme, "dark");
@@ -159,6 +161,12 @@ test("app settings validation rejects unsupported values", () => {
   assert.equal(settings.showNotePreview, true);
   assert.equal(settings.showNoteDates, false);
   assert.equal(settings.confirmUnsavedSwitch, false);
+  assert.equal(settings.language, "ar");
+
+  const settingsValid = normalizeAppSettings({
+    language: "en",
+  });
+  assert.equal(settingsValid.language, "en");
 });
 
 test("dark light theme toggle treats light-like themes safely", () => {

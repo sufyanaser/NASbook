@@ -81,6 +81,6 @@ test("renderer defines reusable CSS tooltip system", async () => {
   assert.match(stylesSource, /pointer-events:\s*none/);
   assert.match(stylesSource, /data-tooltip-placement="right"/);
   assert.match(railSource, /data-tooltip-placement="right"/);
-  assert.match(editorSource, /data-tooltip="Save — Ctrl\+S"/);
-  assert.match(settingsSource, /data-tooltip="Close settings"/);
+  assert.match(editorSource, /data-tooltip=\{t\("tooltipSave",\s*language\)\}/);
+  assert.match(settingsSource, /data-tooltip=\{t\("settingsClose",\s*lang\)\}/);
 });

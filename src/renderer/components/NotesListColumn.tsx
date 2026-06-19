@@ -1,5 +1,7 @@
 import type { NoteListItem } from "../../shared/ipc";
 import { stripHtmlForPreview } from "../../shared/dirtyState";
+import type { AppLanguage } from "../../shared/settings";
+import { t } from "../../shared/i18n";
 
 interface NotesListColumnProps {
   readonly activeCategoryName: string;
@@ -9,6 +11,7 @@ interface NotesListColumnProps {
   readonly selectedNoteId: number | null;
   readonly showNoteDates: boolean;
   readonly showNotePreview: boolean;
+  readonly language: AppLanguage;
   readonly onCreateNote: () => void;
   readonly onSelectNote: (id: number) => void;
 }
@@ -26,8 +29,6 @@ function formatShortDate(value: string): string {
   });
 }
 
-
-
 export function NotesListColumn({
   activeCategoryName,
   canCreate,
@@ -36,22 +37,24 @@ export function NotesListColumn({
   selectedNoteId,
   showNoteDates,
   showNotePreview,
+  language,
   onCreateNote,
   onSelectNote,
 }: NotesListColumnProps): JSX.Element {
+  const createTooltip = canCreate ? t("newNote", language) : t("cannotCreateInTrash", language);
+
   return (
     <section
       className="notes-list-column"
       data-trash-view={isTrashView ? "true" : "false"}
       aria-label="Notes list"
-      dir="rtl"
     >
       <header className="notes-list-header">
-        <span className="notes-list-title">الملاحظات</span>
+        <span className="notes-list-title">{t("notesListTitle", language)}</span>
         <button
-          aria-label={canCreate ? "New note" : "Cannot create notes in Trash"}
+          aria-label={createTooltip}
           className="new-note-button"
-          data-tooltip={canCreate ? "New note" : "Cannot create notes in Trash"}
+          data-tooltip={createTooltip}
           disabled={!canCreate}
           onClick={onCreateNote}
           type="button"
@@ -61,7 +64,7 @@ export function NotesListColumn({
       </header>
 
       <div className="category-context">
-        <span>الفئة الحالية</span>
+        <span>{t("currentCategory", language)}</span>
         <strong>{activeCategoryName}</strong>
       </div>
 
@@ -69,11 +72,11 @@ export function NotesListColumn({
         {notes.length === 0 ? (
           <div className="notes-empty-state">
             {isTrashView ? (
-              <strong>سلة المهملات فارغة.</strong>
+              <strong>{t("trashIsEmpty", language)}</strong>
             ) : (
               <>
-                <strong>لا توجد ملاحظات هنا بعد.</strong>
-                <span>اضغط + لإنشاء ملاحظة جديدة.</span>
+                <strong>{t("noNotesYet", language)}</strong>
+                <span>{t("pressPlusToCreate", language)}</span>
               </>
             )}
           </div>
@@ -91,16 +94,16 @@ export function NotesListColumn({
               <h2>{note.title}</h2>
               {showNoteDates && (
                 <time
-                  title={`أنشئت: ${formatShortDate(
+                  title={`${t("createdAt", language)} ${formatShortDate(
                     note.createdAt,
-                  )} • آخر تعديل: ${formatShortDate(note.updatedAt)}`}
+                  )} • ${t("updatedAtShort", language)} ${formatShortDate(note.updatedAt)}`}
                 >
                   {formatShortDate(note.updatedAt)}
                 </time>
               )}
             </div>
             {showNotePreview && (
-              <p>{stripHtmlForPreview(note.preview) || "لا يوجد محتوى بعد."}</p>
+              <p>{stripHtmlForPreview(note.preview) || t("noContentYet", language)}</p>
             )}
           </button>
         ))}

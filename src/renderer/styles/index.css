@@ -59,12 +59,17 @@
   --tooltip-color: #fafaf9;
   --tooltip-border: rgba(255, 255, 255, 0.12);
   --tooltip-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
+  --trash-indicator-inset: -4px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Cairo", "Tahoma",
     "Arial", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root[dir="rtl"] {
+  --trash-indicator-inset: 4px;
 }
 
 [data-theme="light"] {
@@ -172,7 +177,7 @@ body,
 }
 
 body {
-  direction: ltr;
+  direction: inherit;
   overflow: hidden;
   background: var(--app-bg);
 }
@@ -228,7 +233,7 @@ pre {
   min-height: 0;
   overflow: hidden;
   background: var(--app-bg);
-  direction: ltr;
+  direction: inherit;
 }
 
 .workspace-frame {
@@ -238,7 +243,7 @@ pre {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  direction: ltr;
+  direction: inherit;
 }
 
 .navigation-rail {
@@ -250,10 +255,10 @@ pre {
   min-width: 64px;
   max-width: 64px;
   overflow: visible;
-  border-right: 1px solid var(--app-border);
+  border-inline-end: 1px solid var(--app-border);
   background: var(--app-surface);
   padding: 12px 8px;
-  direction: ltr;
+  direction: inherit;
 }
 
 [data-tooltip]:not([data-tooltip=""]) {
@@ -530,18 +535,18 @@ pre {
   height: 100%;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid var(--app-border);
+  border-inline-end: 1px solid var(--app-border);
   background: var(--app-surface);
   padding: 12px;
-  direction: rtl;
-  text-align: right;
+  direction: inherit;
+  text-align: start;
   transition: all 0.2s ease-in-out;
 }
 
 /* Distinct Trash view background and border indicator in Notes List */
 .notes-list-column[data-trash-view="true"] {
   background: var(--app-surface-muted);
-  box-shadow: inset -4px 0 0 #ef4444;
+  box-shadow: inset var(--trash-indicator-inset) 0 0 #ef4444;
 }
 
 .notes-list-header {
@@ -609,12 +614,12 @@ pre {
 .note-list-card {
   width: 100%;
   border: 1px solid var(--app-border);
-  border-right-width: 4px;
-  border-right-color: transparent;
+  border-inline-end-width: 4px;
+  border-inline-end-color: transparent;
   border-radius: 8px;
   background: var(--app-surface);
   padding: 10px 12px;
-  text-align: right;
+  text-align: start;
   cursor: pointer;
   transition: all 0.12s ease-in-out;
 }
@@ -627,12 +632,12 @@ pre {
 .note-list-card[data-selected="true"] {
   background: var(--app-surface-raised);
   border-color: var(--app-focus);
-  border-right-color: var(--app-text-muted);
+  border-inline-end-color: var(--app-text-muted);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .notes-list-column[data-trash-view="true"] .note-list-card[data-selected="true"] {
-  border-right-color: #ef4444;
+  border-inline-end-color: #ef4444;
 }
 
 .note-card-topline {
@@ -703,8 +708,8 @@ pre {
   min-height: 0;
   overflow: hidden;
   background: var(--app-bg);
-  direction: rtl;
-  text-align: right;
+  direction: inherit;
+  text-align: start;
 }
 
 .editor-header {
@@ -730,9 +735,10 @@ pre {
   outline: 0;
   background: transparent;
   padding: 4px 8px 6px;
-  text-align: right;
+  text-align: start;
   font: inherit;
-  margin: 4px -8px 0 0;
+  margin: 4px 0 0 0;
+  margin-inline-end: -8px;
   color: var(--app-text-strong);
   font-size: 30px;
   font-weight: 800;
@@ -1170,7 +1176,7 @@ pre {
   padding: 0 16px;
   color: var(--app-text-muted);
   font-size: 12px;
-  direction: ltr;
+  direction: inherit;
   white-space: nowrap;
 }
 
@@ -1358,11 +1364,11 @@ pre {
   grid-template-rows: auto minmax(0, 1fr);
   width: min(760px, calc(100vw - 48px));
   height: 100%;
-  border-left: 1px solid var(--app-border);
+  border-inline-start: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-surface) 94%, transparent);
   color: var(--app-text);
-  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.36);
-  direction: ltr;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.36);
+  direction: inherit;
 }
 
 .settings-panel-header {
@@ -1429,7 +1435,7 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-right: 1px solid var(--app-border);
+  border-inline-end: 1px solid var(--app-border);
   padding: 18px 12px;
   background: var(--app-bg);
 }
@@ -1437,7 +1443,7 @@ pre {
 .settings-tab {
   height: 36px;
   padding: 0 12px;
-  text-align: left;
+  text-align: start;
 }
 
 .settings-tab[data-active="true"] {

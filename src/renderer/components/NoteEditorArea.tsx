@@ -16,7 +16,9 @@ import type {
   EditorDensity,
   EditorDirection,
   EditorFontSize,
+  AppLanguage,
 } from "../../shared/settings";
+import { t } from "../../shared/i18n";
 
 interface NoteEditorAreaProps {
   readonly activeCategoryName: string;
@@ -30,6 +32,7 @@ interface NoteEditorAreaProps {
   readonly selectedNote: NoteRecord | null;
   readonly showMetadata: boolean;
   readonly theme: AppTheme;
+  readonly language: AppLanguage;
   readonly onContentChange: (content: string) => void;
   readonly onDeletePermanent: () => void;
   readonly onDeleteToTrash: () => void;
@@ -277,11 +280,13 @@ function ColorPicker({
   onChange,
   disabled,
   tooltip,
+  language,
 }: {
   readonly value: string | null;
   readonly onChange: (value: string | null) => void;
   readonly disabled?: boolean;
   readonly tooltip?: string;
+  readonly language: AppLanguage;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -345,25 +350,43 @@ function ColorPicker({
       {isOpen && (
         <div className="color-picker-menu">
           <div className="color-picker-grid">
-            {swatches.map((swatch) => (
-              <button
-                key={swatch.name}
-                className="color-swatch-button"
-                data-tooltip={swatch.name}
-                onClick={() => {
-                  onChange(swatch.value);
-                  setIsOpen(false);
-                }}
-                style={{
-                  backgroundColor: swatch.hex === "transparent" ? undefined : swatch.hex,
-                }}
-                type="button"
-              >
-                {swatch.value === null && (
-                  <span className="reset-color-cross" />
-                )}
-              </button>
-            ))}
+            {swatches.map((swatch) => {
+              const getSwatchTooltip = (name: string) => {
+                if (language === "ar") {
+                  switch (name) {
+                    case "Reset": return "إعادة تعيين";
+                    case "White": return "أبيض";
+                    case "Gray": return "رمادي";
+                    case "Red": return "أحمر";
+                    case "Amber": return "كهرماني";
+                    case "Green": return "أخضر";
+                    case "Blue": return "أزرق";
+                    case "Purple": return "أرجواني";
+                    default: return name;
+                  }
+                }
+                return name;
+              };
+              return (
+                <button
+                  key={swatch.name}
+                  className="color-swatch-button"
+                  data-tooltip={getSwatchTooltip(swatch.name)}
+                  onClick={() => {
+                    onChange(swatch.value);
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    backgroundColor: swatch.hex === "transparent" ? undefined : swatch.hex,
+                  }}
+                  type="button"
+                >
+                  {swatch.value === null && (
+                    <span className="reset-color-cross" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -383,6 +406,7 @@ export function NoteEditorArea({
   selectedNote,
   showMetadata,
   theme,
+  language,
   onContentChange,
   onDeletePermanent,
   onDeleteToTrash,
@@ -476,7 +500,7 @@ export function NoteEditorArea({
 
   // Dropdown option maps
   const fontFamilies = [
-    { value: "System", label: "System" },
+    { value: "System", label: language === "ar" ? "نظام" : "System" },
     { value: "Segoe UI", label: "Segoe UI" },
     { value: "Arial", label: "Arial" },
     { value: "IBM Plex Sans Arabic Local", label: "IBM Plex Sans Arabic Local" },
@@ -485,7 +509,7 @@ export function NoteEditorArea({
   ];
 
   const fontSizes = [
-    { value: "Default", label: "Default" },
+    { value: "Default", label: language === "ar" ? "الافتراضي" : "Default" },
     { value: "13px", label: "13px" },
     { value: "15px", label: "15px" },
     { value: "17px", label: "17px" },
@@ -495,13 +519,13 @@ export function NoteEditorArea({
   ];
 
   const headingTypes = [
-    { value: "paragraph", label: "Paragraph" },
-    { value: "h1", label: "Heading 1" },
-    { value: "h2", label: "Heading 2" },
-    { value: "h3", label: "Heading 3" },
-    { value: "h4", label: "Heading 4" },
-    { value: "h5", label: "Heading 5" },
-    { value: "h6", label: "Heading 6" },
+    { value: "paragraph", label: language === "ar" ? "فقرة" : "Paragraph" },
+    { value: "h1", label: language === "ar" ? "عنوان 1" : "Heading 1" },
+    { value: "h2", label: language === "ar" ? "عنوان 2" : "Heading 2" },
+    { value: "h3", label: language === "ar" ? "عنوان 3" : "Heading 3" },
+    { value: "h4", label: language === "ar" ? "عنوان 4" : "Heading 4" },
+    { value: "h5", label: language === "ar" ? "عنوان 5" : "Heading 5" },
+    { value: "h6", label: language === "ar" ? "عنوان 6" : "Heading 6" },
   ];
 
   const activeFontFamily = editor
@@ -528,7 +552,7 @@ export function NoteEditorArea({
       : "paragraph"
     : "paragraph";
 
-  const activeHeadingLabel = headingTypes.find((t) => t.value === activeHeadingType)?.label || "Paragraph";
+  const activeHeadingLabel = headingTypes.find((t) => t.value === activeHeadingType)?.label || (language === "ar" ? "فقرة" : "Paragraph");
 
   const activeTextColor = editor
     ? editor.getAttributes("textStyle").color || null
@@ -554,7 +578,7 @@ export function NoteEditorArea({
       aria-label="Editor placeholder"
       data-editor-density={editorDensity}
       data-editor-font-size={fontSize}
-      dir={editorDirection === "ltr" ? "ltr" : "rtl"}
+      dir={language === "ar" ? "rtl" : "ltr"}
     >
       <header className="editor-header">
         <div style={{ flex: 1 }}>
@@ -563,20 +587,21 @@ export function NoteEditorArea({
             className="note-title-input"
             disabled={!hasSelectedNote || isTrashView}
             onChange={(event) => onTitleChange(event.target.value)}
-            placeholder="عنوان الملاحظة..."
+            placeholder={t("noteTitlePlaceholder", language)}
             type="text"
             value={draftTitle}
+            dir={editorDirection}
           />
           {hasSelectedNote && showMetadata && (
             <div className="note-metadata-row">
               {selectedNote.createdAt && (
                 <span className="metadata-item">
-                  أنشئت: {formatDateTime(selectedNote.createdAt)}
+                  {t("createdAt", language)} {formatDateTime(selectedNote.createdAt)}
                 </span>
               )}
               {selectedNote.updatedAt && (
                 <span className="metadata-item">
-                  تعديل: {formatDateTime(selectedNote.updatedAt)}
+                  {t("updatedAt", language)} {formatDateTime(selectedNote.updatedAt)}
                 </span>
               )}
             </div>
@@ -584,10 +609,10 @@ export function NoteEditorArea({
         </div>
         <div className="editor-header-actions">
           <button
-            aria-label={isLightMode ? "Switch to dark theme" : "Switch to light theme"}
+            aria-label={isLightMode ? (language === "ar" ? "تبديل للسمة الداكنة" : "Switch to dark theme") : (language === "ar" ? "تبديل للسمة الفاتحة" : "Switch to light theme")}
             className="theme-toggle"
             data-light={isLightMode ? "true" : "false"}
-            data-tooltip="Toggle light/dark theme"
+            data-tooltip={t("tooltipTheme", language)}
             onClick={onToggleTheme}
             type="button"
           >
@@ -595,7 +620,7 @@ export function NoteEditorArea({
           </button>
           <div
             className="direction-chip"
-            data-tooltip="Editor text direction"
+            data-tooltip={t("tooltipDirection", language)}
           >
             {editorDirection.toUpperCase()}
           </div>
@@ -604,7 +629,7 @@ export function NoteEditorArea({
 
       {isTrashView && hasSelectedNote && (
         <div className="editor-trash-banner">
-          <span>⚠️ هذه الملاحظة في سلة المهملات. التعديل معطل. قم باستعادة الملاحظة لتعديلها.</span>
+          <span>{t("trashBanner", language)}</span>
         </div>
       )}
 
@@ -615,10 +640,10 @@ export function NoteEditorArea({
             <>
               <div className="note-save-group">
                 <button
-                  aria-label="Save"
+                  aria-label={t("tooltipSave", language)}
                   className="toolbar-action-button"
                   disabled={!hasSelectedNote}
-                  data-tooltip="Save — Ctrl+S"
+                  data-tooltip={t("tooltipSave", language)}
                   onClick={onSave}
                   type="button"
                 >
@@ -629,13 +654,13 @@ export function NoteEditorArea({
                   data-status={saveStatus.toLowerCase()}
                   data-tooltip={
                     saveStatus === "Idle" || saveStatus === "Saved"
-                      ? "Saved"
+                      ? t("saved", language)
                       : saveStatus === "Unsaved"
-                      ? "Unsaved changes"
+                      ? t("unsavedChanges", language)
                       : saveStatus === "Saving"
-                      ? "Saving"
+                      ? t("saving", language)
                       : saveStatus === "Error"
-                      ? "Save error"
+                      ? t("saveError", language)
                       : saveStatus
                   }
                   aria-label={saveStatus}
@@ -709,10 +734,10 @@ export function NoteEditorArea({
               
               {/* Group 2: Delete to Trash */}
               <button
-                aria-label="Delete to Trash"
+                aria-label={t("tooltipDeleteToTrash", language)}
                 className="toolbar-action-button toolbar-danger-action"
                 disabled={!hasSelectedNote}
-                data-tooltip="Delete to Trash"
+                data-tooltip={t("tooltipDeleteToTrash", language)}
                 onClick={onDeleteToTrash}
                 type="button"
               >
@@ -722,20 +747,20 @@ export function NoteEditorArea({
           ) : (
             <>
               <button
-                aria-label="Restore"
+                aria-label={t("tooltipRestore", language)}
                 className="toolbar-action-button"
                 disabled={!hasSelectedNote}
-                data-tooltip="Restore"
+                data-tooltip={t("tooltipRestore", language)}
                 onClick={onRestore}
                 type="button"
               >
                 <ToolbarIconSvg icon="restore" />
               </button>
               <button
-                aria-label="Delete Permanently"
+                aria-label={t("tooltipDeletePermanent", language)}
                 className="toolbar-action-button danger-button"
                 disabled={!hasSelectedNote}
-                data-tooltip="Delete Permanently"
+                data-tooltip={t("tooltipDeletePermanent", language)}
                 onClick={onDeletePermanent}
                 type="button"
               >
@@ -745,7 +770,7 @@ export function NoteEditorArea({
               <span
                 className="save-status-pill"
                 data-status="saved"
-                data-tooltip="Saved"
+                data-tooltip={t("saved", language)}
                 aria-label="Saved"
               >
                 <svg
@@ -775,7 +800,7 @@ export function NoteEditorArea({
                 value={activeFontFamily}
                 options={fontFamilies}
                 disabled={!hasSelectedNote || isTrashView}
-                tooltip={`Font Family: ${activeFontFamily}`}
+                tooltip={`${t("tooltipFontFamily", language)}: ${language === "ar" && activeFontFamily === "System" ? "نظام" : activeFontFamily}`}
                 className="font-family-dropdown"
                 onChange={(val) => {
                   if (val === "System") {
@@ -790,7 +815,7 @@ export function NoteEditorArea({
                 value={activeFontSize}
                 options={fontSizes}
                 disabled={!hasSelectedNote || isTrashView}
-                tooltip={`Font Size: ${activeFontSize}`}
+                tooltip={`${t("tooltipFontSize", language)}: ${language === "ar" && activeFontSize === "Default" ? "الافتراضي" : activeFontSize}`}
                 className="font-size-dropdown"
                 onChange={(val) => {
                   if (val === "Default") {
@@ -805,7 +830,7 @@ export function NoteEditorArea({
                 value={activeHeadingType}
                 options={headingTypes}
                 disabled={!hasSelectedNote || isTrashView}
-                tooltip={`Text Type: ${activeHeadingLabel}`}
+                tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
                 className="text-type-dropdown"
                 onChange={(val) => {
                   if (val === "paragraph") {
@@ -829,7 +854,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 data-active={editor.isActive("bold") ? "true" : "false"}
-                data-tooltip="Bold — Ctrl+B"
+                data-tooltip={t("tooltipBold", language)}
               >
                 <ToolbarIconSvg icon="bold" />
               </button>
@@ -840,7 +865,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleItalic().run()}
                 data-active={editor.isActive("italic") ? "true" : "false"}
-                data-tooltip="Italic — Ctrl+I"
+                data-tooltip={t("tooltipItalic", language)}
               >
                 <ToolbarIconSvg icon="italic" />
               </button>
@@ -851,14 +876,15 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleUnderline().run()}
                 data-active={editor.isActive("underline") ? "true" : "false"}
-                data-tooltip="Underline"
+                data-tooltip={t("tooltipUnderline", language)}
               >
                 <ToolbarIconSvg icon="underline" />
               </button>
               <ColorPicker
                 value={activeTextColor}
                 disabled={!hasSelectedNote || isTrashView}
-                tooltip="Text Color"
+                tooltip={t("tooltipTextColor", language)}
+                language={language}
                 onChange={(val) => {
                   if (val === null) {
                     editor.chain().focus().unsetColor().run();
@@ -874,7 +900,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => setIsLinkDialogOpen(true)}
                 data-active={editor.isActive("link") ? "true" : "false"}
-                data-tooltip="Link"
+                data-tooltip={t("tooltipLink", language)}
               >
                 <ToolbarIconSvg icon="link" />
               </button>
@@ -891,7 +917,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
                 data-active={editor.isActive("bulletList") ? "true" : "false"}
-                data-tooltip="Bullets"
+                data-tooltip={t("tooltipBullets", language)}
               >
                 <ToolbarIconSvg icon="bullets" />
               </button>
@@ -902,7 +928,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
                 data-active={editor.isActive("orderedList") ? "true" : "false"}
-                data-tooltip="Numbered"
+                data-tooltip={t("tooltipNumbered", language)}
               >
                 <ToolbarIconSvg icon="numbered" />
               </button>
@@ -913,7 +939,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().setTextAlign("left").run()}
                 data-active={editor.isActive({ textAlign: "left" }) ? "true" : "false"}
-                data-tooltip="Align Left"
+                data-tooltip={t("tooltipAlignLeft", language)}
               >
                 <ToolbarIconSvg icon="alignLeft" />
               </button>
@@ -924,7 +950,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().setTextAlign("center").run()}
                 data-active={editor.isActive({ textAlign: "center" }) ? "true" : "false"}
-                data-tooltip="Align Center"
+                data-tooltip={t("tooltipAlignCenter", language)}
               >
                 <ToolbarIconSvg icon="alignCenter" />
               </button>
@@ -935,7 +961,7 @@ export function NoteEditorArea({
                 disabled={!hasSelectedNote || isTrashView}
                 onClick={() => editor.chain().focus().setTextAlign("right").run()}
                 data-active={editor.isActive({ textAlign: "right" }) ? "true" : "false"}
-                data-tooltip="Align Right"
+                data-tooltip={t("tooltipAlignRight", language)}
               >
                 <ToolbarIconSvg icon="alignRight" />
               </button>
@@ -962,7 +988,7 @@ export function NoteEditorArea({
                     .unsetLink()
                     .run()
                 }
-                data-tooltip="Clear formatting"
+                data-tooltip={t("tooltipClearFormatting", language)}
               >
                 <ToolbarIconSvg icon="clear" />
               </button>
@@ -982,11 +1008,11 @@ export function NoteEditorArea({
           <EditorContent editor={editor} />
         </div>
       ) : (
-        <div className="editor-placeholder" dir="rtl">
+        <div className="editor-placeholder">
           <div className="editor-placeholder-content">
             <span aria-hidden="true" style={{ fontSize: "32px" }}>📔</span>
-            <p>اختر ملاحظة من القائمة أو أنشئ ملاحظة جديدة للبدء.</p>
-            <span>يمكنك التنقل بين الفئات وسلة المهملات من الشريط الجانبي.</span>
+            <p>{t("editorPlaceholder", language)}</p>
+            <span>{t("editorPlaceholderSubtitle", language)}</span>
           </div>
         </div>
       )}
@@ -994,7 +1020,8 @@ export function NoteEditorArea({
       {/* Link Dialog */}
       <LinkDialog
         isOpen={isLinkDialogOpen}
-        initialUrl={editor ? editor.getAttributes("link").href || "" : ""}
+        initialUrl={editor?.getAttributes("link").href || ""}
+        language={language}
         onCancel={() => setIsLinkDialogOpen(false)}
         onConfirm={handleLinkConfirm}
         onRemove={handleLinkRemove}

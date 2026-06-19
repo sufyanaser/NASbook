@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CategoryDefinition, CategorySlug } from "../../shared/categories";
-import type { RailIconMode } from "../../shared/settings";
+import type { RailIconMode, AppLanguage } from "../../shared/settings";
+import { t, getCategoryDisplayName } from "../../shared/i18n";
 
 interface IconResolution {
   readonly type: "image" | "inline" | "text";
@@ -28,7 +29,7 @@ const getCategoryIcon = (
   mode: RailIconMode,
   slug: CategorySlug | "settings",
   name: string,
-): IconResolution => {
+ ): IconResolution => {
   const fileName = categoryIconFiles[slug];
 
   if (fileName) {
@@ -100,6 +101,7 @@ interface NavigationRailProps {
   readonly activeCategory: CategorySlug;
   readonly categories: readonly CategoryDefinition[];
   readonly railIconMode: RailIconMode;
+  readonly language: AppLanguage;
   readonly onOpenSettings: () => void;
   readonly onSelectCategory: (category: CategorySlug) => void;
 }
@@ -108,6 +110,7 @@ export function NavigationRail({
   activeCategory,
   categories,
   railIconMode,
+  language,
   onOpenSettings,
   onSelectCategory,
 }: NavigationRailProps): JSX.Element {
@@ -119,7 +122,7 @@ export function NavigationRail({
   );
 
   return (
-    <aside className="navigation-rail" aria-label="Categories" dir="ltr">
+    <aside className="navigation-rail" aria-label="Categories">
       <div className="rail-brand" aria-label="NAS Notesbook">
         NAS
       </div>
@@ -131,20 +134,21 @@ export function NavigationRail({
             category.slug,
             category.name,
           );
+          const displayName = getCategoryDisplayName(category.slug, category.name, language);
 
           return (
             <button
               className="rail-button"
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
-              data-tooltip={category.name}
+              data-tooltip={displayName}
               data-tooltip-placement="right"
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
               type="button"
             >
               <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
-              <span className="sr-only">{category.name}</span>
+              <span className="sr-only">{displayName}</span>
             </button>
           );
         })}
@@ -157,27 +161,28 @@ export function NavigationRail({
             category.slug,
             category.name,
           );
+          const displayName = getCategoryDisplayName(category.slug, category.name, language);
 
           return (
             <button
               className="rail-button"
               data-active={category.slug === activeCategory}
               data-trash={category.slug === "trash" ? "true" : "false"}
-              data-tooltip={category.name}
+              data-tooltip={displayName}
               data-tooltip-placement="right"
               key={category.slug}
               onClick={() => onSelectCategory(category.slug)}
               type="button"
             >
               <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
-              <span className="sr-only">{category.name}</span>
+              <span className="sr-only">{displayName}</span>
             </button>
           );
         })}
         <button
-          aria-label="Settings"
+          aria-label={t("settingsTitle", language)}
           className="rail-button"
-          data-tooltip="Settings"
+          data-tooltip={t("settingsTitle", language)}
           data-tooltip-placement="right"
           onClick={onOpenSettings}
           type="button"
@@ -185,7 +190,7 @@ export function NavigationRail({
           <span aria-hidden="true">
             {renderRailIcon(getCategoryIcon(railIconMode, "settings", "Settings"))}
           </span>
-          <span className="sr-only">Settings</span>
+          <span className="sr-only">{t("settingsTitle", language)}</span>
         </button>
       </nav>
     </aside>

@@ -21,6 +21,7 @@ import {
   type ContextMenuState,
 } from "./components/AppContextMenu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { t, getCategoryDisplayName } from "../shared/i18n";
 
 type DatabaseStatus = "ready" | "unavailable";
 type SaveStatus = "Idle" | "Unsaved" | "Saving" | "Saved" | "Error";
@@ -64,7 +65,9 @@ export function App(): JSX.Element {
     return categories.find((category) => category.slug === activeCategory);
   }, [activeCategory, categories]);
 
-  const activeCategoryName = activeCategoryRecord?.name ?? "All Notes";
+  const activeCategoryName = activeCategoryRecord
+    ? getCategoryDisplayName(activeCategoryRecord.slug, activeCategoryRecord.name, settings.language)
+    : t("allNotes", settings.language);
   const hasUnsavedChanges = hasUnsavedNoteChanges(
     selectedNote,
     draftTitle,
@@ -110,7 +113,7 @@ export function App(): JSX.Element {
       return true;
     }
 
-    return window.confirm("You have unsaved changes. Discard them?");
+    return window.confirm(t("dialogDeleteDiscardPrompt", settings.language));
   };
 
   const clearSelectedNote = (): void => {
@@ -169,6 +172,11 @@ export function App(): JSX.Element {
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
   }, [settings.theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = settings.language;
+    document.documentElement.dir = settings.language === "ar" ? "rtl" : "ltr";
+  }, [settings.language]);
 
   useEffect(() => {
     void refreshNotes().catch(() => {
@@ -388,7 +396,6 @@ export function App(): JSX.Element {
     <main
       className="app-shell"
       aria-label="NAS Notesbook workspace"
-      dir="ltr"
       onContextMenu={handleOpenContextMenu}
     >
       <div className="workspace-frame">
@@ -396,6 +403,7 @@ export function App(): JSX.Element {
           activeCategory={activeCategory}
           categories={categories}
           railIconMode={settings.railIconMode}
+          language={settings.language}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onSelectCategory={handleSelectCategory}
         />
@@ -407,6 +415,7 @@ export function App(): JSX.Element {
           selectedNoteId={selectedNote?.id ?? null}
           showNoteDates={settings.showNoteDates}
           showNotePreview={settings.showNotePreview}
+          language={settings.language}
           onCreateNote={() => {
             void handleCreateNote();
           }}
@@ -426,6 +435,7 @@ export function App(): JSX.Element {
           selectedNote={selectedNote}
           showMetadata={settings.showMetadata}
           theme={settings.theme}
+          language={settings.language}
           onContentChange={handleDraftContentChange}
           onDeletePermanent={() => {
             handleDeletePermanent();
@@ -445,14 +455,16 @@ export function App(): JSX.Element {
       </div>
       <AppContextMenu
         menu={contextMenu}
+        language={settings.language}
         onAction={handleContextMenuAction}
         onClose={() => setContextMenu(null)}
       />
       <ConfirmDialog
-        confirmLabel="Delete permanently"
+        confirmLabel={t("dialogPermanentDeleteConfirm", settings.language)}
+        cancelLabel={t("dialogPermanentDeleteCancel", settings.language)}
         isOpen={isPermanentDeleteDialogOpen}
-        message="This note will be removed from the local SQLite database. This action cannot be undone."
-        title="Delete note permanently?"
+        message={t("dialogPermanentDeleteMessage", settings.language)}
+        title={t("dialogPermanentDeleteTitle", settings.language)}
         variant="destructive"
         onCancel={() => setIsPermanentDeleteDialogOpen(false)}
         onConfirm={() => {
@@ -474,6 +486,7 @@ export function App(): JSX.Element {
         databaseStatus={databaseStatus}
         notesCount={notesCount}
         saveStatus={saveStatus}
+        language={settings.language}
       />
     </main>
   );

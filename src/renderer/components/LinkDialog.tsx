@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type { AppLanguage } from "../../shared/settings";
+import { t } from "../../shared/i18n";
 
 interface LinkDialogProps {
   readonly isOpen: boolean;
   readonly initialUrl: string;
+  readonly language: AppLanguage;
   readonly onCancel: () => void;
   readonly onConfirm: (url: string) => void;
   readonly onRemove?: () => void;
@@ -11,6 +14,7 @@ interface LinkDialogProps {
 export function LinkDialog({
   isOpen,
   initialUrl,
+  language,
   onCancel,
   onConfirm,
   onRemove,
@@ -92,14 +96,14 @@ export function LinkDialog({
         role="dialog"
       >
         <form onSubmit={handleSubmit} className="modal-dialog-copy">
-          <h2>{initialUrl ? "تعديل الرابط" : "إضافة رابط"}</h2>
-          <p style={{ marginBottom: "12px" }}>أدخل عنوان URL للرابط المحدد:</p>
+          <h2>{initialUrl ? t("linkDialogEditTitle", language) : t("linkDialogAddTitle", language)}</h2>
+          <p style={{ marginBottom: "12px" }}>{t("linkDialogUrlLabel", language)}</p>
           
           <input
             ref={inputRef}
             className="link-dialog-input"
             type="text"
-            placeholder="example.com"
+            placeholder={t("linkDialogUrlPlaceholder", language)}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             style={{
@@ -125,7 +129,7 @@ export function LinkDialog({
                   type="button"
                   style={{ color: "#f87171", borderColor: "rgba(239, 68, 68, 0.4)" }}
                 >
-                  إزالة الرابط
+                  {t("linkDialogRemove", language)}
                 </button>
               )}
             </div>
@@ -136,14 +140,14 @@ export function LinkDialog({
                 onClick={onCancel}
                 type="button"
               >
-                إلغاء
+                {t("linkDialogCancel", language)}
               </button>
               <button
                 className="modal-primary-button"
                 type="submit"
                 disabled={!url.trim()}
               >
-                تطبيق
+                {t("linkDialogApply", language)}
               </button>
             </div>
           </div>

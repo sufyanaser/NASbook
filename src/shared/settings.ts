@@ -14,6 +14,10 @@ export type EditorDensity = "compact" | "comfortable" | "wide";
 
 export type EditorFontSize = "small" | "medium" | "large";
 
+export type AppLanguage = "ar" | "en";
+
+export const appLanguages = ["ar", "en"] as const satisfies readonly AppLanguage[];
+
 export interface AppSettings {
   readonly theme: AppTheme;
   readonly railIconMode: RailIconMode;
@@ -24,6 +28,7 @@ export interface AppSettings {
   readonly showNotePreview: boolean;
   readonly showNoteDates: boolean;
   readonly confirmUnsavedSwitch: boolean;
+  readonly language: AppLanguage;
 }
 
 export const appThemes = [
@@ -68,6 +73,7 @@ export const defaultAppSettings: AppSettings = {
   showNotePreview: true,
   showNoteDates: true,
   confirmUnsavedSwitch: true,
+  language: "ar",
 };
 
 export function isLightLikeTheme(theme: AppTheme): boolean {
@@ -124,5 +130,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       typeof candidate.confirmUnsavedSwitch === "boolean"
         ? candidate.confirmUnsavedSwitch
         : defaultAppSettings.confirmUnsavedSwitch,
+    language: isOneOf(candidate.language, appLanguages)
+      ? candidate.language
+      : defaultAppSettings.language,
   };
 }

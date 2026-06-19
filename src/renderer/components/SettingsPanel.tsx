@@ -7,7 +7,9 @@ import {
   editorFontSizes,
   railIconModes,
   type AppSettings,
+  type AppLanguage,
 } from "../../shared/settings";
+import { t } from "../../shared/i18n";
 
 type SettingsSection = "appearance" | "editor" | "notes" | "data" | "about";
 
@@ -22,34 +24,76 @@ interface SettingsPanelProps {
 
 const sections: readonly {
   readonly id: SettingsSection;
-  readonly label: string;
 }[] = [
-  { id: "appearance", label: "Appearance" },
-  { id: "editor", label: "Editor" },
-  { id: "notes", label: "Notes" },
-  { id: "data", label: "Data" },
-  { id: "about", label: "About" },
+  { id: "appearance" },
+  { id: "editor" },
+  { id: "notes" },
+  { id: "data" },
+  { id: "about" },
 ];
 
-const labels: Record<string, string> = {
-  dark: "Dark",
-  light: "Light",
-  graphite: "Graphite",
-  "material-dark": "Material Dark",
-  ulysses: "Ulysses",
-  "one-dark": "One Dark",
-  colored: "Colored",
-  adaptive: "Adaptive",
-  auto: "Auto",
-  rtl: "RTL",
-  ltr: "LTR",
-  compact: "Compact",
-  comfortable: "Comfortable",
-  wide: "Wide",
-  small: "Small",
-  medium: "Medium",
-  large: "Large",
-};
+function getSectionTabLabel(id: SettingsSection, lang: AppLanguage): string {
+  switch (id) {
+    case "appearance":
+      return t("settingsAppearanceTab", lang);
+    case "editor":
+      return t("settingsEditorTab", lang);
+    case "notes":
+      return t("settingsNotesTab", lang);
+    case "data":
+      return t("settingsDataTab", lang);
+    case "about":
+      return t("settingsAboutTab", lang);
+    default:
+      return id;
+  }
+}
+
+function getLabel(key: string, lang: AppLanguage): string {
+  if (lang === "ar") {
+    switch (key) {
+      case "dark": return "داكن";
+      case "light": return "فاتح";
+      case "graphite": return "غرافيت";
+      case "material-dark": return "ماتيريال داكن";
+      case "ulysses": return "يوليسيس";
+      case "one-dark": return "ون دارك";
+      case "colored": return "ملون";
+      case "adaptive": return "متكيف";
+      case "auto": return "تلقائي";
+      case "rtl": return "RTL";
+      case "ltr": return "LTR";
+      case "compact": return "مدمج";
+      case "comfortable": return "مريح";
+      case "wide": return "عريض";
+      case "small": return "صغير";
+      case "medium": return "متوسط";
+      case "large": return "كبير";
+      default: return key;
+    }
+  }
+  // English defaults
+  switch (key) {
+    case "dark": return "Dark";
+    case "light": return "Light";
+    case "graphite": return "Graphite";
+    case "material-dark": return "Material Dark";
+    case "ulysses": return "Ulysses";
+    case "one-dark": return "One Dark";
+    case "colored": return "Colored";
+    case "adaptive": return "Adaptive";
+    case "auto": return "Auto";
+    case "rtl": return "RTL";
+    case "ltr": return "LTR";
+    case "compact": return "Compact";
+    case "comfortable": return "Comfortable";
+    case "wide": return "Wide";
+    case "small": return "Small";
+    case "medium": return "Medium";
+    case "large": return "Large";
+    default: return key;
+  }
+}
 
 function SettingRow({
   children,
@@ -103,6 +147,8 @@ export function SettingsPanel({
     return null;
   }
 
+  const lang = settings.language;
+
   return (
     <div
       className="settings-overlay"
@@ -123,16 +169,16 @@ export function SettingsPanel({
         <header className="settings-panel-header">
           <div>
             <span>NAS Notesbook</span>
-            <h2>Settings</h2>
+            <h2>{t("settingsTitle", lang)}</h2>
           </div>
           <button
-            aria-label="Close settings"
+            aria-label={t("settingsClose", lang)}
             className="settings-close-button"
-            data-tooltip="Close settings"
+            data-tooltip={t("settingsClose", lang)}
             onClick={onClose}
             type="button"
           >
-            Close
+            {t("settingsClose", lang)}
           </button>
         </header>
 
@@ -146,7 +192,7 @@ export function SettingsPanel({
                 onClick={() => setActiveSection(section.id)}
                 type="button"
               >
-                {section.label}
+                {getSectionTabLabel(section.id, lang)}
               </button>
             ))}
           </nav>
@@ -155,12 +201,12 @@ export function SettingsPanel({
             {activeSection === "appearance" && (
               <>
                 <div className="settings-section-heading">
-                  <h3>Appearance</h3>
-                  <p>Control the app surface and navigation rail presentation.</p>
+                  <h3>{t("settingsAppearanceHeader", lang)}</h3>
+                  <p>{t("settingsAppearanceSub", lang)}</p>
                 </div>
                 <SettingRow
-                  label="Theme"
-                  description="Applies a theme token set to the workspace."
+                  label={t("settingsRowTheme", lang)}
+                  description={t("settingsRowThemeDesc", lang)}
                 >
                   <select
                     value={settings.theme}
@@ -170,14 +216,30 @@ export function SettingsPanel({
                   >
                     {appThemes.map((theme) => (
                       <option key={theme} value={theme}>
-                        {labels[theme]}
+                        {getLabel(theme, lang)}
                       </option>
                     ))}
                   </select>
                 </SettingRow>
                 <SettingRow
-                  label="Rail icons"
-                  description="Colored icons are the stable default. Adaptive uses theme-aware SVG masks."
+                  label={t("settingsRowLanguage", lang)}
+                  description={t("settingsRowLanguageDesc", lang)}
+                >
+                  <select
+                    value={settings.language}
+                    onChange={(event) =>
+                      onUpdateSettings({
+                        language: event.target.value as AppSettings["language"],
+                      })
+                    }
+                  >
+                    <option value="ar">العربية</option>
+                    <option value="en">English</option>
+                  </select>
+                </SettingRow>
+                <SettingRow
+                  label={t("settingsRowRailIcons", lang)}
+                  description={t("settingsRowRailIconsDesc", lang)}
                 >
                   <select
                     value={settings.railIconMode}
@@ -189,7 +251,7 @@ export function SettingsPanel({
                   >
                     {railIconModes.map((mode) => (
                       <option key={mode} value={mode}>
-                        {labels[mode]}
+                        {getLabel(mode, lang)}
                       </option>
                     ))}
                   </select>
@@ -200,12 +262,12 @@ export function SettingsPanel({
             {activeSection === "editor" && (
               <>
                 <div className="settings-section-heading">
-                  <h3>Editor</h3>
-                  <p>Adjust writing direction, reading density, and metadata visibility.</p>
+                  <h3>{t("settingsEditorHeader", lang)}</h3>
+                  <p>{t("settingsEditorSub", lang)}</p>
                 </div>
                 <SettingRow
-                  label="Direction"
-                  description="Auto supports mixed Arabic and English without forcing one direction."
+                  label={t("settingsRowDirection", lang)}
+                  description={t("settingsRowDirectionDesc", lang)}
                 >
                   <select
                     value={settings.editorDirection}
@@ -217,14 +279,14 @@ export function SettingsPanel({
                   >
                     {editorDirections.map((direction) => (
                       <option key={direction} value={direction}>
-                        {labels[direction]}
+                        {getLabel(direction, lang)}
                       </option>
                     ))}
                   </select>
                 </SettingRow>
                 <SettingRow
-                  label="Density"
-                  description="Changes editor page width and internal spacing."
+                  label={t("settingsRowDensity", lang)}
+                  description={t("settingsRowDensityDesc", lang)}
                 >
                   <select
                     value={settings.editorDensity}
@@ -236,14 +298,14 @@ export function SettingsPanel({
                   >
                     {editorDensities.map((density) => (
                       <option key={density} value={density}>
-                        {labels[density]}
+                        {getLabel(density, lang)}
                       </option>
                     ))}
                   </select>
                 </SettingRow>
                 <SettingRow
-                  label="Font size"
-                  description="Adjusts editor content size only."
+                  label={t("settingsRowFontSize", lang)}
+                  description={t("settingsRowFontSizeDesc", lang)}
                 >
                   <select
                     value={settings.fontSize}
@@ -255,14 +317,14 @@ export function SettingsPanel({
                   >
                     {editorFontSizes.map((size) => (
                       <option key={size} value={size}>
-                        {labels[size]}
+                        {getLabel(size, lang)}
                       </option>
                     ))}
                   </select>
                 </SettingRow>
                 <SettingRow
-                  label="Show metadata"
-                  description="Show created and updated timestamps below the title."
+                  label={t("settingsRowShowMetadata", lang)}
+                  description={t("settingsRowShowMetadataDesc", lang)}
                 >
                   <input
                     checked={settings.showMetadata}
@@ -273,8 +335,8 @@ export function SettingsPanel({
                   />
                 </SettingRow>
                 <SettingRow
-                  label="Confirm unsaved switches"
-                  description="Ask before switching notes or categories when a draft is dirty."
+                  label={t("settingsRowConfirmUnsaved", lang)}
+                  description={t("settingsRowConfirmUnsavedDesc", lang)}
                 >
                   <input
                     checked={settings.confirmUnsavedSwitch}
@@ -292,12 +354,12 @@ export function SettingsPanel({
             {activeSection === "notes" && (
               <>
                 <div className="settings-section-heading">
-                  <h3>Notes</h3>
-                  <p>Control how note cards summarize existing notes.</p>
+                  <h3>{t("settingsNotesHeader", lang)}</h3>
+                  <p>{t("settingsNotesSub", lang)}</p>
                 </div>
                 <SettingRow
-                  label="Show previews"
-                  description="Display the short body preview in each note card."
+                  label={t("settingsRowShowPreviews", lang)}
+                  description={t("settingsRowShowPreviewsDesc", lang)}
                 >
                   <input
                     checked={settings.showNotePreview}
@@ -310,8 +372,8 @@ export function SettingsPanel({
                   />
                 </SettingRow>
                 <SettingRow
-                  label="Show dates"
-                  description="Display updated dates in the notes list."
+                  label={t("settingsRowShowDates", lang)}
+                  description={t("settingsRowShowDatesDesc", lang)}
                 >
                   <input
                     checked={settings.showNoteDates}
@@ -327,18 +389,18 @@ export function SettingsPanel({
             {activeSection === "data" && (
               <>
                 <div className="settings-section-heading">
-                  <h3>Data</h3>
-                  <p>Local SQLite storage status and data folder access.</p>
+                  <h3>{t("settingsDataHeader", lang)}</h3>
+                  <p>{t("settingsDataSub", lang)}</p>
                 </div>
                 <div className="settings-data-grid">
-                  <span>Database status</span>
-                  <strong>{appInfo ? "Ready" : "Unavailable"}</strong>
-                  <span>Data folder</span>
-                  <code>{appInfo?.dataDirectory ?? "Unavailable"}</code>
-                  <span>Database file</span>
-                  <code>{appInfo?.databasePath ?? "Unavailable"}</code>
-                  <span>Settings file</span>
-                  <code>{appInfo?.settingsPath ?? "Unavailable"}</code>
+                  <span>{t("settingsDataDbStatus", lang)}</span>
+                  <strong>{appInfo ? t("settingsDataReady", lang) : t("settingsDataUnavailable", lang)}</strong>
+                  <span>{t("settingsDataFolder", lang)}</span>
+                  <code>{appInfo?.dataDirectory ?? t("settingsDataUnavailable", lang)}</code>
+                  <span>{t("settingsDataDbFile", lang)}</span>
+                  <code>{appInfo?.databasePath ?? t("settingsDataUnavailable", lang)}</code>
+                  <span>{t("settingsDataSettingsFile", lang)}</span>
+                  <code>{appInfo?.settingsPath ?? t("settingsDataUnavailable", lang)}</code>
                 </div>
                 <button
                   className="settings-primary-button"
@@ -346,7 +408,7 @@ export function SettingsPanel({
                   onClick={onOpenDataFolder}
                   type="button"
                 >
-                  Open data folder
+                  {t("settingsDataBtnOpen", lang)}
                 </button>
               </>
             )}
@@ -354,15 +416,15 @@ export function SettingsPanel({
             {activeSection === "about" && (
               <>
                 <div className="settings-section-heading">
-                  <h3>About</h3>
-                  <p>Local-first personal notes for Arabic and English writing.</p>
+                  <h3>{t("settingsAboutHeader", lang)}</h3>
+                  <p>{t("settingsAboutSub", lang)}</p>
                 </div>
                 <div className="settings-about-list">
                   <strong>NAS Notesbook</strong>
-                  <span>Version {appInfo?.version ?? "0.1.0"}</span>
-                  <span>Local-first SQLite notes app</span>
-                  <span>Manual save: Ctrl+S</span>
-                  <span>Rich text editor: Tiptap</span>
+                  <span>{t("settingsAboutVersion", lang)} {appInfo?.version ?? "0.1.0"}</span>
+                  <span>{t("settingsAboutSQLite", lang)}</span>
+                  <span>{t("settingsAboutSaveShort", lang)}</span>
+                  <span>{t("settingsAboutTiptap", lang)}</span>
                 </div>
               </>
             )}

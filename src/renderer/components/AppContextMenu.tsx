@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import type { AppLanguage } from "../../shared/settings";
+import { t } from "../../shared/i18n";
 
 export interface ContextMenuState {
   readonly x: number;
@@ -10,12 +12,14 @@ export interface ContextMenuState {
 
 interface AppContextMenuProps {
   readonly menu: ContextMenuState | null;
+  readonly language: AppLanguage;
   readonly onAction: (action: "copy" | "paste" | "selectAll") => void;
   readonly onClose: () => void;
 }
 
 export function AppContextMenu({
   menu,
+  language,
   onAction,
   onClose,
 }: AppContextMenuProps): JSX.Element | null {
@@ -63,7 +67,7 @@ export function AppContextMenu({
           role="menuitem"
           type="button"
         >
-          <span>Copy</span>
+          <span>{t("contextCopy", language)}</span>
           <kbd>Ctrl+C</kbd>
         </button>
         <button
@@ -72,7 +76,7 @@ export function AppContextMenu({
           role="menuitem"
           type="button"
         >
-          <span>Paste</span>
+          <span>{t("contextPaste", language)}</span>
           <kbd>Ctrl+V</kbd>
         </button>
         <div className="context-menu-separator" />
@@ -82,7 +86,7 @@ export function AppContextMenu({
           role="menuitem"
           type="button"
         >
-          <span>Select All</span>
+          <span>{t("contextSelectAll", language)}</span>
           <kbd>Ctrl+A</kbd>
         </button>
       </div>
