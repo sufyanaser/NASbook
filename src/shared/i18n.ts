@@ -137,7 +137,22 @@ export type TranslationKeys =
   | "footerCategoriesCount"
   | "footerNotesCount"
   | "footerSave"
-  | "footerDir";
+  | "footerDir"
+  // Local Backup
+  | "settingsDataBackupHeader"
+  | "settingsDataBackupSub"
+  | "settingsDataBackupAutoToggle"
+  | "settingsDataBackupAutoToggleDesc"
+  | "settingsDataBackupRetention"
+  | "settingsDataBackupRetentionDesc"
+  | "settingsDataBackupStatus"
+  | "settingsDataBackupFolder"
+  | "settingsDataBackupLastTime"
+  | "settingsDataBackupCount"
+  | "settingsDataBackupBtnCreate"
+  | "settingsDataBackupBtnOpen"
+  | "settingsDataBackupFailed"
+  | "settingsDataBackupSuccess";
 
 const ar: Record<TranslationKeys, string> = {
   appTitle: "NAS Notesbook",
@@ -261,6 +276,20 @@ const ar: Record<TranslationKeys, string> = {
   footerNotesCount: "الملاحظات:",
   footerSave: "الحفظ:",
   footerDir: "الاتجاه: أساس RTL",
+  settingsDataBackupHeader: "النسخ الاحتياطي",
+  settingsDataBackupSub: "إعدادات حفظ النسخ الاحتياطية لقاعدة البيانات وملف الإعدادات محلياً.",
+  settingsDataBackupAutoToggle: "النسخ الاحتياطي التلقائي",
+  settingsDataBackupAutoToggleDesc: "إنشاء نسخة احتياطية تلقائية عند تشغيل التطبيق (مرة واحدة في اليوم).",
+  settingsDataBackupRetention: "عدد النسخ المحفوظة",
+  settingsDataBackupRetentionDesc: "عدد النسخ الاحتياطية الأخيرة التي سيتم الاحتفاظ بها (سيتم حذف النسخ الأقدم تلقائياً).",
+  settingsDataBackupStatus: "حالة النسخ الاحتياطي",
+  settingsDataBackupFolder: "مجلد النسخ الاحتياطي",
+  settingsDataBackupLastTime: "آخر نسخة احتياطية",
+  settingsDataBackupCount: "عدد النسخ الاحتياطية",
+  settingsDataBackupBtnCreate: "إنشاء نسخة احتياطية الآن",
+  settingsDataBackupBtnOpen: "فتح مجلد النسخ الاحتياطي",
+  settingsDataBackupFailed: "فشل إنشاء النسخة الاحتياطية",
+  settingsDataBackupSuccess: "تم إنشاء النسخة الاحتياطية",
 };
 
 const en: Record<TranslationKeys, string> = {
@@ -385,6 +414,20 @@ const en: Record<TranslationKeys, string> = {
   footerNotesCount: "Notes:",
   footerSave: "Save:",
   footerDir: "DIR: RTL foundation",
+  settingsDataBackupHeader: "Local Backup",
+  settingsDataBackupSub: "Safe local database and settings backup configuration.",
+  settingsDataBackupAutoToggle: "Automatic Backup",
+  settingsDataBackupAutoToggleDesc: "Perform automatic backup on app startup (once per day).",
+  settingsDataBackupRetention: "Retention Count",
+  settingsDataBackupRetentionDesc: "Number of latest backups to keep (older backups will be deleted).",
+  settingsDataBackupStatus: "Backup Status",
+  settingsDataBackupFolder: "Backup Folder",
+  settingsDataBackupLastTime: "Last Backup",
+  settingsDataBackupCount: "Backup Count",
+  settingsDataBackupBtnCreate: "Create Backup Now",
+  settingsDataBackupBtnOpen: "Open Backups Folder",
+  settingsDataBackupFailed: "Backup failed",
+  settingsDataBackupSuccess: "Backup created successfully",
 };
 
 export function t(key: TranslationKeys, lang: AppLanguage): string {

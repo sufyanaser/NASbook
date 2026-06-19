@@ -135,6 +135,8 @@ test("app settings defaults preserve manual-save behavior", () => {
     showNoteDates: true,
     confirmUnsavedSwitch: true,
     language: "ar",
+    autoBackupEnabled: true,
+    backupRetentionCount: 10,
   });
 });
 

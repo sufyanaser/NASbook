@@ -46,6 +46,21 @@ export interface UpdateNoteInput {
   readonly isRtl: boolean;
 }
 
+export interface BackupStatus {
+  readonly backupsFolder: string;
+  readonly lastBackupAt: string | null;
+  readonly backupCount: number;
+  readonly autoBackupEnabled: boolean;
+  readonly retentionCount: number;
+  readonly lastError: string | null;
+}
+
+export interface BackupResult {
+  readonly success: boolean;
+  readonly lastBackupAt?: string;
+  readonly error?: string;
+}
+
 export interface NasNotesbookApi {
   readonly app: {
     readonly getInfo: () => Promise<AppInfo>;
@@ -70,5 +85,10 @@ export interface NasNotesbookApi {
     readonly deleteToTrash: (id: number) => Promise<void>;
     readonly restore: (id: number) => Promise<void>;
     readonly deletePermanent: (id: number) => Promise<void>;
+  };
+  readonly backup: {
+    readonly create: () => Promise<BackupResult>;
+    readonly getStatus: () => Promise<BackupStatus>;
+    readonly openFolder: () => Promise<void>;
   };
 }

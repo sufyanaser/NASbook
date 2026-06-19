@@ -34,6 +34,11 @@ const api: NasNotesbookApi = Object.freeze({
     deletePermanent: (id: number) =>
       ipcRenderer.invoke("notes:deletePermanent", id),
   }),
+  backup: Object.freeze({
+    create: () => ipcRenderer.invoke("backup:create"),
+    getStatus: () => ipcRenderer.invoke("backup:getStatus"),
+    openFolder: () => ipcRenderer.invoke("backup:openFolder"),
+  }),
 });
 
 contextBridge.exposeInMainWorld("nasNotesbook", api);

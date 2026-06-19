@@ -29,6 +29,8 @@ export interface AppSettings {
   readonly showNoteDates: boolean;
   readonly confirmUnsavedSwitch: boolean;
   readonly language: AppLanguage;
+  readonly autoBackupEnabled: boolean;
+  readonly backupRetentionCount: number;
 }
 
 export const appThemes = [
@@ -74,6 +76,8 @@ export const defaultAppSettings: AppSettings = {
   showNoteDates: true,
   confirmUnsavedSwitch: true,
   language: "ar",
+  autoBackupEnabled: true,
+  backupRetentionCount: 10,
 };
 
 export function isLightLikeTheme(theme: AppTheme): boolean {
@@ -133,5 +137,15 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     language: isOneOf(candidate.language, appLanguages)
       ? candidate.language
       : defaultAppSettings.language,
+    autoBackupEnabled:
+      typeof candidate.autoBackupEnabled === "boolean"
+        ? candidate.autoBackupEnabled
+        : defaultAppSettings.autoBackupEnabled,
+    backupRetentionCount:
+      typeof candidate.backupRetentionCount === "number" &&
+      Number.isInteger(candidate.backupRetentionCount) &&
+      candidate.backupRetentionCount > 0
+        ? candidate.backupRetentionCount
+        : defaultAppSettings.backupRetentionCount,
   };
 }

@@ -9,12 +9,14 @@ import type {
 import type { AppSettings } from "../../src/shared/settings";
 import type { NotesbookDatabase } from "./db";
 import type { SettingsStore } from "./settingsStore";
+import type { BackupService } from "./backupService";
 
 interface RegisterIpcOptions {
   readonly appName: string;
   readonly appVersion: string;
   readonly database: NotesbookDatabase;
   readonly settingsStore: SettingsStore;
+  readonly backupService: BackupService;
 }
 
 export function registerIpcHandlers({
@@ -22,6 +24,7 @@ export function registerIpcHandlers({
   appVersion,
   database,
   settingsStore,
+  backupService,
 }: RegisterIpcOptions): void {
   ipcMain.handle("app:getInfo", (): AppInfo => {
     const dataDirectory = path.dirname(database.databasePath);
@@ -83,5 +86,17 @@ export function registerIpcHandlers({
 
   ipcMain.handle("notes:deletePermanent", (_event, id: number) => {
     database.deleteNotePermanent(id);
+  });
+
+  ipcMain.handle("backup:create", async () => {
+    return backupService.createBackup();
+  });
+
+  ipcMain.handle("backup:getStatus", async () => {
+    return backupService.getStatus();
+  });
+
+  ipcMain.handle("backup:openFolder", async () => {
+    return backupService.openFolder();
   });
 }

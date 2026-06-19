@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AppInfo } from "../../shared/ipc";
+import type { AppInfo, BackupStatus } from "../../shared/ipc";
 import {
   appThemes,
   editorDensities,
@@ -126,6 +126,10 @@ export function SettingsPanel({
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("appearance");
 
+  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [isBackupActionRunning, setIsBackupActionRunning] = useState(false);
+
   useEffect(() => {
     if (!isOpen) {
       return undefined;
@@ -142,6 +146,45 @@ export function SettingsPanel({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (isOpen && activeSection === "data" && window.nasNotesbook) {
+      window.nasNotesbook.backup.getStatus()
+        .then(setBackupStatus)
+        .catch((err) => {
+          console.error("Failed to get backup status:", err);
+          setBackupError(err.message || String(err));
+        });
+    }
+  }, [isOpen, activeSection]);
+
+  const handleCreateBackup = async () => {
+    if (!window.nasNotesbook || isBackupActionRunning) return;
+    setIsBackupActionRunning(true);
+    setBackupError(null);
+    try {
+      const result = await window.nasNotesbook.backup.create();
+      if (result.success) {
+        const status = await window.nasNotesbook.backup.getStatus();
+        setBackupStatus(status);
+      } else {
+        setBackupError(result.error || "Backup failed");
+      }
+    } catch (err: any) {
+      setBackupError(err.message || String(err));
+    } finally {
+      setIsBackupActionRunning(false);
+    }
+  };
+
+  const handleOpenBackupsFolder = async () => {
+    if (!window.nasNotesbook) return;
+    try {
+      await window.nasNotesbook.backup.openFolder();
+    } catch (err: any) {
+      console.error("Failed to open backups folder:", err);
+    }
+  };
 
   if (!isOpen) {
     return null;
@@ -410,6 +453,94 @@ export function SettingsPanel({
                 >
                   {t("settingsDataBtnOpen", lang)}
                 </button>
+
+                <div className="settings-section-heading" style={{ marginTop: "28px" }}>
+                  <h3>{t("settingsDataBackupHeader", lang)}</h3>
+                  <p>{t("settingsDataBackupSub", lang)}</p>
+                </div>
+
+                <SettingRow
+                  label={t("settingsDataBackupAutoToggle", lang)}
+                  description={t("settingsDataBackupAutoToggleDesc", lang)}
+                >
+                  <input
+                    checked={settings.autoBackupEnabled}
+                    onChange={(event) =>
+                      onUpdateSettings({ autoBackupEnabled: event.target.checked })
+                    }
+                    type="checkbox"
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  label={t("settingsDataBackupRetention", lang)}
+                  description={t("settingsDataBackupRetentionDesc", lang)}
+                >
+                  <select
+                    value={settings.backupRetentionCount}
+                    onChange={(event) =>
+                      onUpdateSettings({
+                        backupRetentionCount: Number(event.target.value),
+                      })
+                    }
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </SettingRow>
+
+                <div className="settings-data-grid">
+                  <span>{t("settingsDataBackupStatus", lang)}</span>
+                  <strong>
+                    {backupError ? (
+                      <span style={{ color: "var(--app-error, #ff4d4f)" }}>
+                        {t("settingsDataBackupFailed", lang)}: {backupError}
+                      </span>
+                    ) : backupStatus?.lastError ? (
+                      <span style={{ color: "var(--app-error, #ff4d4f)" }}>
+                        {t("settingsDataBackupFailed", lang)}: {backupStatus.lastError}
+                      </span>
+                    ) : (
+                      t("settingsDataReady", lang)
+                    )}
+                  </strong>
+
+                  <span>{t("settingsDataBackupFolder", lang)}</span>
+                  <code>{backupStatus?.backupsFolder ?? t("settingsDataUnavailable", lang)}</code>
+
+                  <span>{t("settingsDataBackupLastTime", lang)}</span>
+                  <strong>
+                    {backupStatus?.lastBackupAt
+                      ? new Date(backupStatus.lastBackupAt).toLocaleString(
+                          lang === "ar" ? "ar-EG" : "en-US"
+                        )
+                      : t("settingsDataUnavailable", lang)}
+                  </strong>
+
+                  <span>{t("settingsDataBackupCount", lang)}</span>
+                  <strong>{backupStatus ? backupStatus.backupCount : 0}</strong>
+                </div>
+
+                <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+                  <button
+                    className="settings-primary-button"
+                    disabled={isBackupActionRunning}
+                    onClick={handleCreateBackup}
+                    type="button"
+                  >
+                    {isBackupActionRunning ? t("saving", lang) : t("settingsDataBackupBtnCreate", lang)}
+                  </button>
+                  <button
+                    className="settings-primary-button"
+                    disabled={!backupStatus}
+                    onClick={handleOpenBackupsFolder}
+                    type="button"
+                  >
+                    {t("settingsDataBackupBtnOpen", lang)}
+                  </button>
+                </div>
               </>
             )}
 
