@@ -152,7 +152,10 @@ export type TranslationKeys =
   | "settingsDataBackupBtnCreate"
   | "settingsDataBackupBtnOpen"
   | "settingsDataBackupFailed"
-  | "settingsDataBackupSuccess";
+  | "settingsDataBackupSuccess"
+  | "settingsDataBackupNoBackups"
+  | "tooltipCreateBackup"
+  | "tooltipOpenBackupsFolder";
 
 const ar: Record<TranslationKeys, string> = {
   appTitle: "NAS Notesbook",
@@ -289,7 +292,10 @@ const ar: Record<TranslationKeys, string> = {
   settingsDataBackupBtnCreate: "إنشاء نسخة احتياطية الآن",
   settingsDataBackupBtnOpen: "فتح مجلد النسخ الاحتياطي",
   settingsDataBackupFailed: "فشل إنشاء النسخة الاحتياطية",
-  settingsDataBackupSuccess: "تم إنشاء النسخة الاحتياطية",
+  settingsDataBackupSuccess: "تم إنشاء النسخة الاحتياطية بنجاح",
+  settingsDataBackupNoBackups: "لا توجد نسخ احتياطية بعد",
+  tooltipCreateBackup: "إنشاء نسخة احتياطية محلية جديدة لقاعدة البيانات والإعدادات الآن",
+  tooltipOpenBackupsFolder: "فتح المجلد الذي يحتوي على النسخ الاحتياطية في مستكشف الملفات",
 };
 
 const en: Record<TranslationKeys, string> = {
@@ -426,8 +432,11 @@ const en: Record<TranslationKeys, string> = {
   settingsDataBackupCount: "Backup Count",
   settingsDataBackupBtnCreate: "Create Backup Now",
   settingsDataBackupBtnOpen: "Open Backups Folder",
-  settingsDataBackupFailed: "Backup failed",
+  settingsDataBackupFailed: "Backup creation failed",
   settingsDataBackupSuccess: "Backup created successfully",
+  settingsDataBackupNoBackups: "No backups yet",
+  tooltipCreateBackup: "Create a new local backup of database and settings now",
+  tooltipOpenBackupsFolder: "Open the folder containing local backups in file explorer",
 };
 
 export function t(key: TranslationKeys, lang: AppLanguage): string {

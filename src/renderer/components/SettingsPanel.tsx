@@ -129,6 +129,14 @@ export function SettingsPanel({
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [isBackupActionRunning, setIsBackupActionRunning] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setFeedback(null);
+  }, [activeSection]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -162,16 +170,31 @@ export function SettingsPanel({
     if (!window.nasNotesbook || isBackupActionRunning) return;
     setIsBackupActionRunning(true);
     setBackupError(null);
+    setFeedback(null);
     try {
       const result = await window.nasNotesbook.backup.create();
       if (result.success) {
         const status = await window.nasNotesbook.backup.getStatus();
         setBackupStatus(status);
+        setFeedback({
+          type: "success",
+          message: t("settingsDataBackupSuccess", lang),
+        });
       } else {
-        setBackupError(result.error || "Backup failed");
+        const errMsg = result.error || "Backup failed";
+        setBackupError(errMsg);
+        setFeedback({
+          type: "error",
+          message: `${t("settingsDataBackupFailed", lang)}: ${errMsg}`,
+        });
       }
     } catch (err: any) {
-      setBackupError(err.message || String(err));
+      const errMsg = err.message || String(err);
+      setBackupError(errMsg);
+      setFeedback({
+        type: "error",
+        message: `${t("settingsDataBackupFailed", lang)}: ${errMsg}`,
+      });
     } finally {
       setIsBackupActionRunning(false);
     }
@@ -514,19 +537,52 @@ export function SettingsPanel({
                   <strong>
                     {backupStatus?.lastBackupAt
                       ? new Date(backupStatus.lastBackupAt).toLocaleString(
-                          lang === "ar" ? "ar-EG" : "en-US"
+                          lang === "ar" ? "ar" : "en",
+                          { dateStyle: "medium", timeStyle: "short" }
                         )
-                      : t("settingsDataUnavailable", lang)}
+                      : t("settingsDataBackupNoBackups", lang)}
                   </strong>
 
                   <span>{t("settingsDataBackupCount", lang)}</span>
                   <strong>{backupStatus ? backupStatus.backupCount : 0}</strong>
                 </div>
 
+                {feedback && (
+                  <div
+                    className={`backup-feedback-banner ${feedback.type}`}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "6px",
+                      marginTop: "16px",
+                      fontSize: "13px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      background: feedback.type === "success"
+                        ? "rgba(16, 185, 129, 0.12)"
+                        : "rgba(239, 68, 68, 0.12)",
+                      color: feedback.type === "success"
+                        ? "rgb(16, 185, 129)"
+                        : "rgb(239, 68, 68)",
+                      border: `1px solid ${
+                        feedback.type === "success"
+                          ? "rgba(16, 185, 129, 0.3)"
+                          : "rgba(239, 68, 68, 0.3)"
+                      }`,
+                    }}
+                  >
+                    <span style={{ fontSize: "15px", fontWeight: "bold" }}>
+                      {feedback.type === "success" ? "✓" : "⚠️"}
+                    </span>
+                    <span>{feedback.message}</span>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
                   <button
                     className="settings-primary-button"
                     disabled={isBackupActionRunning}
+                    data-tooltip={t("tooltipCreateBackup", lang)}
                     onClick={handleCreateBackup}
                     type="button"
                   >
@@ -535,6 +591,7 @@ export function SettingsPanel({
                   <button
                     className="settings-primary-button"
                     disabled={!backupStatus}
+                    data-tooltip={t("tooltipOpenBackupsFolder", lang)}
                     onClick={handleOpenBackupsFolder}
                     type="button"
                   >

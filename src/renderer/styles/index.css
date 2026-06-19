@@ -1511,9 +1511,73 @@ pre {
 }
 
 .settings-row input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--app-focus);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 44px;
+  height: 24px;
+  background: var(--app-border);
+  border-radius: 12px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  border: 1px solid var(--app-border);
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.settings-row input[type="checkbox"]:hover {
+  border-color: var(--app-border-strong);
+}
+
+.settings-row input[type="checkbox"]:checked {
+  background: var(--app-focus);
+  border-color: var(--app-focus);
+}
+
+.settings-row input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--app-surface-raised);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.settings-row input[type="checkbox"]:checked::before {
+  transform: translateX(22px);
+}
+
+/* RTL Slide and Position */
+[dir="rtl"] .settings-row input[type="checkbox"]::before {
+  left: auto;
+  right: 3px;
+}
+
+[dir="rtl"] .settings-row input[type="checkbox"]:checked::before {
+  transform: translateX(-22px);
+}
+
+.settings-row:has(input[type="checkbox"]) {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 20px;
+}
+
+.settings-row:has(input[type="checkbox"]) .settings-row-copy {
+  flex: 0 1 auto;
+}
+
+.settings-row:has(input[type="checkbox"]) .settings-row-control {
+  width: auto;
+  flex: 0 0 auto;
+  justify-content: flex-start;
 }
 
 .settings-data-grid {
