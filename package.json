@@ -1,6 +1,6 @@
 {
   "name": "nas-notesbook",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "RTL-first local desktop notebook scaffold for NAS Notesbook.",
   "main": "dist/electron/main/index.js",
@@ -28,8 +28,10 @@
     "@tiptap/react": "^3.27.0",
     "@tiptap/starter-kit": "^3.27.0",
     "better-sqlite3": "^12.11.1",
+    "marked": "^18.0.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
@@ -37,6 +39,7 @@
     "@types/node": "^22.15.32",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^4.5.2",
     "autoprefixer": "^10.4.21",
     "electron": "^35.4.0",
