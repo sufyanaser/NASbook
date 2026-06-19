@@ -155,7 +155,25 @@ export type TranslationKeys =
   | "settingsDataBackupSuccess"
   | "settingsDataBackupNoBackups"
   | "tooltipCreateBackup"
-  | "tooltipOpenBackupsFolder";
+  | "tooltipOpenBackupsFolder"
+  // Google Auth
+  | "googleStatusNotConfigured"
+  | "googleStatusNotLinked"
+  | "googleStatusLinked"
+  | "googleBtnLink"
+  | "googleBtnUnlink"
+  | "googleStatusStorageUnavailable"
+  | "googleSignInFailed"
+  | "googleAccountUnlinked"
+  | "googlePermissionRevoked"
+  // Google Drive Backup
+  | "googleBackupHeader"
+  | "googleBtnUpload"
+  | "googleNoLocalBackup"
+  | "googleUploading"
+  | "googleUploadSuccess"
+  | "googleUploadFailed"
+  | "googleLastBackup";
 
 const ar: Record<TranslationKeys, string> = {
   appTitle: "NAS Notesbook",
@@ -296,6 +314,22 @@ const ar: Record<TranslationKeys, string> = {
   settingsDataBackupNoBackups: "لا توجد نسخ احتياطية بعد",
   tooltipCreateBackup: "إنشاء نسخة احتياطية محلية جديدة لقاعدة البيانات والإعدادات الآن",
   tooltipOpenBackupsFolder: "فتح المجلد الذي يحتوي على النسخ الاحتياطية في مستكشف الملفات",
+  googleStatusNotConfigured: "لم يتم إعداد بيانات Google",
+  googleStatusNotLinked: "حساب Google غير مرتبط",
+  googleStatusLinked: "حساب Google مرتبط",
+  googleBtnLink: "ربط حساب Google",
+  googleBtnUnlink: "إلغاء ربط حساب Google",
+  googleStatusStorageUnavailable: "تخزين رموز Google غير متاح",
+  googleSignInFailed: "فشل تسجيل الدخول إلى Google",
+  googleAccountUnlinked: "تم إلغاء ربط حساب Google",
+  googlePermissionRevoked: "انتهت الصلاحية أو تم إلغاؤها",
+  googleBackupHeader: "النسخ الاحتياطي إلى Google Drive",
+  googleBtnUpload: "رفع آخر نسخة احتياطية إلى Google Drive",
+  googleNoLocalBackup: "لا توجد نسخة احتياطية محلية",
+  googleUploading: "جارٍ رفع النسخة الاحتياطية...",
+  googleUploadSuccess: "تم رفع النسخة الاحتياطية إلى Google Drive",
+  googleUploadFailed: "فشل رفع النسخة إلى Google Drive",
+  googleLastBackup: "آخر نسخة احتياطية سحابية",
 };
 
 const en: Record<TranslationKeys, string> = {
@@ -437,6 +471,22 @@ const en: Record<TranslationKeys, string> = {
   settingsDataBackupNoBackups: "No backups yet",
   tooltipCreateBackup: "Create a new local backup of database and settings now",
   tooltipOpenBackupsFolder: "Open the folder containing local backups in file explorer",
+  googleStatusNotConfigured: "Google credentials not configured",
+  googleStatusNotLinked: "Google account not linked",
+  googleStatusLinked: "Google account linked",
+  googleBtnLink: "Link Google account",
+  googleBtnUnlink: "Unlink Google account",
+  googleStatusStorageUnavailable: "Google token storage unavailable",
+  googleSignInFailed: "Google sign-in failed",
+  googleAccountUnlinked: "Google account unlinked",
+  googlePermissionRevoked: "Permission revoked or expired",
+  googleBackupHeader: "Google Drive Backup",
+  googleBtnUpload: "Upload latest backup to Google Drive",
+  googleNoLocalBackup: "No local backup found",
+  googleUploading: "Uploading backup...",
+  googleUploadSuccess: "Backup uploaded to Google Drive",
+  googleUploadFailed: "Google Drive upload failed",
+  googleLastBackup: "Last cloud backup",
 };
 
 export function t(key: TranslationKeys, lang: AppLanguage): string {

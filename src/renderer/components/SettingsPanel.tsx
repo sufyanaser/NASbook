@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, BackupStatus } from "../../shared/ipc";
 import {
   appThemes,
   editorDensities,
@@ -10,6 +9,7 @@ import {
   type AppLanguage,
 } from "../../shared/settings";
 import { t } from "../../shared/i18n";
+import type { AppInfo, BackupStatus, CloudBackupInfo } from "../../shared/ipc";
 
 type SettingsSection = "appearance" | "editor" | "notes" | "data" | "about";
 
@@ -134,8 +134,26 @@ export function SettingsPanel({
     message: string;
   } | null>(null);
 
+  const [cloudStatus, setCloudStatus] = useState<CloudBackupInfo | null>(null);
+  const [isCloudActionRunning, setIsCloudActionRunning] = useState(false);
+  const [cloudFeedback, setCloudFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const fetchCloudStatus = async () => {
+    if (!window.nasNotesbook) return;
+    try {
+      const status = await window.nasNotesbook.cloudBackup.getStatus();
+      setCloudStatus(status);
+    } catch (err) {
+      console.error("Failed to get cloud backup status:", err);
+    }
+  };
+
   useEffect(() => {
     setFeedback(null);
+    setCloudFeedback(null);
   }, [activeSection]);
 
   useEffect(() => {
@@ -163,6 +181,7 @@ export function SettingsPanel({
           console.error("Failed to get backup status:", err);
           setBackupError(err.message || String(err));
         });
+      fetchCloudStatus();
     }
   }, [isOpen, activeSection]);
 
@@ -206,6 +225,94 @@ export function SettingsPanel({
       await window.nasNotesbook.backup.openFolder();
     } catch (err: any) {
       console.error("Failed to open backups folder:", err);
+    }
+  };
+
+  const handleLinkGoogle = async () => {
+    if (!window.nasNotesbook || isCloudActionRunning) return;
+    setIsCloudActionRunning(true);
+    setCloudFeedback(null);
+    try {
+      const res = await window.nasNotesbook.googleAuth.link();
+      await fetchCloudStatus();
+      if (res.error) {
+        setCloudFeedback({
+          type: "error",
+          message: res.message || res.error,
+        });
+      } else {
+        setCloudFeedback({
+          type: "success",
+          message: t("googleStatusLinked", lang),
+        });
+      }
+    } catch (err: any) {
+      setCloudFeedback({
+        type: "error",
+        message: err.message || String(err),
+      });
+    } finally {
+      setIsCloudActionRunning(false);
+    }
+  };
+
+  const handleUnlinkGoogle = async () => {
+    if (!window.nasNotesbook || isCloudActionRunning) return;
+    setIsCloudActionRunning(true);
+    setCloudFeedback(null);
+    try {
+      await window.nasNotesbook.googleAuth.unlink();
+      await fetchCloudStatus();
+      setCloudFeedback({
+        type: "success",
+        message: t("googleAccountUnlinked", lang),
+      });
+    } catch (err: any) {
+      setCloudFeedback({
+        type: "error",
+        message: err.message || String(err),
+      });
+    } finally {
+      setIsCloudActionRunning(false);
+    }
+  };
+
+  const handleUploadLatest = async () => {
+    if (!window.nasNotesbook || isCloudActionRunning) return;
+    setIsCloudActionRunning(true);
+    setCloudFeedback(null);
+    try {
+      if (!backupStatus || backupStatus.backupCount === 0) {
+        setCloudFeedback({
+          type: "error",
+          message: t("googleNoLocalBackup", lang),
+        });
+        return;
+      }
+      
+      const res = await window.nasNotesbook.cloudBackup.uploadLatest();
+      await fetchCloudStatus();
+      
+      if (res.ok) {
+        setCloudFeedback({
+          type: "success",
+          message: `${t("googleUploadSuccess", lang)} (Folder: ${res.folderName})`,
+        });
+      } else {
+        const errMsg = res.error || "Upload failed";
+        setCloudFeedback({
+          type: "error",
+          message: `${t("googleUploadFailed", lang)}: ${errMsg}`,
+        });
+      }
+    } catch (err: any) {
+      const errMsg = err.message || String(err);
+      setCloudFeedback({
+        type: "error",
+        message: `${t("googleUploadFailed", lang)}: ${errMsg}`,
+      });
+    } finally {
+      setIsCloudActionRunning(false);
     }
   };
 
@@ -596,6 +703,116 @@ export function SettingsPanel({
                     type="button"
                   >
                     {t("settingsDataBackupBtnOpen", lang)}
+                  </button>
+                </div>
+
+                <div className="settings-section-heading" style={{ marginTop: "28px" }}>
+                  <h3>{t("googleBackupHeader", lang)}</h3>
+                  <p>{lang === "ar" ? "إدارة النسخ الاحتياطي السحابي لبياناتك وإعداداتك." : "Manage cloud backup for your data and settings."}</p>
+                </div>
+
+                <div className="settings-data-grid">
+                  <span>{t("settingsDataBackupStatus", lang)}</span>
+                  <strong>
+                    {cloudStatus ? (
+                      cloudStatus.status === "token_storage_unavailable" ? (
+                        <span style={{ color: "var(--app-error, #ff4d4f)" }}>
+                          {t("googleStatusStorageUnavailable", lang)}
+                        </span>
+                      ) : cloudStatus.status === "not_configured" ? (
+                        <span style={{ color: "var(--app-warning, #faad14)" }}>
+                          {t("googleStatusNotConfigured", lang)}
+                        </span>
+                      ) : cloudStatus.status === "not_linked" ? (
+                        t("googleStatusNotLinked", lang)
+                      ) : cloudStatus.status === "error" ? (
+                        <span style={{ color: "var(--app-error, #ff4d4f)" }}>
+                          {cloudStatus.lastError || t("googleUploadFailed", lang)}
+                        </span>
+                      ) : cloudStatus.status === "uploading" ? (
+                        t("googleUploading", lang)
+                      ) : (
+                        t("googleStatusLinked", lang) + (cloudStatus.email ? ` (${cloudStatus.email})` : "")
+                      )
+                    ) : (
+                      t("settingsDataUnavailable", lang)
+                    )}
+                  </strong>
+
+                  <span>{t("googleLastBackup", lang)}</span>
+                  <strong>
+                    {cloudStatus?.lastCloudBackupAt
+                      ? new Date(cloudStatus.lastCloudBackupAt).toLocaleString(
+                          lang === "ar" ? "ar" : "en",
+                          { dateStyle: "medium", timeStyle: "short" }
+                        ) + (cloudStatus.lastCloudBackupFileName ? ` (${cloudStatus.lastCloudBackupFileName})` : "")
+                      : t("settingsDataBackupNoBackups", lang)}
+                  </strong>
+                </div>
+
+                {cloudFeedback && (
+                  <div
+                    className={`backup-feedback-banner ${cloudFeedback.type}`}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "6px",
+                      marginTop: "16px",
+                      fontSize: "13px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      background: cloudFeedback.type === "success"
+                        ? "rgba(16, 185, 129, 0.12)"
+                        : "rgba(239, 68, 68, 0.12)",
+                      color: cloudFeedback.type === "success"
+                        ? "rgb(16, 185, 129)"
+                        : "rgb(239, 68, 68)",
+                      border: `1px solid ${
+                        cloudFeedback.type === "success"
+                          ? "rgba(16, 185, 129, 0.3)"
+                          : "rgba(239, 68, 68, 0.3)"
+                      }`,
+                    }}
+                  >
+                    <span style={{ fontSize: "15px", fontWeight: "bold" }}>
+                      {cloudFeedback.type === "success" ? "✓" : "⚠️"}
+                    </span>
+                    <span>{cloudFeedback.message}</span>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+                  {cloudStatus?.configured && cloudStatus?.status !== "token_storage_unavailable" && (
+                    <button
+                      className="settings-primary-button"
+                      disabled={isCloudActionRunning}
+                      onClick={cloudStatus.linked ? handleUnlinkGoogle : handleLinkGoogle}
+                      type="button"
+                    >
+                      {isCloudActionRunning
+                        ? t("saving", lang)
+                        : cloudStatus.linked
+                        ? t("googleBtnUnlink", lang)
+                        : t("googleBtnLink", lang)}
+                    </button>
+                  )}
+
+                  <button
+                    className="settings-primary-button"
+                    disabled={
+                      isCloudActionRunning ||
+                      !cloudStatus?.configured ||
+                      !cloudStatus?.linked ||
+                      !backupStatus ||
+                      backupStatus.backupCount === 0 ||
+                      cloudStatus?.status === "token_storage_unavailable"
+                    }
+                    onClick={handleUploadLatest}
+                    type="button"
+                  >
+                    {isCloudActionRunning && cloudStatus?.status === "uploading"
+                      ? t("googleUploading", lang)
+                      : t("googleBtnUpload", lang)}
                   </button>
                 </div>
               </>

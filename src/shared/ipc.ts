@@ -61,10 +61,47 @@ export interface BackupResult {
   readonly error?: string;
 }
 
+export type GoogleAuthStatus =
+  | "not_configured"
+  | "unlinked"
+  | "linked"
+  | "token_storage_unavailable"
+  | "error";
+
 export interface GoogleAuthState {
+  readonly configured: boolean;
   readonly linked: boolean;
+  readonly status: GoogleAuthStatus;
   readonly email: string | null;
   readonly error: string | null;
+  readonly message: string;
+}
+
+export type CloudBackupStatus =
+  | "not_configured"
+  | "not_linked"
+  | "ready"
+  | "uploading"
+  | "success"
+  | "error"
+  | "token_storage_unavailable";
+
+export interface CloudBackupInfo {
+  readonly configured: boolean;
+  readonly linked: boolean;
+  readonly lastCloudBackupAt: string | null;
+  readonly lastCloudBackupFileName: string | null;
+  readonly lastError: string | null;
+  readonly status: CloudBackupStatus;
+  readonly email: string | null;
+}
+
+export interface CloudBackupUploadResult {
+  readonly ok: boolean;
+  readonly uploadedFiles: string[];
+  readonly folderName: string;
+  readonly uploadedAt: string;
+  readonly error?: string;
 }
 
 export interface NasNotesbookApi {
@@ -101,5 +138,9 @@ export interface NasNotesbookApi {
     readonly link: () => Promise<GoogleAuthState>;
     readonly unlink: () => Promise<void>;
     readonly getStatus: () => Promise<GoogleAuthState>;
+  };
+  readonly cloudBackup: {
+    readonly getStatus: () => Promise<CloudBackupInfo>;
+    readonly uploadLatest: () => Promise<CloudBackupUploadResult>;
   };
 }

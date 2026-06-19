@@ -44,6 +44,10 @@ const api: NasNotesbookApi = Object.freeze({
     unlink: () => ipcRenderer.invoke("googleAuth:unlink"),
     getStatus: () => ipcRenderer.invoke("googleAuth:getStatus"),
   }),
+  cloudBackup: Object.freeze({
+    getStatus: () => ipcRenderer.invoke("cloudBackup:getStatus"),
+    uploadLatest: () => ipcRenderer.invoke("cloudBackup:uploadLatest"),
+  }),
 });
 
 contextBridge.exposeInMainWorld("nasNotesbook", api);

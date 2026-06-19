@@ -11,6 +11,7 @@ import type { NotesbookDatabase } from "./db";
 import type { SettingsStore } from "./settingsStore";
 import type { BackupService } from "./backupService";
 import type { GoogleAuthService } from "./googleAuthService";
+import type { GoogleDriveBackupService } from "./googleDriveBackupService";
 
 interface RegisterIpcOptions {
   readonly appName: string;
@@ -19,6 +20,7 @@ interface RegisterIpcOptions {
   readonly settingsStore: SettingsStore;
   readonly backupService: BackupService;
   readonly googleAuthService: GoogleAuthService;
+  readonly googleDriveBackupService: GoogleDriveBackupService;
 }
 
 export function registerIpcHandlers({
@@ -28,6 +30,7 @@ export function registerIpcHandlers({
   settingsStore,
   backupService,
   googleAuthService,
+  googleDriveBackupService,
 }: RegisterIpcOptions): void {
   ipcMain.handle("app:getInfo", (): AppInfo => {
     const dataDirectory = path.dirname(database.databasePath);
@@ -113,5 +116,13 @@ export function registerIpcHandlers({
 
   ipcMain.handle("googleAuth:getStatus", async () => {
     return googleAuthService.getStatus();
+  });
+
+  ipcMain.handle("cloudBackup:getStatus", async () => {
+    return googleDriveBackupService.getStatus();
+  });
+
+  ipcMain.handle("cloudBackup:uploadLatest", async () => {
+    return googleDriveBackupService.uploadLatest();
   });
 }
