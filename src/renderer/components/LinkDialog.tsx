@@ -89,7 +89,7 @@ export function LinkDialog({
       role="presentation"
     >
       <section
-        aria-label="Add/Edit Link"
+        aria-label={initialUrl ? t("linkDialogEditTitle", language) : t("linkDialogAddTitle", language)}
         aria-modal="true"
         className="modal-dialog"
         onMouseDown={(event) => event.stopPropagation()}
