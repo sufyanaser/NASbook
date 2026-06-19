@@ -23,8 +23,9 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 | Export Markdown | ✓ |
 | Autosave | ✓ |
 | Local backup folder | ✓ |
+| Google Drive backup (optional) | ✓ |
 
-**Not in v1:** cloud sync (Dropbox, OneDrive, NAS sync), multi-user support, attachments, encryption, or Notesnook feature parity.
+**Not in v1:** automatic real-time cloud sync (Dropbox, OneDrive, NAS sync), Gmail/email backup, restore-from-cloud, multi-device database merge, multi-user support, attachments, encryption, or Notesnook feature parity. Google Drive backup is manual-only and requires a local OAuth configuration.
 
 ---
 
@@ -66,6 +67,7 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 | [02_Product_Architecture.md](docs/02_Product_Architecture.md) | Process boundaries, SQLite schema, IPC contracts, build pipeline |
 | [03_UI_UX_Spec.md](docs/03_UI_UX_Spec.md) | Layout dimensions, color palette, RTL CSS, component interactions |
 | [04_Phase_Implementation_Plan.md](docs/04_Phase_Implementation_Plan.md) | Seven-phase implementation blueprint |
+| [Google_Credentials_Setup.md](docs/Google_Credentials_Setup.md) | Google Cloud Console setup, minimal scopes, troubleshooting, and manual QA checklist |
 
 ---
 
