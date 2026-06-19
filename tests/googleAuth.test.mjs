@@ -63,6 +63,15 @@ import assert from "node:assert/strict";
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "nas-notesbook-test-"));
     const settingsStore = createMockSettingsStore("en");
 
+    // Backup original google-credentials.json if exists and remove it during this test
+    const mockCredentialsPath = path.join(process.cwd(), "google-credentials.json");
+    const originalCredentialsExist = fs.existsSync(mockCredentialsPath);
+    let originalCredentialsContent = null;
+    if (originalCredentialsExist) {
+      originalCredentialsContent = fs.readFileSync(mockCredentialsPath, "utf8");
+      fs.rmSync(mockCredentialsPath, { force: true });
+    }
+
     try {
       const service = createGoogleAuthService(tempDir, settingsStore);
       const status = await service.getStatus();
@@ -73,6 +82,9 @@ import assert from "node:assert/strict";
       assert.equal(status.message, "Google credentials not configured");
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
+      if (originalCredentialsExist && originalCredentialsContent !== null) {
+        fs.writeFileSync(mockCredentialsPath, originalCredentialsContent, "utf8");
+      }
       if (oldCid) process.env.GOOGLE_CLIENT_ID = oldCid;
       if (oldSec) process.env.GOOGLE_CLIENT_SECRET = oldSec;
     }

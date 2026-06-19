@@ -44,6 +44,7 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
         ```
 *   **Comfortable Editor Width:** Full panel width for long prompts and technical notes (no narrow hard-cap in v1).
 *   **Simple Local Backup:** Copy notes as Markdown into a user-chosen local folder. No cloud sync integration.
+*   **Google Drive Backup (v0.3.0):** Optional manual backup upload using a local OAuth configuration. Credentials and session tokens are encrypted and stored locally; they are never bundled with the installer. For configuration steps, see [Google_Credentials_Setup.md](docs/Google_Credentials_Setup.md).
 
 ---
 
