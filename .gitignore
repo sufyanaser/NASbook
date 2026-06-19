@@ -13,3 +13,7 @@ assets/*.zip
 release/
 dist/
 assets/FONTS/
+
+# Claude local workspace files
+.claude/
+CLAUDE.md
