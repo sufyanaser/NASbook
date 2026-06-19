@@ -201,21 +201,22 @@ code,
 pre,
 kbd,
 samp {
-  direction: ltr !important;
-  text-align: left !important;
-  unicode-bidi: isolate;
   font-family: "Consolas", "Courier New", monospace;
 }
 
 pre {
   margin: 16px 0 0;
-  overflow: auto;
+  overflow-x: hidden;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-bg);
   color: var(--app-text-strong);
   padding: 16px;
   line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .sr-only {
@@ -990,13 +991,15 @@ pre {
 
 .font-family-dropdown,
 .font-size-dropdown,
-.text-type-dropdown {
+.text-type-dropdown,
+.code-direction-dropdown {
   width: 48px;
 }
 
 .font-family-dropdown .custom-dropdown-trigger,
 .font-size-dropdown .custom-dropdown-trigger,
-.text-type-dropdown .custom-dropdown-trigger {
+.text-type-dropdown .custom-dropdown-trigger,
+.code-direction-dropdown .custom-dropdown-trigger {
   width: 48px !important;
   padding: 0 4px !important;
   justify-content: center !important;
@@ -1085,6 +1088,10 @@ pre {
   gap: 6px;
 }
 
+.code-block-color-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .editor-toolbar .color-swatch-button {
   width: 24px !important;
   height: 24px !important;
@@ -1098,6 +1105,11 @@ pre {
 .editor-toolbar .color-swatch-button:hover {
   transform: scale(1.15) !important;
   border-color: var(--app-focus) !important;
+}
+
+.editor-toolbar .color-swatch-button[data-active="true"] {
+  outline: 2px solid var(--app-focus);
+  outline-offset: 2px;
 }
 
 .reset-color-cross {
@@ -1229,7 +1241,144 @@ pre {
 
 .note-editor-content-wrapper .ProseMirror p {
   position: relative;
-  margin: 0;
+  margin: 0 0 14px;
+  font-size: 18px;
+  line-height: 1.9;
+}
+
+.note-editor-content-wrapper .ProseMirror h1 {
+  margin: 28px 0 18px;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.note-editor-content-wrapper .ProseMirror h2 {
+  margin: 24px 0 16px;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.note-editor-content-wrapper .ProseMirror h3 {
+  margin: 20px 0 14px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.note-editor-content-wrapper .ProseMirror pre {
+  margin: 18px 0;
+  overflow-x: hidden;
+  border: 1px solid color-mix(in srgb, var(--app-border-strong) 74%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-bg) 88%, #020617);
+  color: #e5e7eb;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.note-editor-content-wrapper .ProseMirror pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[dir="auto"] {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[dir="auto"] code {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[dir="ltr"] code {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[dir="rtl"] code {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-box-color="light-gray"] {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-box-color="light-blue"] {
+  border-color: #bfdbfe;
+  background: #dbeafe;
+  color: #0f172a;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-box-color="light-green"] {
+  border-color: #bbf7d0;
+  background: #dcfce7;
+  color: #052e16;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-box-color="light-amber"] {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #451a03;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-box-color="light-rose"] {
+  border-color: #fecdd3;
+  background: #ffe4e6;
+  color: #4c0519;
+}
+
+.quick-copy-button {
+  position: fixed;
+  z-index: 80;
+  height: 28px;
+  min-width: 54px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+  color: var(--app-text-strong);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.quick-copy-button:hover {
+  border-color: var(--app-focus);
+  background: var(--app-surface-raised);
 }
 
 .note-editor-content-wrapper .ProseMirror ul {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import CodeBlock from "@tiptap/extension-code-block";
+import { TextSelection } from "@tiptap/pm/state";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -46,6 +48,8 @@ type ToolbarIcon =
   | "bold"
   | "italic"
   | "underline"
+  | "codeBlock"
+  | "codeBlockColor"
   | "link"
   | "alignLeft"
   | "alignCenter"
@@ -98,6 +102,19 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
     >
       {icon === "underline" && (
         <path d="M6 3v7a6 6 0 0 0 12 0V3M4 21h16" {...strokeProps} />
+      )}
+      {icon === "codeBlock" && (
+        <>
+          <path d="m9 18 6-12" {...strokeProps} />
+          <path d="m7 8-4 4 4 4M17 8l4 4-4 4" {...strokeProps} />
+        </>
+      )}
+      {icon === "codeBlockColor" && (
+        <>
+          <path d="M5 5h14v14H5z" {...strokeProps} />
+          <path d="M8 15h8" {...strokeProps} />
+          <path d="M9 9h6" {...strokeProps} />
+        </>
       )}
       {icon === "link" && (
         <>
@@ -177,6 +194,79 @@ function getHeadingShortLabel(type: string): string {
   if (type.startsWith("h")) return type.toUpperCase();
   return "P";
 }
+
+const CODE_BLOCK_BOX_COLORS = [
+  "default",
+  "light-gray",
+  "light-blue",
+  "light-green",
+  "light-amber",
+  "light-rose",
+] as const;
+
+type CodeBlockBoxColor = (typeof CODE_BLOCK_BOX_COLORS)[number];
+
+function isCodeBlockBoxColor(value: string | null): value is CodeBlockBoxColor {
+  return value !== null && CODE_BLOCK_BOX_COLORS.includes(value as CodeBlockBoxColor);
+}
+
+const CODE_BLOCK_DIRECTIONS = ["auto", "ltr", "rtl"] as const;
+
+type CodeBlockDirection = (typeof CODE_BLOCK_DIRECTIONS)[number];
+
+function isCodeBlockDirection(value: string | null): value is CodeBlockDirection {
+  return value !== null && CODE_BLOCK_DIRECTIONS.includes(value as CodeBlockDirection);
+}
+
+const CustomCodeBlock = CodeBlock.extend({
+  addAttributes() {
+    return {
+      boxColor: {
+        default: "default",
+        parseHTML: (element) => {
+          const value = element.getAttribute("data-box-color");
+          return isCodeBlockBoxColor(value) ? value : "default";
+        },
+        renderHTML: (attributes) => ({
+          "data-box-color": isCodeBlockBoxColor(attributes.boxColor)
+            ? attributes.boxColor
+            : "default",
+        }),
+      },
+      dir: {
+        default: "auto",
+        parseHTML: (element) => {
+          const value = element.getAttribute("dir");
+          return isCodeBlockDirection(value) ? value : "auto";
+        },
+        renderHTML: (attributes) => ({
+          dir: isCodeBlockDirection(attributes.dir) ? attributes.dir : "auto",
+        }),
+      },
+    };
+  },
+  addKeyboardShortcuts() {
+    const selectCurrentCodeBlock = () => {
+      const { state, view } = this.editor;
+      const { $from } = state.selection;
+
+      for (let depth = $from.depth; depth > 0; depth -= 1) {
+        if ($from.node(depth).type.name === this.name) {
+          const start = $from.start(depth);
+          const end = $from.end(depth);
+          view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, start, end)));
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    return {
+      "Mod-a": selectCurrentCodeBlock,
+    };
+  },
+});
 
 function formatDateTime(value: string): string {
   const date = new Date(value);
@@ -394,6 +484,135 @@ function ColorPicker({
   );
 }
 
+function CodeBlockColorPicker({
+  value,
+  onChange,
+  disabled,
+  tooltip,
+  language,
+}: {
+  readonly value: CodeBlockBoxColor;
+  readonly onChange: (value: CodeBlockBoxColor) => void;
+  readonly disabled?: boolean;
+  readonly tooltip?: string;
+  readonly language: AppLanguage;
+}): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const swatches: {
+    readonly name: string;
+    readonly value: CodeBlockBoxColor;
+    readonly hex: string;
+  }[] = [
+    { name: "Default", value: "default", hex: "#0f172a" },
+    { name: "Light gray", value: "light-gray", hex: "#f3f4f6" },
+    { name: "Light blue", value: "light-blue", hex: "#dbeafe" },
+    { name: "Light green", value: "light-green", hex: "#dcfce7" },
+    { name: "Light amber", value: "light-amber", hex: "#fef3c7" },
+    { name: "Light rose", value: "light-rose", hex: "#ffe4e6" },
+  ];
+
+  const getSwatchTooltip = (name: string) => {
+    if (language !== "ar") return name;
+    switch (name) {
+      case "Default": return "افتراضي";
+      case "Light gray": return "رمادي فاتح";
+      case "Light blue": return "أزرق فاتح";
+      case "Light green": return "أخضر فاتح";
+      case "Light amber": return "كهرماني فاتح";
+      case "Light rose": return "وردي فاتح";
+      default: return name;
+    }
+  };
+
+  return (
+    <div className="custom-dropdown-container" ref={containerRef}>
+      <button
+        aria-expanded={isOpen}
+        className="toolbar-icon-button color-picker-trigger code-block-color-trigger"
+        disabled={disabled}
+        data-tooltip={tooltip}
+        onClick={() => setIsOpen(!isOpen)}
+        type="button"
+      >
+        <ToolbarIconSvg icon="codeBlockColor" />
+        <span
+          className="color-preview-indicator"
+          style={{
+            backgroundColor: swatches.find((swatch) => swatch.value === value)?.hex,
+            border: value === "default" ? "1px solid var(--app-border-strong)" : "1px solid rgba(0, 0, 0, 0.18)",
+          }}
+        />
+      </button>
+      {isOpen && (
+        <div className="color-picker-menu code-block-color-menu">
+          <div className="color-picker-grid code-block-color-grid">
+            {swatches.map((swatch) => (
+              <button
+                key={swatch.value}
+                aria-label={getSwatchTooltip(swatch.name)}
+                className="color-swatch-button"
+                data-active={swatch.value === value ? "true" : "false"}
+                data-tooltip={getSwatchTooltip(swatch.name)}
+                onClick={() => {
+                  onChange(swatch.value);
+                  setIsOpen(false);
+                }}
+                style={{ backgroundColor: swatch.hex }}
+                type="button"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface QuickCopyState {
+  readonly text: string;
+  readonly left: number;
+  readonly top: number;
+}
+
+async function copyPlainText(text: string): Promise<void> {
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textArea);
+}
+
 export function NoteEditorArea({
   activeCategoryName,
   draftContent,
@@ -420,10 +639,14 @@ export function NoteEditorArea({
   const loadedNoteIdRef = useRef<number | null>(null);
   
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        codeBlock: false,
+      }),
+      CustomCodeBlock,
       Underline,
       Link.configure({
         openOnClick: false,
@@ -465,6 +688,39 @@ export function NoteEditorArea({
       editor.setEditable(!isTrashView && hasSelectedNote);
     }
   }, [editor, isTrashView, hasSelectedNote]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const updateQuickCopy = () => {
+      const { state, view } = editor;
+      const { from, to, empty } = state.selection;
+      if (empty || from === to) {
+        setQuickCopy(null);
+        return;
+      }
+
+      const text = state.doc.textBetween(from, to, "\n");
+      if (text.trim().length === 0) {
+        setQuickCopy(null);
+        return;
+      }
+
+      const coords = view.coordsAtPos(to);
+      const left = Math.min(Math.max(coords.left, 8), window.innerWidth - 72);
+      const top = Math.min(Math.max(coords.bottom + 8, 8), window.innerHeight - 42);
+      setQuickCopy({ text, left, top });
+    };
+
+    editor.on("selectionUpdate", updateQuickCopy);
+    editor.on("transaction", updateQuickCopy);
+    editor.on("blur", updateQuickCopy);
+    return () => {
+      editor.off("selectionUpdate", updateQuickCopy);
+      editor.off("transaction", updateQuickCopy);
+      editor.off("blur", updateQuickCopy);
+    };
+  }, [editor]);
 
   // Synchronize editor content when selectedNote changes
   useEffect(() => {
@@ -557,6 +813,29 @@ export function NoteEditorArea({
   const activeTextColor = editor
     ? editor.getAttributes("textStyle").color || null
     : null;
+
+  const activeCodeBlockBoxColor = editor && editor.isActive("codeBlock")
+    ? editor.getAttributes("codeBlock").boxColor
+    : "default";
+  const activeCodeBlockColor = isCodeBlockBoxColor(activeCodeBlockBoxColor)
+    ? activeCodeBlockBoxColor
+    : "default";
+
+  const activeCodeBlockDirValue = editor && editor.isActive("codeBlock")
+    ? editor.getAttributes("codeBlock").dir
+    : "auto";
+  const activeCodeBlockDir = isCodeBlockDirection(activeCodeBlockDirValue)
+    ? activeCodeBlockDirValue
+    : "auto";
+
+  const codeBlockDirectionOptions: {
+    readonly value: CodeBlockDirection;
+    readonly label: string;
+  }[] = [
+    { value: "auto", label: language === "ar" ? "تلقائي" : "Auto" },
+    { value: "ltr", label: "LTR" },
+    { value: "rtl", label: "RTL" },
+  ];
 
   const handleLinkConfirm = (url: string) => {
     if (editor) {
@@ -904,6 +1183,45 @@ export function NoteEditorArea({
               >
                 <ToolbarIconSvg icon="link" />
               </button>
+              <button
+                aria-label={language === "ar" ? "كتلة كود" : "Code block"}
+                className="toolbar-icon-button"
+                type="button"
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                data-active={editor.isActive("codeBlock") ? "true" : "false"}
+                data-tooltip={language === "ar" ? "كتلة كود" : "Code block"}
+              >
+                <ToolbarIconSvg icon="codeBlock" />
+              </button>
+              <CodeBlockColorPicker
+                value={activeCodeBlockColor}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
+                language={language}
+                onChange={(val) => {
+                  const chain = editor.chain().focus();
+                  if (!editor.isActive("codeBlock")) {
+                    chain.setCodeBlock();
+                  }
+                  chain.updateAttributes("codeBlock", { boxColor: val }).run();
+                }}
+              />
+              <Dropdown
+                label={activeCodeBlockDir.toUpperCase()}
+                value={activeCodeBlockDir}
+                options={codeBlockDirectionOptions}
+                disabled={!hasSelectedNote || isTrashView}
+                tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
+                className="code-direction-dropdown"
+                onChange={(val) => {
+                  const chain = editor.chain().focus();
+                  if (!editor.isActive("codeBlock")) {
+                    chain.setCodeBlock();
+                  }
+                  chain.updateAttributes("codeBlock", { dir: val }).run();
+                }}
+              />
             </div>
 
             <div className="toolbar-divider" />
@@ -1015,6 +1333,22 @@ export function NoteEditorArea({
             <span>{t("editorPlaceholderSubtitle", language)}</span>
           </div>
         </div>
+      )}
+
+      {quickCopy && (
+        <button
+          className="quick-copy-button"
+          onClick={() => {
+            void copyPlainText(quickCopy.text).finally(() => {
+              setQuickCopy(null);
+            });
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+          style={{ left: quickCopy.left, top: quickCopy.top }}
+          type="button"
+        >
+          {language === "ar" ? "نسخ" : "Copy"}
+        </button>
       )}
 
       {/* Link Dialog */}
