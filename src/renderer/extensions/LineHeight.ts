@@ -1,5 +1,4 @@
 import { Extension } from "@tiptap/core";
-import { mergeAttributes } from "@tiptap/react";
 import "@tiptap/extension-text-style";
 
 declare module "@tiptap/core" {
@@ -53,32 +52,29 @@ export const LineHeight = Extension.create({
   },
 
   addCommands() {
+    // ponytail: line-height is a block attribute on paragraph/heading only.
+    // No textStyle mark — keeps code blocks and RTL inline runs untouched.
     return {
       setLineHeight:
         (lineHeight: string) =>
-        ({ chain, commands }) => {
+        ({ chain }) => {
           if (!LINE_HEIGHT_VALUES.includes(lineHeight as typeof LINE_HEIGHT_VALUES[number])) {
-            return chain.focus().run();
+            return false;
           }
-          return (
-            chain()
-              .setMark("textStyle", { "data-line-height": lineHeight })
-              .updateAttributes("paragraph", { "data-line-height": lineHeight })
-              .updateAttributes("heading", { "data-line-height": lineHeight })
-              .run()
-          );
+          return chain()
+            .focus()
+            .updateAttributes("paragraph", { "data-line-height": lineHeight })
+            .updateAttributes("heading", { "data-line-height": lineHeight })
+            .run();
         },
       unsetLineHeight:
         () =>
-        ({ chain, commands }) => {
-          return (
-            chain()
-              .unsetMark("textStyle", "data-line-height")
-              .updateAttributes("paragraph", { "data-line-height": null })
-              .updateAttributes("heading", { "data-line-height": null })
-              .run()
-          );
-        },
+        ({ chain }) =>
+          chain()
+            .focus()
+            .updateAttributes("paragraph", { "data-line-height": null })
+            .updateAttributes("heading", { "data-line-height": null })
+            .run(),
     };
   },
 });

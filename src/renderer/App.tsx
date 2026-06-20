@@ -947,6 +947,7 @@ export function App(): JSX.Element {
             theme: getToggledLightDarkTheme(settings.theme),
           });
         }}
+        onThemeChange={(theme) => handleUpdateSettings({ theme })}
         onTitleChange={handleDraftTitleChange}
         onExportNote={() => {
           void handleExportNote();
@@ -1003,6 +1004,8 @@ export function App(): JSX.Element {
         saveStatus={saveStatus}
         language={settings.language}
         editorDirection={settings.editorDirection}
+        appName={appInfo?.name}
+        appVersion={appInfo?.version}
       />
     </main>
   );

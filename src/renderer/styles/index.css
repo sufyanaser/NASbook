@@ -1237,6 +1237,7 @@ body.is-resizing-notes-pane .notes-split-divider {
 
 .editor-area {
   grid-area: editor;
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1256,7 +1257,9 @@ body.is-resizing-notes-pane .notes-split-divider {
 
 .editor-header {
   border-bottom: 1px solid var(--app-glass-border);
-  padding: 20px 0 16px;
+  /* Compact vertical + 32px physical inset so the info block
+     no longer touches the editor panel's right edge. */
+  padding: 12px 32px 10px;
   background: transparent;
 }
 
@@ -1327,10 +1330,10 @@ body.is-resizing-notes-pane .notes-split-divider {
   border-radius: 8px;
   outline: 0;
   background: transparent !important;
-  padding: 6px 0 !important;
+  padding: 2px 0 !important;
   text-align: start;
   font-family: "Inter", "Segoe UI", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  margin: 4px 0 0 0;
+  margin: 2px 0 0 0;
   color: var(--app-text-strong);
   font-size: 24px;
   font-weight: 700;
@@ -2344,7 +2347,7 @@ body.is-resizing-notes-pane .notes-split-divider {
 .note-metadata-row {
   display: flex;
   gap: 16px;
-  margin-top: 8px;
+  margin-top: 4px;
   color: var(--app-text-subtle);
   font-size: 11px;
 }
@@ -3104,40 +3107,57 @@ body.is-resizing-notes-pane .notes-split-divider {
   color: var(--app-accent);
 }
 
-/* Phase 7: Customize Toolbar (Arrange) Styles */
+/* Phase 7 / 23.1: Customize Toolbar (Arrange) Styles — compact dark-glass panel */
 .toolbar-arrange-popover {
   position: absolute;
   top: calc(100% + 6px);
   inset-inline-end: 0;
   z-index: 120;
-  min-width: 200px;
-  max-height: 320px;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  border: 1px solid var(--app-border-strong);
+  padding: 12px;
+  border: 1px solid var(--app-glass-border);
   border-radius: 12px;
-  background: var(--app-surface);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  background: var(--app-glass-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-glass-shadow);
 }
 
 .arrange-popover-header {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 13px;
   font-weight: 700;
   color: var(--app-text-strong);
-  border-bottom: 1px solid var(--app-border);
-  padding-bottom: 6px;
+  border-bottom: 1px solid var(--app-glass-border);
+  padding-bottom: 8px;
 }
 
-.arrange-popover-list {
-  flex: 1;
+.arrange-popover-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
   overflow-y: auto;
+  margin-bottom: 10px;
+  padding-inline-end: 2px;
+}
+
+.arrange-popover-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--app-text-muted);
+  margin-bottom: 6px;
+}
+
+.arrange-popover-group-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding-inline-end: 4px;
+  gap: 6px;
 }
 
 .arrange-popover-item {
@@ -3152,13 +3172,33 @@ body.is-resizing-notes-pane .notes-split-divider {
 
 .arrange-popover-item input {
   cursor: pointer;
+  accent-color: var(--app-accent);
+}
+
+/* Thin, themed scrollbar — avoids the oversized white scrollbar look */
+.arrange-popover-groups {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-border-strong) transparent;
+}
+
+.arrange-popover-groups::-webkit-scrollbar {
+  width: 8px;
+}
+
+.arrange-popover-groups::-webkit-scrollbar-thumb {
+  background: var(--app-border-strong);
+  border-radius: 8px;
+}
+
+.arrange-popover-groups::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .arrange-popover-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
-  border-top: 1px solid var(--app-border);
+  border-top: 1px solid var(--app-glass-border);
   padding-top: 8px;
 }
 
@@ -3177,19 +3217,103 @@ body.is-resizing-notes-pane .notes-split-divider {
   color: var(--app-text-strong);
 }
 
-.arrange-btn-done {
-  background: var(--app-accent);
-  border: none;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 6px;
+/* Phase 23.1 hotfix: physical top-left slot for the theme dropdown.
+   Intentionally uses `left` (physical), not inset-inline-start. */
+.editor-theme-slot {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  z-index: 6;
 }
 
-.arrange-btn-done:hover {
-  opacity: 0.9;
+/* Phase 23.1: compact editor-header theme dropdown */
+.editor-theme-control {
+  position: relative;
+}
+
+.editor-theme-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text);
+  background: var(--app-surface-raised);
+  border: 1px solid var(--app-border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.editor-theme-trigger:hover,
+.editor-theme-trigger[data-active="true"] {
+  border-color: var(--app-accent);
+}
+
+.editor-theme-caret {
+  font-size: 10px;
+  color: var(--app-text-muted);
+}
+
+.editor-theme-popover {
+  z-index: var(--z-popover);
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 10px;
+  background: var(--app-glass-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-glass-shadow);
+}
+
+.editor-theme-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--app-text);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: start;
+}
+
+.editor-theme-item:hover,
+.editor-theme-item[data-selected="true"] {
+  background: var(--rail-button-active-bg);
+}
+
+.editor-theme-swatches {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.editor-theme-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-inline-start: -3px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.editor-theme-swatch:first-child {
+  margin-inline-start: 0;
+}
+
+.editor-theme-item-name {
+  flex: 1;
+}
+
+.editor-theme-check {
+  color: var(--app-accent);
+  font-weight: 700;
 }
 
 /* Typography Normalization and Consistency Overrides */
@@ -3267,5 +3391,69 @@ textarea,
 
 .settings-panel {
   z-index: var(--z-modal) !important;
+}
+
+/* Phase 23: editor tables, divider, version label */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--app-border-strong);
+  padding: 6px 10px;
+  vertical-align: top;
+  text-align: start;
+  min-width: 3em;
+  position: relative;
+}
+
+.ProseMirror th {
+  background: var(--rail-button-active-bg);
+  font-weight: 700;
+}
+
+.ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--app-accent);
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  inset-inline-end: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--app-accent);
+  pointer-events: none;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--app-border-strong);
+  margin: 14px 0;
+}
+
+.toolbar-text-button {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.status-app-version {
+  color: var(--app-text-muted);
+  opacity: 0.85;
 }
 

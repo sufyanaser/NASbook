@@ -8,6 +8,8 @@ interface StatusFooterProps {
   readonly language: AppLanguage;
   readonly editorDirection?: string;
   readonly isFocusMode?: boolean;
+  readonly appName?: string;
+  readonly appVersion?: string;
 }
 
 export function StatusFooter({
@@ -17,6 +19,8 @@ export function StatusFooter({
   language,
   editorDirection,
   isFocusMode,
+  appName,
+  appVersion,
 }: StatusFooterProps): JSX.Element {
   const translatedSaveStatus = (() => {
     const s = saveStatus.toLowerCase();
@@ -47,6 +51,11 @@ export function StatusFooter({
         <span className="status-item status-dir">
           {editorDirection ? editorDirection.toUpperCase() : "LTR"}
         </span>
+        {appVersion && (
+          <span className="status-item status-app-version">
+            {appName ?? "NASbook"} v{appVersion}
+          </span>
+        )}
       </div>
     </footer>
   );

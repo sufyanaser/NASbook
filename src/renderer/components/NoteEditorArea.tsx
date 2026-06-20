@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
 import CodeBlock from "@tiptap/extension-code-block";
 import { TextSelection } from "@tiptap/pm/state";
 import { DOMSerializer } from "@tiptap/pm/model";
@@ -17,7 +22,6 @@ import { EditorContextMenu } from "./EditorContextMenu";
 import type { MenuNode } from "./EditorContextMenu";
 import { htmlToMarkdown } from "../markdown";
 import type { NoteRecord } from "../../shared/ipc";
-import { isLightLikeTheme } from "../../shared/settings";
 import type {
   AppTheme,
   EditorDensity,
@@ -46,6 +50,7 @@ interface NoteEditorAreaProps {
   readonly onRestore: () => void;
   readonly onSave: () => void;
   readonly onToggleTheme: () => void;
+  readonly onThemeChange: (theme: AppTheme) => void;
   readonly onTitleChange: (title: string) => void;
   readonly onExportNote?: () => void;
 }
@@ -63,6 +68,10 @@ type ToolbarIcon =
   | "bullets"
   | "numbered"
   | "clear"
+  | "horizontalRule"
+  | "table"
+  | "undo"
+  | "redo"
   | "save"
   | "trash"
   | "restore"
@@ -157,6 +166,21 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
           <path d="M15 15l4 4M19 15l-4 4" {...strokeProps} />
         </>
       )}
+      {icon === "undo" && (
+        <path d="M9 7H5V3M5 7a8 8 0 1 1-2 5.3" {...strokeProps} />
+      )}
+      {icon === "redo" && (
+        <path d="M15 7h4V3M19 7a8 8 0 1 0 2 5.3" {...strokeProps} />
+      )}
+      {icon === "horizontalRule" && (
+        <path d="M4 12h16" {...strokeProps} />
+      )}
+      {icon === "table" && (
+        <>
+          <rect x="4" y="5" width="16" height="14" rx="1" {...strokeProps} />
+          <path d="M4 10h16M4 14.5h16M9.5 5v14M14.5 5v14" {...strokeProps} />
+        </>
+      )}
       {icon === "save" && (
         <>
           <path d="M5 4h11l3 3v13H5z" {...strokeProps} />
@@ -178,6 +202,74 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
       )}
     </svg>
   );
+}
+
+const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
+  undo: true,
+  redo: true,
+  fontFamily: true,
+  fontSize: true,
+  heading: true,
+  lineHeight: true,
+  bold: true,
+  italic: true,
+  underline: true,
+  textColor: true,
+  link: true,
+  codeBlock: true,
+  bullets: true,
+  numbered: true,
+  alignLeft: true,
+  alignCenter: true,
+  alignRight: true,
+  clear: true,
+  horizontalRule: true,
+  table: true,
+};
+
+// Compact theme selector for the editor header (reuses existing AppTheme settings).
+const EDITOR_THEMES: readonly { value: AppTheme; labelEn: string; labelAr: string; colors: readonly string[] }[] = [
+  { value: "light", labelEn: "Light", labelAr: "فاتح", colors: ["#f5f5f4", "#ffffff", "#4f46e5"] },
+  { value: "dark", labelEn: "Dark", labelAr: "داكن", colors: ["#0c0a09", "#1c1917", "#6366f1"] },
+  { value: "graphite", labelEn: "Graphite", labelAr: "غرافيت", colors: ["#101214", "#1b1f23", "#3b82f6"] },
+  { value: "material-dark", labelEn: "Material Dark", labelAr: "ماتيريال داكن", colors: ["#121212", "#1e1e1e", "#b39ddb"] },
+  { value: "ulysses", labelEn: "Ulysses", labelAr: "يوليسيس", colors: ["#f8f5ee", "#fffdf7", "#d84b20"] },
+  { value: "one-dark", labelEn: "One Dark", labelAr: "ون دارك", colors: ["#1e2127", "#282c34", "#61afef"] },
+];
+
+// Grouping for the toolbar-customization popover (Text / Blocks / Insert / Advanced).
+const TOOL_GROUPS: readonly { id: string; labelEn: string; labelAr: string; tools: readonly string[] }[] = [
+  { id: "text", labelEn: "Text", labelAr: "النص", tools: ["fontFamily", "fontSize", "heading", "lineHeight", "bold", "italic", "underline", "textColor"] },
+  { id: "blocks", labelEn: "Blocks", labelAr: "الكتل", tools: ["bullets", "numbered", "alignLeft", "alignCenter", "alignRight", "codeBlock", "clear"] },
+  { id: "insert", labelEn: "Insert", labelAr: "إدراج", tools: ["link", "horizontalRule", "table"] },
+  { id: "advanced", labelEn: "Advanced", labelAr: "متقدم", tools: ["undo", "redo"] },
+];
+
+function toolLabel(toolId: string, language: AppLanguage): string {
+  const ar = language === "ar";
+  switch (toolId) {
+    case "fontFamily": return ar ? "نوع الخط" : "Font Family";
+    case "fontSize": return ar ? "حجم الخط" : "Font Size";
+    case "heading": return ar ? "العناوين" : "Headings";
+    case "lineHeight": return ar ? "تباعد الأسطر" : "Line Height";
+    case "bold": return ar ? "عريض" : "Bold";
+    case "italic": return ar ? "مائل" : "Italic";
+    case "underline": return ar ? "تحته خط" : "Underline";
+    case "textColor": return ar ? "لون النص" : "Text Color";
+    case "link": return ar ? "رابط" : "Link";
+    case "codeBlock": return ar ? "كتلة كود" : "Code Block";
+    case "bullets": return ar ? "قائمة نقطية" : "Bullet List";
+    case "numbered": return ar ? "قائمة مرقمة" : "Numbered List";
+    case "alignLeft": return ar ? "محاذاة لليسار" : "Align Left";
+    case "alignCenter": return ar ? "محاذاة للوسط" : "Align Center";
+    case "alignRight": return ar ? "محاذاة لليمين" : "Align Right";
+    case "clear": return ar ? "مسح التنسيق" : "Clear Formatting";
+    case "horizontalRule": return ar ? "خط فاصل" : "Divider";
+    case "table": return ar ? "جدول" : "Table";
+    case "undo": return ar ? "تراجع" : "Undo";
+    case "redo": return ar ? "إعادة" : "Redo";
+    default: return toolId;
+  }
 }
 
 function getFontFamilyShortLabel(font: string): string {
@@ -653,7 +745,7 @@ export function NoteEditorArea({
   onDeleteToTrash,
   onRestore,
   onSave,
-  onToggleTheme,
+  onThemeChange,
   onTitleChange,
   onExportNote,
 }: NoteEditorAreaProps): JSX.Element {
@@ -674,80 +766,47 @@ export function NoteEditorArea({
     const saved = localStorage.getItem("nas-notesbook.editor.visibleTools");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        // Merge over defaults so tools added in later versions stay visible.
+        return { ...DEFAULT_VISIBLE_TOOLS, ...JSON.parse(saved) };
       } catch {
         // fallback
       }
     }
-    return {
-      fontFamily: true,
-      fontSize: true,
-      heading: true,
-      lineHeight: true,
-      bold: true,
-      italic: true,
-      underline: true,
-      textColor: true,
-      link: true,
-      codeBlock: true,
-      bullets: true,
-      numbered: true,
-      alignLeft: true,
-      alignCenter: true,
-      alignRight: true,
-      clear: true,
-      horizontalRule: true,
-      table: true,
-    };
+    return { ...DEFAULT_VISIBLE_TOOLS };
   });
-  const [tempVisibleTools, setTempVisibleTools] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    if (isArrangeOpen) {
-      setTempVisibleTools(visibleTools);
-    }
-  }, [isArrangeOpen, visibleTools]);
-
   const arrangePopoverRef = useRef<HTMLDivElement | null>(null);
+  const arrangeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [arrangePos, setArrangePos] = useState<{ top: number; right: number } | null>(null);
+
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const themePopoverRef = useRef<HTMLDivElement | null>(null);
+  const themeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [themePos, setThemePos] = useState<{ top: number; left: number } | null>(null);
+
+  // Visibility changes apply immediately and persist (no "Done" step).
+  const persistVisibleTools = (next: Record<string, boolean>) => {
+    setVisibleTools(next);
+    localStorage.setItem("nas-notesbook.editor.visibleTools", JSON.stringify(next));
+  };
 
   const handleToggleTool = (toolId: string) => {
-    setTempVisibleTools((prev) => ({
-      ...prev,
-      [toolId]: !prev[toolId],
-    }));
+    persistVisibleTools({ ...visibleTools, [toolId]: !visibleTools[toolId] });
   };
 
   const handleResetTools = () => {
-    setTempVisibleTools({
-      fontFamily: true,
-      fontSize: true,
-      heading: true,
-      bold: true,
-      italic: true,
-      underline: true,
-      textColor: true,
-      link: true,
-      codeBlock: true,
-      bullets: true,
-      numbered: true,
-      alignLeft: true,
-      alignCenter: true,
-      alignRight: true,
-      clear: true,
-    });
+    persistVisibleTools({ ...DEFAULT_VISIBLE_TOOLS });
   };
-
-  const handleDoneTools = () => {
-    setVisibleTools(tempVisibleTools);
-    localStorage.setItem("nas-notesbook.editor.visibleTools", JSON.stringify(tempVisibleTools));
-    setIsArrangeOpen(false);
-  };
-
 
   useEffect(() => {
     if (!isArrangeOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
-      if (arrangePopoverRef.current && !arrangePopoverRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        arrangePopoverRef.current &&
+        !arrangePopoverRef.current.contains(target) &&
+        arrangeButtonRef.current &&
+        !arrangeButtonRef.current.contains(target)
+      ) {
         setIsArrangeOpen(false);
       }
     };
@@ -756,13 +815,47 @@ export function NoteEditorArea({
         setIsArrangeOpen(false);
       }
     };
+    const close = () => setIsArrangeOpen(false);
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
     };
   }, [isArrangeOpen]);
+
+  useEffect(() => {
+    if (!isThemeMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        themePopoverRef.current &&
+        !themePopoverRef.current.contains(target) &&
+        themeButtonRef.current &&
+        !themeButtonRef.current.contains(target)
+      ) {
+        setIsThemeMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsThemeMenuOpen(false);
+    };
+    const close = () => setIsThemeMenuOpen(false);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [isThemeMenuOpen]);
 
   const editor = useEditor({
     extensions: [
@@ -787,6 +880,10 @@ export function NoteEditorArea({
       FontFamily,
       FontSize,
       LineHeight,
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: draftContent,
     editable: !isTrashView && hasSelectedNote,
@@ -876,7 +973,11 @@ export function NoteEditorArea({
       editor.getHTML() === "<p><br></p>" ||
       editor.getHTML() === "<p><br class=\"ProseMirror-trailingBreak\"></p>"
     : true;
-  const isLightMode = isLightLikeTheme(theme);
+  const activeThemeLabel = (() => {
+    const found = EDITOR_THEMES.find((th) => th.value === theme);
+    if (!found) return language === "ar" ? "السمة" : "Theme";
+    return language === "ar" ? found.labelAr : found.labelEn;
+  })();
 
   // Dropdown option maps
   const fontFamilies = [
@@ -1408,6 +1509,61 @@ export function NoteEditorArea({
       data-editor-font-size={fontSize}
       dir={language === "ar" ? "rtl" : "ltr"}
     >
+      {/* Physical top-left slot — intentionally uses left (not inset-inline). */}
+      <div className="editor-theme-slot">
+        <div className="editor-theme-control">
+          <button
+            ref={themeButtonRef}
+            aria-label={language === "ar" ? "السمات" : "Themes"}
+            className="editor-theme-trigger"
+            data-active={isThemeMenuOpen ? "true" : "false"}
+            data-tooltip={t("tooltipTheme", language)}
+            type="button"
+            onClick={() => {
+              if (!isThemeMenuOpen && themeButtonRef.current) {
+                const r = themeButtonRef.current.getBoundingClientRect();
+                setThemePos({ top: r.bottom + 6, left: r.left });
+              }
+              setIsThemeMenuOpen(!isThemeMenuOpen);
+            }}
+          >
+            <span className="editor-theme-name">{activeThemeLabel}</span>
+            <span className="editor-theme-caret" aria-hidden="true">▾</span>
+          </button>
+          {isThemeMenuOpen && themePos && createPortal(
+            <div
+              ref={themePopoverRef}
+              className="editor-theme-popover"
+              dir={language === "ar" ? "rtl" : "ltr"}
+              style={{ position: "fixed", top: themePos.top, left: themePos.left }}
+            >
+              {EDITOR_THEMES.map((th) => (
+                <button
+                  key={th.value}
+                  type="button"
+                  className="editor-theme-item"
+                  data-selected={th.value === theme ? "true" : "false"}
+                  onClick={() => {
+                    onThemeChange(th.value);
+                    setIsThemeMenuOpen(false);
+                  }}
+                >
+                  <span className="editor-theme-swatches" aria-hidden="true">
+                    {th.colors.map((c, i) => (
+                      <span key={i} className="editor-theme-swatch" style={{ background: c }} />
+                    ))}
+                  </span>
+                  <span className="editor-theme-item-name">
+                    {language === "ar" ? th.labelAr : th.labelEn}
+                  </span>
+                  {th.value === theme && <span className="editor-theme-check">✓</span>}
+                </button>
+              ))}
+            </div>,
+            document.body
+          )}
+        </div>
+      </div>
       <header className="editor-header">
         <div style={{ flex: 1 }}>
           <span className="editor-eyebrow">{activeCategoryName}</span>
@@ -1434,24 +1590,6 @@ export function NoteEditorArea({
               )}
             </div>
           )}
-        </div>
-        <div className="editor-header-actions">
-          <button
-            aria-label={isLightMode ? (language === "ar" ? "تبديل للسمة الداكنة" : "Switch to dark theme") : (language === "ar" ? "تبديل للسمة الفاتحة" : "Switch to light theme")}
-            className="theme-toggle"
-            data-light={isLightMode ? "true" : "false"}
-            data-tooltip={t("tooltipTheme", language)}
-            onClick={onToggleTheme}
-            type="button"
-          >
-            <span aria-hidden="true" />
-          </button>
-          <div
-            className="direction-chip"
-            data-tooltip={t("tooltipDirection", language)}
-          >
-            {editorDirection.toUpperCase()}
-          </div>
         </div>
       </header>
 
@@ -1619,6 +1757,45 @@ export function NoteEditorArea({
  
         {editor && (
           <>
+            {(visibleTools.undo !== false || visibleTools.redo !== false) && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group history-actions">
+                  {visibleTools.undo !== false && (
+                    <button
+                      aria-label="Undo"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView || !editor.can().undo()}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().undo().run();
+                      }}
+                      data-tooltip={language === "ar" ? "تراجع" : "Undo"}
+                    >
+                      <ToolbarIconSvg icon="undo" />
+                    </button>
+                  )}
+                  {visibleTools.redo !== false && (
+                    <button
+                      aria-label="Redo"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView || !editor.can().redo()}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().redo().run();
+                      }}
+                      data-tooltip={language === "ar" ? "إعادة" : "Redo"}
+                    >
+                      <ToolbarIconSvg icon="redo" />
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
             {(visibleTools.fontFamily !== false || visibleTools.fontSize !== false || visibleTools.heading !== false) && (
               <>
                 <div className="toolbar-divider" />
@@ -1681,7 +1858,7 @@ export function NoteEditorArea({
                       value={activeLineHeight}
                       options={lineHeights}
                       disabled={!hasSelectedNote || isTrashView}
-                      tooltip={`${t("tooltipLineHeight", language)}: ${activeLineHeight}`}
+                      tooltip={`${language === "ar" ? "تباعد الأسطر" : "Line height"}: ${activeLineHeight}`}
                       className="line-height-dropdown"
                       onChange={(val) => {
                         if (val === "1.5") {
@@ -1696,7 +1873,7 @@ export function NoteEditorArea({
               </>
             )}
 
-            {(visibleTools.bold !== false || visibleTools.italic !== false || visibleTools.tools.underline !== false || visibleTools.textColor !== false || visibleTools.link !== false || visibleTools.codeBlock !== false) && (
+            {(visibleTools.bold !== false || visibleTools.italic !== false || visibleTools.underline !== false || visibleTools.textColor !== false || visibleTools.link !== false || visibleTools.codeBlock !== false) && (
               <>
                 <div className="toolbar-divider" />
                 <div className="toolbar-group formatting-actions">
@@ -1923,6 +2100,127 @@ export function NoteEditorArea({
               </>
             )}
 
+            {(visibleTools.horizontalRule !== false || visibleTools.table !== false) && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group insert-actions">
+                  {visibleTools.horizontalRule !== false && (
+                    <button
+                      aria-label="Horizontal rule"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().setHorizontalRule().run();
+                      }}
+                      data-tooltip={language === "ar" ? "خط فاصل" : "Divider"}
+                    >
+                      <ToolbarIconSvg icon="horizontalRule" />
+                    </button>
+                  )}
+                  {visibleTools.table !== false && (
+                    <>
+                      <button
+                        aria-label="Insert table"
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor
+                            .chain()
+                            .focus()
+                            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                            .run();
+                        }}
+                        data-active={editor.isActive("table") ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "إدراج جدول" : "Insert table"}
+                      >
+                        <ToolbarIconSvg icon="table" />
+                      </button>
+                      {editor.isActive("table") && (
+                        <>
+                          <button
+                            aria-label="Add row"
+                            className="toolbar-icon-button toolbar-text-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().addRowAfter().run();
+                            }}
+                            data-tooltip={language === "ar" ? "إضافة صف" : "Add row"}
+                          >
+                            +<span aria-hidden="true">⬚</span>
+                          </button>
+                          <button
+                            aria-label="Add column"
+                            className="toolbar-icon-button toolbar-text-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().addColumnAfter().run();
+                            }}
+                            data-tooltip={language === "ar" ? "إضافة عمود" : "Add column"}
+                          >
+                            +<span aria-hidden="true">▥</span>
+                          </button>
+                          <button
+                            aria-label="Delete row"
+                            className="toolbar-icon-button toolbar-text-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().deleteRow().run();
+                            }}
+                            data-tooltip={language === "ar" ? "حذف صف" : "Delete row"}
+                          >
+                            −<span aria-hidden="true">⬚</span>
+                          </button>
+                          <button
+                            aria-label="Delete column"
+                            className="toolbar-icon-button toolbar-text-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().deleteColumn().run();
+                            }}
+                            data-tooltip={language === "ar" ? "حذف عمود" : "Delete column"}
+                          >
+                            −<span aria-hidden="true">▥</span>
+                          </button>
+                          <button
+                            aria-label="Delete table"
+                            className="toolbar-icon-button toolbar-text-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().deleteTable().run();
+                            }}
+                            data-tooltip={language === "ar" ? "حذف الجدول" : "Delete table"}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
             {visibleTools.clear !== false && (
               <>
                 <div className="toolbar-divider" />
@@ -1957,55 +2255,57 @@ export function NoteEditorArea({
             <div className="toolbar-divider" />
             <div className="toolbar-arrange-container" style={{ position: "relative" }}>
               <button
+                ref={arrangeButtonRef}
                 aria-label={language === "ar" ? "تخصيص شريط الأدوات" : "Customize toolbar"}
                 className="toolbar-icon-button"
                 type="button"
-                onClick={() => setIsArrangeOpen(!isArrangeOpen)}
+                onClick={() => {
+                  if (!isArrangeOpen && arrangeButtonRef.current) {
+                    const r = arrangeButtonRef.current.getBoundingClientRect();
+                    setArrangePos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+                  }
+                  setIsArrangeOpen(!isArrangeOpen);
+                }}
                 data-active={isArrangeOpen ? "true" : "false"}
                 data-tooltip={language === "ar" ? "تخصيص شريط الأدوات" : "Customize toolbar"}
               >
                 <SlidersIcon />
               </button>
-              {isArrangeOpen && (
+              {isArrangeOpen && arrangePos && createPortal(
                 <div
                   className="toolbar-arrange-popover"
                   ref={arrangePopoverRef}
                   dir={language === "ar" ? "rtl" : "ltr"}
+                  style={{
+                    position: "fixed",
+                    top: arrangePos.top,
+                    right: arrangePos.right,
+                    insetInlineEnd: "auto",
+                  }}
                 >
                   <div className="arrange-popover-header">
                     {language === "ar" ? "تخصيص شريط الأدوات" : "Customize Toolbar"}
                   </div>
-                  <div className="arrange-popover-list">
-                    {Object.entries(tempVisibleTools).map(([toolId, isVisible]) => {
-                      let label = toolId;
-                      if (toolId === "fontFamily") label = language === "ar" ? "نوع الخط" : "Font Family";
-                      else if (toolId === "fontSize") label = language === "ar" ? "حجم الخط" : "Font Size";
-                      else if (toolId === "heading") label = language === "ar" ? "العناوين" : "Headings";
-                      else if (toolId === "lineHeight") label = language === "ar" ? "تباعد الأسطر" : "Line Height";
-                      else if (toolId === "bold") label = language === "ar" ? "عريض" : "Bold";
-                      else if (toolId === "italic") label = language === "ar" ? "مائل" : "Italic";
-                      else if (toolId === "underline") label = language === "ar" ? "تحته خط" : "Underline";
-                      else if (toolId === "textColor") label = language === "ar" ? "لون النص" : "Text Color";
-                      else if (toolId === "link") label = language === "ar" ? "رابط" : "Link";
-                      else if (toolId === "codeBlock") label = language === "ar" ? "كتلة كود" : "Code Block";
-                      else if (toolId === "bullets") label = language === "ar" ? "قائمة نقطية" : "Bullet List";
-                      else if (toolId === "numbered") label = language === "ar" ? "قائمة مرقمة" : "Numbered List";
-                      else if (toolId === "alignLeft") label = language === "ar" ? "محاذاة لليسار" : "Align Left";
-                      else if (toolId === "alignCenter") label = language === "ar" ? "محاذاة للوسط" : "Align Center";
-                      else if (toolId === "alignRight") label = language === "ar" ? "محاذاة لليمين" : "Align Right";
-                      else if (toolId === "clear") label = language === "ar" ? "مسح التنسيق" : "Clear Formatting";
-
-                      return (
-                        <label key={toolId} className="arrange-popover-item">
-                          <input
-                            type="checkbox"
-                            checked={isVisible}
-                            onChange={() => handleToggleTool(toolId)}
-                          />
-                          <span>{label}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="arrange-popover-groups">
+                    {TOOL_GROUPS.map((group) => (
+                      <div key={group.id} className="arrange-popover-group">
+                        <div className="arrange-popover-group-title">
+                          {language === "ar" ? group.labelAr : group.labelEn}
+                        </div>
+                        <div className="arrange-popover-group-items">
+                          {group.tools.map((toolId) => (
+                            <label key={toolId} className="arrange-popover-item">
+                              <input
+                                type="checkbox"
+                                checked={visibleTools[toolId] !== false}
+                                onChange={() => handleToggleTool(toolId)}
+                              />
+                              <span>{toolLabel(toolId, language)}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   <div className="arrange-popover-actions">
                     <button
@@ -2015,15 +2315,9 @@ export function NoteEditorArea({
                     >
                       {language === "ar" ? "إعادة ضبط" : "Reset"}
                     </button>
-                    <button
-                      className="arrange-btn-done"
-                      type="button"
-                      onClick={handleDoneTools}
-                    >
-                      {language === "ar" ? "تم" : "Done"}
-                    </button>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           </>
