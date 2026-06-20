@@ -11,6 +11,7 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
+import { LineHeight } from "../extensions/LineHeight";
 import { LinkDialog } from "./LinkDialog";
 import { EditorContextMenu } from "./EditorContextMenu";
 import type { MenuNode } from "./EditorContextMenu";
@@ -682,6 +683,7 @@ export function NoteEditorArea({
       fontFamily: true,
       fontSize: true,
       heading: true,
+      lineHeight: true,
       bold: true,
       italic: true,
       underline: true,
@@ -694,6 +696,8 @@ export function NoteEditorArea({
       alignCenter: true,
       alignRight: true,
       clear: true,
+      horizontalRule: true,
+      table: true,
     };
   });
   const [tempVisibleTools, setTempVisibleTools] = useState<Record<string, boolean>>({});
@@ -782,6 +786,7 @@ export function NoteEditorArea({
       Color,
       FontFamily,
       FontSize,
+      LineHeight,
     ],
     content: draftContent,
     editable: !isTrashView && hasSelectedNote,
@@ -903,6 +908,14 @@ export function NoteEditorArea({
     { value: "h6", label: language === "ar" ? "عنوان 6" : "Heading 6" },
   ];
 
+  const lineHeights = [
+    { value: "1.0", label: "1.0" },
+    { value: "1.25", label: "1.25" },
+    { value: "1.5", label: "1.5" },
+    { value: "1.75", label: "1.75" },
+    { value: "2.0", label: "2.0" },
+  ];
+
   const activeFontFamily = editor
     ? editor.getAttributes("textStyle").fontFamily || "System"
     : "System";
@@ -928,6 +941,12 @@ export function NoteEditorArea({
     : "paragraph";
 
   const activeHeadingLabel = headingTypes.find((t) => t.value === activeHeadingType)?.label || (language === "ar" ? "فقرة" : "Paragraph");
+
+  const activeLineHeight = editor
+    ? editor.getAttributes("paragraph")["data-line-height"] ||
+      editor.getAttributes("heading")["data-line-height"] ||
+      "1.5"
+    : "1.5";
 
   const activeTextColor = editor
     ? editor.getAttributes("textStyle").color || null
@@ -1656,11 +1675,28 @@ export function NoteEditorArea({
                       }}
                     />
                   )}
+                  {visibleTools.lineHeight !== false && (
+                    <Dropdown
+                      label={activeLineHeight}
+                      value={activeLineHeight}
+                      options={lineHeights}
+                      disabled={!hasSelectedNote || isTrashView}
+                      tooltip={`${t("tooltipLineHeight", language)}: ${activeLineHeight}`}
+                      className="line-height-dropdown"
+                      onChange={(val) => {
+                        if (val === "1.5") {
+                          editor.chain().focus().unsetLineHeight().run();
+                        } else {
+                          editor.chain().focus().setLineHeight(val).run();
+                        }
+                      }}
+                    />
+                  )}
                 </div>
               </>
             )}
 
-            {(visibleTools.bold !== false || visibleTools.italic !== false || visibleTools.underline !== false || visibleTools.textColor !== false || visibleTools.link !== false || visibleTools.codeBlock !== false) && (
+            {(visibleTools.bold !== false || visibleTools.italic !== false || visibleTools.tools.underline !== false || visibleTools.textColor !== false || visibleTools.link !== false || visibleTools.codeBlock !== false) && (
               <>
                 <div className="toolbar-divider" />
                 <div className="toolbar-group formatting-actions">
@@ -1945,6 +1981,7 @@ export function NoteEditorArea({
                       if (toolId === "fontFamily") label = language === "ar" ? "نوع الخط" : "Font Family";
                       else if (toolId === "fontSize") label = language === "ar" ? "حجم الخط" : "Font Size";
                       else if (toolId === "heading") label = language === "ar" ? "العناوين" : "Headings";
+                      else if (toolId === "lineHeight") label = language === "ar" ? "تباعد الأسطر" : "Line Height";
                       else if (toolId === "bold") label = language === "ar" ? "عريض" : "Bold";
                       else if (toolId === "italic") label = language === "ar" ? "مائل" : "Italic";
                       else if (toolId === "underline") label = language === "ar" ? "تحته خط" : "Underline";
