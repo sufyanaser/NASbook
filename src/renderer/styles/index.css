@@ -1285,12 +1285,6 @@ body.is-resizing-notes-pane .notes-split-divider {
   padding: 0 56px;
 }
 
-.editor-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .focus-toggle-btn {
   display: inline-grid;
   width: 32px;
@@ -1362,16 +1356,6 @@ body.is-resizing-notes-pane .notes-split-divider {
 
 .note-title-input:disabled {
   color: var(--app-text-subtle);
-}
-
-.direction-chip {
-  border: 1px solid var(--app-glass-border);
-  border-radius: 8px;
-  background: var(--app-card-bg);
-  padding: 6px 10px;
-  color: var(--app-text-muted);
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .theme-dropdown-container {
@@ -2690,46 +2674,6 @@ body.is-resizing-notes-pane .notes-split-divider {
 .settings-about-list strong {
   color: var(--app-text-strong);
   font-size: 18px;
-}
-
-.editor-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.theme-toggle {
-  position: relative;
-  width: 46px;
-  height: 26px;
-  border: 1px solid var(--app-border);
-  border-radius: 999px;
-  background: var(--app-surface-raised);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.16s ease, border-color 0.16s ease;
-}
-
-.theme-toggle span {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--app-text-muted);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
-  transition: transform 0.18s ease, background 0.18s ease;
-}
-
-.theme-toggle[data-light="true"] {
-  border-color: rgba(16, 18, 23, 0.18);
-  background: #e7e5e4;
-}
-
-.theme-toggle[data-light="true"] span {
-  background: #101217;
-  transform: translateX(20px);
 }
 
 .context-menu-layer {
