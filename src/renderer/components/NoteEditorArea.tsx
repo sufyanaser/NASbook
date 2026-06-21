@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import HorizontalRule from "@tiptap/extension-horizontal-rule";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
 import CodeBlock from "@tiptap/extension-code-block";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { DOMSerializer } from "@tiptap/pm/model";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
@@ -387,6 +388,36 @@ function isCodeBlockDirection(value: string | null): value is CodeBlockDirection
   return value !== null && CODE_BLOCK_DIRECTIONS.includes(value as CodeBlockDirection);
 }
 
+const DIVIDER_VARIANTS = ["thin", "medium", "thick", "dashed", "dotted", "double"] as const;
+
+type DividerVariant = (typeof DIVIDER_VARIANTS)[number];
+
+function isDividerVariant(value: string | null): value is DividerVariant {
+  return value !== null && DIVIDER_VARIANTS.includes(value as DividerVariant);
+}
+
+function getDividerVariantLabel(variant: DividerVariant, language: AppLanguage): string {
+  if (language === "ar") {
+    switch (variant) {
+      case "thin": return "رفيع";
+      case "medium": return "متوسط";
+      case "thick": return "سميك";
+      case "dashed": return "متقطع";
+      case "dotted": return "منقط";
+      case "double": return "مزدوج";
+    }
+  }
+
+  switch (variant) {
+    case "thin": return "Thin";
+    case "medium": return "Medium";
+    case "thick": return "Thick";
+    case "dashed": return "Dashed";
+    case "dotted": return "Dotted";
+    case "double": return "Double";
+  }
+}
+
 const CustomCodeBlock = CodeBlock.extend({
   addAttributes() {
     return {
@@ -433,6 +464,27 @@ const CustomCodeBlock = CodeBlock.extend({
 
     return {
       "Mod-a": selectCurrentCodeBlock,
+    };
+  },
+});
+
+const CustomHorizontalRule = HorizontalRule.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      dividerVariant: {
+        default: "thin",
+        parseHTML: (element) => {
+          const value = element.getAttribute("data-divider-variant");
+          return isDividerVariant(value) ? value : "thin";
+        },
+        renderHTML: (attributes) => {
+          const variant = isDividerVariant(attributes.dividerVariant)
+            ? attributes.dividerVariant
+            : "thin";
+          return { "data-divider-variant": variant };
+        },
+      },
     };
   },
 });
@@ -879,6 +931,7 @@ export function NoteEditorArea({
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
   const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isTableCellSelected, setIsTableCellSelected] = useState(false);
+  const [selectedDividerVariant, setSelectedDividerVariant] = useState<DividerVariant | null>(null);
 
   useEffect(() => {
     setEditorMenuPos(null);
@@ -900,6 +953,8 @@ export function NoteEditorArea({
   const arrangePopoverRef = useRef<HTMLDivElement | null>(null);
   const arrangeButtonRef = useRef<HTMLButtonElement | null>(null);
   const [arrangePos, setArrangePos] = useState<{ top: number; right: number } | null>(null);
+  const [isDividerMenuOpen, setIsDividerMenuOpen] = useState(false);
+  const dividerControlRef = useRef<HTMLDivElement | null>(null);
 
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const themePopoverRef = useRef<HTMLDivElement | null>(null);
@@ -980,11 +1035,43 @@ export function NoteEditorArea({
     };
   }, [isThemeMenuOpen]);
 
+  useEffect(() => {
+    if (!isDividerMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dividerControlRef.current &&
+        !dividerControlRef.current.contains(event.target as Node)
+      ) {
+        setIsDividerMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsDividerMenuOpen(false);
+      }
+    };
+    const close = () => setIsDividerMenuOpen(false);
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [isDividerMenuOpen]);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         codeBlock: false,
+        horizontalRule: false,
       }),
+      CustomHorizontalRule,
       CustomCodeBlock,
       Underline,
       Link.configure({
@@ -1058,6 +1145,38 @@ export function NoteEditorArea({
       editor.off("selectionUpdate", updateTableCellSelection);
       editor.off("transaction", updateTableCellSelection);
       editor.off("blur", updateTableCellSelection);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) {
+      setSelectedDividerVariant(null);
+      return;
+    }
+
+    const updateDividerSelection = () => {
+      const { selection } = editor.state;
+      const isDividerSelected =
+        selection instanceof NodeSelection &&
+        selection.node.type.name === "horizontalRule";
+
+      if (!isDividerSelected) {
+        setSelectedDividerVariant(null);
+        return;
+      }
+
+      const variant = selection.node.attrs.dividerVariant as string | null;
+      setSelectedDividerVariant(isDividerVariant(variant) ? variant : "thin");
+    };
+
+    updateDividerSelection();
+    editor.on("selectionUpdate", updateDividerSelection);
+    editor.on("transaction", updateDividerSelection);
+    editor.on("blur", updateDividerSelection);
+    return () => {
+      editor.off("selectionUpdate", updateDividerSelection);
+      editor.off("transaction", updateDividerSelection);
+      editor.off("blur", updateDividerSelection);
     };
   }, [editor]);
 
@@ -1236,6 +1355,33 @@ export function NoteEditorArea({
   const activeCodeBlockDir = isCodeBlockDirection(activeCodeBlockDirValue)
     ? activeCodeBlockDirValue
     : "auto";
+
+  const insertDivider = (variant: DividerVariant = "thin") => {
+    if (!editor || isTrashView || !selectedNote) return;
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({ type: "horizontalRule", attrs: { dividerVariant: variant } })
+      .run();
+  };
+
+  const applyDividerVariant = (variant: DividerVariant) => {
+    if (!editor || isTrashView || !selectedNote) return;
+
+    const { selection } = editor.state;
+    const isDividerSelected =
+      selection instanceof NodeSelection &&
+      selection.node.type.name === "horizontalRule";
+
+    if (isDividerSelected) {
+      editor.chain().focus().updateAttributes("horizontalRule", { dividerVariant: variant }).run();
+    } else {
+      insertDivider(variant);
+    }
+
+    setIsDividerMenuOpen(false);
+  };
 
   const codeBlockDirectionOptions: {
     readonly value: CodeBlockDirection;
@@ -2368,20 +2514,77 @@ export function NoteEditorArea({
                 <div className="toolbar-divider" />
                 <div className="toolbar-group insert-actions">
                   {visibleTools.horizontalRule !== false && (
-                    <button
-                      aria-label="Horizontal rule"
-                      className="toolbar-icon-button"
-                      type="button"
-                      disabled={!hasSelectedNote || isTrashView}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        editor.chain().focus().setHorizontalRule().run();
-                      }}
-                      data-tooltip={language === "ar" ? "خط فاصل" : "Divider"}
-                    >
-                      <ToolbarIconSvg icon="horizontalRule" />
-                    </button>
+                    <div className="divider-control" ref={dividerControlRef}>
+                      <button
+                        aria-label="Horizontal rule"
+                        className="toolbar-icon-button divider-main-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          insertDivider("thin");
+                        }}
+                        data-active={selectedDividerVariant ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "خط فاصل" : "Divider"}
+                      >
+                        <ToolbarIconSvg icon="horizontalRule" />
+                      </button>
+                      <button
+                        aria-expanded={isDividerMenuOpen}
+                        aria-haspopup="menu"
+                        aria-label={language === "ar" ? "أنواع الخط الفاصل" : "Divider variants"}
+                        className="toolbar-icon-button divider-menu-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setIsDividerMenuOpen((open) => !open);
+                        }}
+                        data-active={isDividerMenuOpen ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "أنواع الخط الفاصل" : "Divider variants"}
+                      >
+                        <svg viewBox="0 0 24 24" className="toolbar-button-icon" aria-hidden="true">
+                          <path
+                            d="m7 10 5 5 5-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                          />
+                        </svg>
+                      </button>
+                      {isDividerMenuOpen && (
+                        <div
+                          className="divider-variant-menu"
+                          dir={language === "ar" ? "rtl" : "ltr"}
+                          role="menu"
+                        >
+                          {DIVIDER_VARIANTS.map((variant) => (
+                            <button
+                              aria-label={getDividerVariantLabel(variant, language)}
+                              className="divider-variant-item"
+                              data-selected={selectedDividerVariant === variant ? "true" : "false"}
+                              key={variant}
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                applyDividerVariant(variant);
+                              }}
+                              role="menuitemradio"
+                              type="button"
+                            >
+                              <span className="divider-variant-preview" data-variant={variant} />
+                              <span className="divider-variant-label">
+                                {getDividerVariantLabel(variant, language)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {visibleTools.table !== false && (
                     <>
