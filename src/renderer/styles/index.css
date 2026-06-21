@@ -3435,27 +3435,51 @@ textarea,
 }
 
 /* Phase 23: editor tables, divider, version label */
+/* Tables v2: the table extension wraps the table in .tableWrapper (editing
+   view); the wrapper scrolls horizontally so resized columns never overflow
+   the editor. Saved HTML stays a plain <table> (no wrapper) for compatibility. */
 .ProseMirror table {
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  margin: 12px 0;
-  overflow: hidden;
+  margin: 14px 0;
+  border-radius: 8px;
+}
+
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+  margin: 14px 0;
+}
+
+.ProseMirror .tableWrapper table {
+  margin: 0;
 }
 
 .ProseMirror th,
 .ProseMirror td {
   border: 1px solid var(--app-border-strong);
-  padding: 6px 10px;
+  padding: 8px 12px;
   vertical-align: top;
   text-align: start;
-  min-width: 3em;
+  min-width: 4em;
   position: relative;
+  box-sizing: border-box;
 }
 
 .ProseMirror th {
   background: var(--rail-button-active-bg);
   font-weight: 700;
+  border-bottom: 2px solid var(--app-border-strong);
+}
+
+/* Tighten paragraph spacing inside cells for a denser, readable grid. */
+.ProseMirror td > p,
+.ProseMirror th > p {
+  margin: 0;
+}
+
+.ProseMirror tbody tr:hover td {
+  background: color-mix(in srgb, var(--app-text-strong) 4%, transparent);
 }
 
 .ProseMirror .selectedCell::after {
@@ -3463,17 +3487,20 @@ textarea,
   position: absolute;
   inset: 0;
   background: var(--app-accent);
-  opacity: 0.12;
+  opacity: 0.14;
   pointer-events: none;
 }
 
+/* Column resize: TipTap Table is configured resizable. Physical `right` matches
+   the boundary prosemirror-tables computes; wider hit feel via opacity. */
 .ProseMirror .column-resize-handle {
   position: absolute;
-  inset-inline-end: -2px;
+  right: -2px;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 5px;
   background: var(--app-accent);
+  opacity: 0.6;
   pointer-events: none;
 }
 

@@ -878,6 +878,7 @@ export function NoteEditorArea({
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
   const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [isTableCellSelected, setIsTableCellSelected] = useState(false);
 
   useEffect(() => {
     setEditorMenuPos(null);
@@ -1005,13 +1006,15 @@ export function NoteEditorArea({
       LineHeight,
       TextDirection,
       Indent,
-      Table.configure({ resizable: true }),
+      Table.configure({ resizable: true, cellMinWidth: 96 }),
       TableRow,
       TableHeaderWithBg,
       TableCellWithBg,
     ],
     content: draftContent,
-    editable: !isTrashView && hasSelectedNote,
+    // TipTap installs the table-resize plugin only when the editor is editable
+    // during construction; the effect below still enforces no-note/trash mode.
+    editable: true,
     onUpdate: ({ editor }) => {
       if (isSettingContentRef.current) {
         return;
@@ -1034,6 +1037,29 @@ export function NoteEditorArea({
       editor.setEditable(!isTrashView && hasSelectedNote);
     }
   }, [editor, isTrashView, hasSelectedNote]);
+
+  useEffect(() => {
+    if (!editor) {
+      setIsTableCellSelected(false);
+      return;
+    }
+
+    const updateTableCellSelection = () => {
+      setIsTableCellSelected(
+        editor.isActive("tableCell") || editor.isActive("tableHeader")
+      );
+    };
+
+    updateTableCellSelection();
+    editor.on("selectionUpdate", updateTableCellSelection);
+    editor.on("transaction", updateTableCellSelection);
+    editor.on("blur", updateTableCellSelection);
+    return () => {
+      editor.off("selectionUpdate", updateTableCellSelection);
+      editor.off("transaction", updateTableCellSelection);
+      editor.off("blur", updateTableCellSelection);
+    };
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -1181,9 +1207,7 @@ export function NoteEditorArea({
     ? editor.getAttributes("textStyle").color || null
     : null;
 
-  const isCellSelected = editor
-    ? editor.isActive("tableCell") || editor.isActive("tableHeader")
-    : false;
+  const isCellSelected = isTableCellSelected;
 
   const activeFillColor = editor
     ? (isCellSelected
@@ -2375,12 +2399,12 @@ export function NoteEditorArea({
                             .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
                             .run();
                         }}
-                        data-active={editor.isActive("table") ? "true" : "false"}
+                        data-active={isCellSelected ? "true" : "false"}
                         data-tooltip={language === "ar" ? "إدراج جدول" : "Insert table"}
                       >
                         <ToolbarIconSvg icon="table" />
                       </button>
-                      {editor.isActive("table") && (
+                      {isCellSelected && (
                         <>
                           <button
                             aria-label="Add row"
