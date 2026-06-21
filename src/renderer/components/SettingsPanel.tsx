@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   appThemes,
   editorDensities,
@@ -10,8 +10,10 @@ import {
 } from "../../shared/settings";
 import { t } from "../../shared/i18n";
 import type { AppInfo, BackupStatus, CloudBackupInfo } from "../../shared/ipc";
+import { APP_COMMANDS, type AppCommand } from "../../shared/commands";
+import { ConfirmDialog } from "./ConfirmDialog";
 
-type SettingsSection = "appearance" | "editor" | "notes" | "data" | "about";
+type SettingsSection = "appearance" | "editor" | "notes" | "data" | "shortcuts" | "about";
 
 interface SettingsPanelProps {
   readonly appInfo: AppInfo | null;
@@ -29,8 +31,10 @@ const sections: readonly {
   { id: "editor" },
   { id: "notes" },
   { id: "data" },
+  { id: "shortcuts" },
   { id: "about" },
 ];
+
 
 function getSectionTabLabel(id: SettingsSection, lang: AppLanguage): string {
   switch (id) {
@@ -42,6 +46,8 @@ function getSectionTabLabel(id: SettingsSection, lang: AppLanguage): string {
       return t("settingsNotesTab", lang);
     case "data":
       return t("settingsDataTab", lang);
+    case "shortcuts":
+      return t("settingsShortcutsTab", lang);
     case "about":
       return t("settingsAboutTab", lang);
     default:
@@ -141,6 +147,15 @@ export function SettingsPanel({
     message: string;
   } | null>(null);
 
+  const [capturingCommandId, setCapturingCommandId] = useState<string | null>(null);
+  const captureInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [conflictState, setConflictState] = useState<{
+    targetCommandId: string;
+    newShortcut: string;
+    conflictingCommand: AppCommand;
+  } | null>(null);
+
   const fetchCloudStatus = async () => {
     if (!window.nasNotesbook) return;
     try {
@@ -157,13 +172,23 @@ export function SettingsPanel({
   }, [activeSection]);
 
   useEffect(() => {
+    if (capturingCommandId && captureInputRef.current) {
+      captureInputRef.current.focus();
+    }
+  }, [capturingCommandId]);
+
+  useEffect(() => {
     if (!isOpen) {
       return undefined;
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
-        onClose();
+        if (capturingCommandId) {
+          setCapturingCommandId(null);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -171,7 +196,46 @@ export function SettingsPanel({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, capturingCommandId]);
+
+  const handleSaveShortcut = (commandId: string, newShortcut: string) => {
+    // Check for conflict
+    const conflicting = APP_COMMANDS.find(
+      (cmd) => cmd.id !== commandId && settings.shortcuts[cmd.id] === newShortcut
+    );
+
+    if (conflicting) {
+      setConflictState({
+        targetCommandId: commandId,
+        newShortcut,
+        conflictingCommand: conflicting,
+      });
+    } else {
+      // No conflict, save directly
+      const updatedShortcuts = {
+        ...settings.shortcuts,
+        [commandId]: newShortcut,
+      };
+      onUpdateSettings({ shortcuts: updatedShortcuts });
+      setCapturingCommandId(null);
+    }
+  };
+
+  const handleResolveConflict = () => {
+    if (!conflictState) return;
+    const { targetCommandId, newShortcut, conflictingCommand } = conflictState;
+
+    const updatedShortcuts = {
+      ...settings.shortcuts,
+      [conflictingCommand.id]: "", // Remove from conflicting
+      [targetCommandId]: newShortcut, // Assign to target
+    };
+
+    onUpdateSettings({ shortcuts: updatedShortcuts });
+    setConflictState(null);
+    setCapturingCommandId(null);
+  };
+
 
   useEffect(() => {
     if (isOpen && activeSection === "data" && window.nasNotesbook) {
@@ -853,6 +917,135 @@ export function SettingsPanel({
               </>
             )}
 
+            {activeSection === "shortcuts" && (
+              <>
+                <div className="settings-section-heading">
+                  <h3>{t("settingsShortcutsHeader", lang)}</h3>
+                  <p>{t("settingsShortcutsSub", lang)}</p>
+                </div>
+
+                <div className="settings-shortcuts-list" style={{ marginTop: "16px" }}>
+                  {["app", "editor"].map((cat) => {
+                    const categoryCommands = APP_COMMANDS.filter((c) => c.category === cat);
+                    return (
+                      <div key={cat} style={{ marginBottom: "24px" }}>
+                        <h4 style={{
+                          color: "var(--app-focus)",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          margin: "0 0 12px 0",
+                          borderBottom: "1px solid var(--app-border)",
+                          paddingBottom: "6px"
+                        }}>
+                          {cat === "app" ? t("shortcutCategoryApp", lang) : t("shortcutCategoryEditor", lang)}
+                        </h4>
+                        
+                        {categoryCommands.map((command) => {
+                          const shortcut = settings.shortcuts[command.id] || "";
+                          const isCapturing = capturingCommandId === command.id;
+                          const name = lang === "ar" ? command.nameAr : command.nameEn;
+
+                          return (
+                            <div className="settings-row" key={command.id}>
+                              <div className="settings-row-copy">
+                                <span>{name}</span>
+                              </div>
+                              <div className="settings-row-control" style={{ gap: "8px", alignItems: "center" }}>
+                                {isCapturing ? (
+                                  <div className="shortcut-capture-container">
+                                    <input
+                                      ref={captureInputRef}
+                                      className="shortcut-capture-input"
+                                      placeholder={t("shortcutPressPrompt", lang)}
+                                      onKeyDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        
+                                        const key = e.key;
+                                        if (key === "Escape") {
+                                          setCapturingCommandId(null);
+                                          return;
+                                        }
+
+                                        if (["Control", "Shift", "Alt", "Meta"].includes(key)) {
+                                          return;
+                                        }
+
+                                        const parts: string[] = [];
+                                        if (e.ctrlKey || e.metaKey) parts.push("Ctrl");
+                                        if (e.altKey) parts.push("Alt");
+                                        if (e.shiftKey) parts.push("Shift");
+
+                                        let keyName = key;
+                                        if (key.length === 1) {
+                                          keyName = key.toUpperCase();
+                                        } else if (key === " ") {
+                                          keyName = "Space";
+                                        }
+                                        parts.push(keyName);
+                                        const shortcutStr = parts.join("+");
+
+                                        handleSaveShortcut(command.id, shortcutStr);
+                                      }}
+                                      type="text"
+                                      readOnly
+                                    />
+                                    <button
+                                      className="shortcut-action-button"
+                                      onClick={() => setCapturingCommandId(null)}
+                                      type="button"
+                                    >
+                                      {lang === "ar" ? "إلغاء" : "Cancel"}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="shortcut-kbd-list">
+                                      {shortcut ? (
+                                        shortcut.split("+").map((part, idx) => (
+                                          <kbd key={idx}>{part}</kbd>
+                                        ))
+                                      ) : (
+                                        <span className="shortcut-kbd-none">
+                                          {lang === "ar" ? "لا يوجد" : "None"}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      className="shortcut-action-button"
+                                      onClick={() => setCapturingCommandId(command.id)}
+                                      type="button"
+                                    >
+                                      {t("shortcutEditBtn", lang)}
+                                    </button>
+                                    {shortcut && (
+                                      <button
+                                        className="shortcut-action-button danger"
+                                        onClick={() => {
+                                          const updatedShortcuts = {
+                                            ...settings.shortcuts,
+                                            [command.id]: "",
+                                          };
+                                          onUpdateSettings({ shortcuts: updatedShortcuts });
+                                        }}
+                                        type="button"
+                                      >
+                                        {t("shortcutClearBtn", lang)}
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             {activeSection === "about" && (
               <>
                 <div className="settings-section-heading">
@@ -867,6 +1060,23 @@ export function SettingsPanel({
                   <span>{t("settingsAboutTiptap", lang)}</span>
                 </div>
               </>
+            )}
+
+            {conflictState && (
+              <ConfirmDialog
+                isOpen={true}
+                title={t("shortcutConflictTitle", lang)}
+                message={t("shortcutConflictMessage", lang)
+                  .replace("{shortcut}", conflictState.newShortcut)
+                  .replace("{command}", lang === "ar" ? conflictState.conflictingCommand.nameAr : conflictState.conflictingCommand.nameEn)}
+                confirmLabel={t("shortcutConflictReplace", lang)}
+                cancelLabel={t("shortcutConflictCancel", lang)}
+                onConfirm={handleResolveConflict}
+                onCancel={() => {
+                  setConflictState(null);
+                }}
+                variant="destructive"
+              />
             )}
           </section>
         </div>

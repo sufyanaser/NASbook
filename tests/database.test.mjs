@@ -140,6 +140,23 @@ test("app settings defaults preserve manual-save behavior", () => {
     cloudBackupEnabled: false,
     lastCloudBackupAt: null,
     lastCloudBackupFileName: null,
+    shortcuts: {
+      saveNote: "Ctrl+S",
+      newNote: "Ctrl+Alt+N",
+      renameNote: "Ctrl+R",
+      moveNote: "Ctrl+M",
+      deleteNote: "Ctrl+Shift+D",
+      toggleBold: "Ctrl+B",
+      toggleItalic: "Ctrl+I",
+      toggleUnderline: "Ctrl+U",
+      toggleStrike: "Ctrl+Shift+S",
+      toggleCode: "Ctrl+E",
+      toggleCodeBlock: "Ctrl+Alt+C",
+      toggleBulletList: "Ctrl+Shift+8",
+      toggleNumberedList: "Ctrl+Shift+9",
+      toggleBlockquote: "Ctrl+Shift+Q",
+      clearFormatting: "Ctrl+Alt+R",
+    },
   });
 });
 

@@ -78,7 +78,11 @@ export function App(): JSX.Element {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [isPermanentDeleteDialogOpen, setIsPermanentDeleteDialogOpen] =
     useState(false);
+  const [renamingNoteId, setRenamingNoteId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [movePopoverNoteId, setMovePopoverNoteId] = useState<number | null>(null);
   const contextFocusRef = useRef<HTMLElement | null>(null);
+
 
   const [pendingNavigationAction, setPendingNavigationAction] = useState<
     (() => void) | null
@@ -416,11 +420,86 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      // If user is typing in a text input/textarea, ignore global single-key shortcuts
+      const activeEl = document.activeElement;
+      const isTyping =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement;
+
+      // Helper to check if shortcut has modifiers
+      const hasModifiers = (shortcut: string) => {
+        if (!shortcut) return false;
+        return shortcut.includes("Ctrl") || shortcut.includes("Alt") || shortcut.includes("Shift");
+      };
+
+      // 1. Save Note
+      if (
+        eventMatchesShortcut(event, settings.shortcuts.saveNote) &&
+        selectedNote &&
+        activeCategory !== "trash"
+      ) {
         event.preventDefault();
-        if (selectedNote && activeCategory !== "trash") {
-          void handleSaveNote();
-        }
+        event.stopPropagation();
+        void handleSaveNote();
+        return;
+      }
+
+      // If user is typing, skip other non-modifier shortcuts
+      // (For example, if they bound a shortcut to a single letter like 'n', don't trigger it while typing)
+      
+      // 2. New Note
+      const newNoteShortcut = settings.shortcuts.newNote;
+      if (
+        eventMatchesShortcut(event, newNoteShortcut) &&
+        (!isTyping || hasModifiers(newNoteShortcut))
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleCreateNote();
+        return;
+      }
+
+      // 3. Rename Note
+      const renameNoteShortcut = settings.shortcuts.renameNote;
+      if (
+        eventMatchesShortcut(event, renameNoteShortcut) &&
+        selectedNote &&
+        activeCategory !== "trash" &&
+        (!isTyping || hasModifiers(renameNoteShortcut))
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setRenameValue(selectedNote.title);
+        setRenamingNoteId(selectedNote.id);
+        return;
+      }
+
+      // 4. Move Note
+      const moveNoteShortcut = settings.shortcuts.moveNote;
+      if (
+        eventMatchesShortcut(event, moveNoteShortcut) &&
+        selectedNote &&
+        activeCategory !== "trash" &&
+        (!isTyping || hasModifiers(moveNoteShortcut))
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setMovePopoverNoteId(selectedNote.id);
+        return;
+      }
+
+      // 5. Delete Note
+      const deleteNoteShortcut = settings.shortcuts.deleteNote;
+      if (
+        eventMatchesShortcut(event, deleteNoteShortcut) &&
+        selectedNote &&
+        activeCategory !== "trash" &&
+        (!isTyping || hasModifiers(deleteNoteShortcut))
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleDeleteToTrash();
+        return;
       }
     };
 
@@ -428,7 +507,7 @@ export function App(): JSX.Element {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedNote, activeCategory, draftTitle, draftContent]);
+  }, [selectedNote, activeCategory, settings.shortcuts, notes, draftTitle, draftContent]);
 
   // Debounced autosave: persist AUTOSAVE_DELAY_MS after the user stops typing.
   // Every draft change resets the timer; the timer is skipped entirely when
@@ -906,6 +985,12 @@ export function App(): JSX.Element {
         language={settings.language}
         categories={categories}
         canExportNote={selectedNote !== null}
+        renamingNoteId={renamingNoteId}
+        setRenamingNoteId={setRenamingNoteId}
+        renameValue={renameValue}
+        setRenameValue={setRenameValue}
+        movePopoverNoteId={movePopoverNoteId}
+        setMovePopoverNoteId={setMovePopoverNoteId}
         onImportMarkdown={() => {
           void handleImportMarkdown();
         }}
@@ -964,6 +1049,7 @@ export function App(): JSX.Element {
         draftTitle={draftTitle}
         editorDensity={settings.editorDensity}
         editorDirection={settings.editorDirection}
+        shortcuts={settings.shortcuts}
         fontSize={settings.fontSize}
         isTrashView={activeCategory === "trash"}
         saveStatus={saveStatus}
@@ -1052,4 +1138,31 @@ export function App(): JSX.Element {
     </main>
   );
 }
+
+function eventMatchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
+  if (!shortcut) return false;
+  const parts = shortcut.split("+");
+  const hasCtrl = parts.includes("Ctrl");
+  const hasAlt = parts.includes("Alt");
+  const hasShift = parts.includes("Shift");
+  const key = parts[parts.length - 1].toLowerCase();
+
+  const eventCtrl = event.ctrlKey || event.metaKey;
+  const eventAlt = event.altKey;
+  const eventShift = event.shiftKey;
+  const eventKey = event.key.toLowerCase();
+
+  const isKeyMatch =
+    eventKey === key ||
+    event.code === "Key" + key.toUpperCase() ||
+    event.code === "Digit" + key;
+
+  return (
+    hasCtrl === eventCtrl &&
+    hasAlt === eventAlt &&
+    hasShift === eventShift &&
+    isKeyMatch
+  );
+}
+
 

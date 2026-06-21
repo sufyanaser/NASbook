@@ -41,6 +41,7 @@ interface NoteEditorAreaProps {
   readonly draftTitle: string;
   readonly editorDensity: EditorDensity;
   readonly editorDirection: EditorDirection;
+  readonly shortcuts: Record<string, string>;
   readonly fontSize: EditorFontSize;
   readonly isTrashView: boolean;
   readonly saveStatus: string;
@@ -907,6 +908,7 @@ export function NoteEditorArea({
   draftTitle,
   editorDensity,
   editorDirection,
+  shortcuts,
   fontSize,
   isTrashView,
   saveStatus,
@@ -1115,6 +1117,111 @@ export function NoteEditorArea({
       const isEmpty = editor.getText().trim() === "" || isMeaninglessHtml;
       const content = isEmpty ? "" : html;
       onContentChange(content);
+    },
+    editorProps: {
+      handleKeyDown: (view, event) => {
+        if (!editor || isTrashView || !hasSelectedNote) {
+          return false;
+        }
+
+        const match = (shortcutKey: string) => {
+          const shortcut = shortcuts[shortcutKey];
+          if (!shortcut) return false;
+          const parts = shortcut.split("+");
+          const hasCtrl = parts.includes("Ctrl");
+          const hasAlt = parts.includes("Alt");
+          const hasShift = parts.includes("Shift");
+          const key = parts[parts.length - 1].toLowerCase();
+
+          const eventCtrl = event.ctrlKey || event.metaKey;
+          const eventAlt = event.altKey;
+          const eventShift = event.shiftKey;
+          const eventKey = event.key.toLowerCase();
+
+          const isKeyMatch =
+            eventKey === key ||
+            event.code === "Key" + key.toUpperCase() ||
+            event.code === "Digit" + key;
+
+          return (
+            hasCtrl === eventCtrl &&
+            hasAlt === eventAlt &&
+            hasShift === eventShift &&
+            isKeyMatch
+          );
+        };
+
+        if (match("toggleBold")) {
+          event.preventDefault();
+          editor.chain().focus().toggleBold().run();
+          return true;
+        }
+
+        if (match("toggleItalic")) {
+          event.preventDefault();
+          editor.chain().focus().toggleItalic().run();
+          return true;
+        }
+
+        if (match("toggleUnderline")) {
+          event.preventDefault();
+          editor.chain().focus().toggleUnderline().run();
+          return true;
+        }
+
+        if (match("toggleStrike")) {
+          event.preventDefault();
+          editor.chain().focus().toggleStrike().run();
+          return true;
+        }
+
+        if (match("toggleCode")) {
+          event.preventDefault();
+          editor.chain().focus().toggleCode().run();
+          return true;
+        }
+
+        if (match("toggleCodeBlock")) {
+          event.preventDefault();
+          editor.chain().focus().toggleCodeBlock().run();
+          return true;
+        }
+
+        if (match("toggleBulletList")) {
+          event.preventDefault();
+          editor.chain().focus().toggleBulletList().run();
+          return true;
+        }
+
+        if (match("toggleNumberedList")) {
+          event.preventDefault();
+          editor.chain().focus().toggleOrderedList().run();
+          return true;
+        }
+
+        if (match("toggleBlockquote")) {
+          event.preventDefault();
+          editor.chain().focus().toggleBlockquote().run();
+          return true;
+        }
+
+        if (match("clearFormatting")) {
+          event.preventDefault();
+          editor
+            .chain()
+            .focus()
+            .clearNodes()
+            .unsetAllMarks()
+            .unsetColor()
+            .unsetFontFamily()
+            .unsetFontSize()
+            .unsetLink()
+            .run();
+          return true;
+        }
+
+        return false;
+      },
     },
   });
 

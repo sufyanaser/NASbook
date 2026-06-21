@@ -34,6 +34,7 @@ export interface AppSettings {
   readonly cloudBackupEnabled: boolean;
   readonly lastCloudBackupAt: string | null;
   readonly lastCloudBackupFileName: string | null;
+  readonly shortcuts: Record<string, string>;
 }
 
 export const appThemes = [
@@ -84,6 +85,23 @@ export const defaultAppSettings: AppSettings = {
   cloudBackupEnabled: false,
   lastCloudBackupAt: null,
   lastCloudBackupFileName: null,
+  shortcuts: {
+    saveNote: "Ctrl+S",
+    newNote: "Ctrl+Alt+N",
+    renameNote: "Ctrl+R",
+    moveNote: "Ctrl+M",
+    deleteNote: "Ctrl+Shift+D",
+    toggleBold: "Ctrl+B",
+    toggleItalic: "Ctrl+I",
+    toggleUnderline: "Ctrl+U",
+    toggleStrike: "Ctrl+Shift+S",
+    toggleCode: "Ctrl+E",
+    toggleCodeBlock: "Ctrl+Alt+C",
+    toggleBulletList: "Ctrl+Shift+8",
+    toggleNumberedList: "Ctrl+Shift+9",
+    toggleBlockquote: "Ctrl+Shift+Q",
+    clearFormatting: "Ctrl+Alt+R",
+  },
 };
 
 export function isLightLikeTheme(theme: AppTheme): boolean {
@@ -99,6 +117,19 @@ function isOneOf<T extends string>(
   values: readonly T[],
 ): value is T {
   return typeof value === "string" && values.includes(value as T);
+}
+
+function normalizeShortcuts(value: unknown): Record<string, string> {
+  const result: Record<string, string> = { ...defaultAppSettings.shortcuts };
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of Object.keys(result)) {
+      if (typeof obj[key] === "string") {
+        result[key] = obj[key] as string;
+      }
+    }
+  }
+  return result;
 }
 
 export function normalizeAppSettings(value: unknown): AppSettings {
@@ -165,5 +196,10 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       typeof candidate.lastCloudBackupFileName === "string" || candidate.lastCloudBackupFileName === null
         ? candidate.lastCloudBackupFileName
         : defaultAppSettings.lastCloudBackupFileName,
+    shortcuts:
+      candidate.shortcuts && typeof candidate.shortcuts === "object"
+        ? normalizeShortcuts(candidate.shortcuts)
+        : defaultAppSettings.shortcuts,
   };
 }
+

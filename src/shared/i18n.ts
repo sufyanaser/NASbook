@@ -87,6 +87,19 @@ export type TranslationKeys =
   | "settingsNotesTab"
   | "settingsDataTab"
   | "settingsAboutTab"
+  | "settingsShortcutsTab"
+  // Keyboard Shortcuts settings
+  | "settingsShortcutsHeader"
+  | "settingsShortcutsSub"
+  | "shortcutConflictTitle"
+  | "shortcutConflictMessage"
+  | "shortcutConflictReplace"
+  | "shortcutConflictCancel"
+  | "shortcutPressPrompt"
+  | "shortcutEditBtn"
+  | "shortcutClearBtn"
+  | "shortcutCategoryEditor"
+  | "shortcutCategoryApp"
   // Appearance settings
   | "settingsAppearanceHeader"
   | "settingsAppearanceSub"
@@ -265,6 +278,18 @@ const ar: Record<TranslationKeys, string> = {
   settingsNotesTab: "الملاحظات",
   settingsDataTab: "البيانات",
   settingsAboutTab: "حول التطبيق",
+  settingsShortcutsTab: "الاختصارات",
+  settingsShortcutsHeader: "اختصارات لوحة المفاتيح",
+  settingsShortcutsSub: "تخصيص اختصارات لوحة المفاتيح لإجراءات التطبيق وتنسيق المحرر.",
+  shortcutConflictTitle: "تعارض في الاختصار",
+  shortcutConflictMessage: "الاختصار '{shortcut}' مخصص بالفعل للإجراء '{command}'. هل تريد استبداله وتخصيصه للإجراء الجديد؟",
+  shortcutConflictReplace: "استبدال",
+  shortcutConflictCancel: "إلغاء",
+  shortcutPressPrompt: "اضغط على المفاتيح...",
+  shortcutEditBtn: "تعديل",
+  shortcutClearBtn: "مسح",
+  shortcutCategoryEditor: "تنسيق المحرر",
+  shortcutCategoryApp: "إجراءات التطبيق",
   settingsAppearanceHeader: "المظهر",
   settingsAppearanceSub: "التحكم في واجهة التطبيق وعرض الشريط الجانبي.",
   settingsRowTheme: "السمة",
@@ -435,6 +460,18 @@ const en: Record<TranslationKeys, string> = {
   settingsNotesTab: "Notes",
   settingsDataTab: "Data",
   settingsAboutTab: "About",
+  settingsShortcutsTab: "Shortcuts",
+  settingsShortcutsHeader: "Keyboard Shortcuts",
+  settingsShortcutsSub: "Customize keyboard shortcuts for editor formatting and app operations.",
+  shortcutConflictTitle: "Shortcut Conflict",
+  shortcutConflictMessage: "The shortcut '{shortcut}' is already assigned to '{command}'. Do you want to replace it?",
+  shortcutConflictReplace: "Replace",
+  shortcutConflictCancel: "Cancel",
+  shortcutPressPrompt: "Press keys...",
+  shortcutEditBtn: "Edit",
+  shortcutClearBtn: "Clear",
+  shortcutCategoryEditor: "Editor Formatting",
+  shortcutCategoryApp: "App Operations",
   settingsAppearanceHeader: "Appearance",
   settingsAppearanceSub: "Control the app surface and navigation rail presentation.",
   settingsRowTheme: "Theme",

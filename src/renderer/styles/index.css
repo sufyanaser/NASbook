@@ -3640,3 +3640,79 @@ textarea,
   opacity: 0.85;
 }
 
+/* Keyboard Shortcuts Settings */
+.shortcut-kbd-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.shortcut-kbd-list kbd {
+  background: var(--app-surface-raised);
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-text-strong);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+  text-transform: capitalize;
+}
+
+.shortcut-kbd-none {
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.shortcut-action-button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-raised);
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.shortcut-action-button:hover:not(:disabled) {
+  border-color: var(--app-border-strong);
+  color: var(--app-text-strong);
+}
+
+.shortcut-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.shortcut-action-button.danger {
+  color: var(--app-error, #ef4444);
+}
+
+.shortcut-action-button.danger:hover:not(:disabled) {
+  border-color: var(--app-error, #ef4444);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.shortcut-capture-input {
+  width: 180px;
+  height: 32px;
+  border: 1px solid var(--app-focus);
+  border-radius: 6px;
+  background: var(--app-surface-raised);
+  color: var(--app-text-strong);
+  padding: 0 8px;
+  font-size: 12px;
+  text-align: center;
+  font-family: monospace;
+}
+
+.shortcut-capture-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

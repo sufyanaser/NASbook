@@ -16,6 +16,12 @@ interface NotesListColumnProps {
   readonly language: AppLanguage;
   readonly categories: readonly CategoryRecord[];
   readonly canExportNote: boolean;
+  readonly renamingNoteId: number | null;
+  readonly setRenamingNoteId: (id: number | null) => void;
+  readonly renameValue: string;
+  readonly setRenameValue: (val: string) => void;
+  readonly movePopoverNoteId: number | null;
+  readonly setMovePopoverNoteId: (id: number | null) => void;
   readonly onCreateNote: () => void;
   readonly onSelectNote: (id: number) => void;
   readonly onDeleteNote: (id: number) => void;
@@ -98,6 +104,12 @@ export function NotesListColumn({
   language,
   categories,
   canExportNote,
+  renamingNoteId,
+  setRenamingNoteId,
+  renameValue,
+  setRenameValue,
+  movePopoverNoteId,
+  setMovePopoverNoteId,
   onCreateNote,
   onSelectNote,
   onDeleteNote,
@@ -110,9 +122,6 @@ export function NotesListColumn({
   const createTooltip = canCreate ? t("newNote", language) : t("cannotCreateInTrash", language);
   const isArabic = language === "ar";
 
-  const [renamingNoteId, setRenamingNoteId] = useState<number | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [movePopoverNoteId, setMovePopoverNoteId] = useState<number | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
