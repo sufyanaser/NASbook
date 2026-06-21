@@ -147,26 +147,40 @@ export function NavigationRail({
   onThemeChange,
 }: NavigationRailProps): JSX.Element {
   const [isThemeOpen, setIsThemeOpen] = useState(false);
-  const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const themeMenuRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const [coords, setCoords] = useState<{ bottom: number; left?: number; right?: number }>({ bottom: 24, left: 66 });
 
   useLayoutEffect(() => {
-    if (isThemeOpen && themeMenuRef.current) {
-      const rect = themeMenuRef.current.getBoundingClientRect();
-      if (language === "ar") {
-        setCoords({
-          top: rect.top,
-          left: rect.left - 6,
-        });
-      } else {
-        setCoords({
-          top: rect.top,
-          left: rect.right + 6,
-        });
+    if (!isThemeOpen) return;
+
+    const updateCoords = () => {
+      if (themeMenuRef.current) {
+        const rect = themeMenuRef.current.getBoundingClientRect();
+        const bottomVal = window.innerHeight - rect.bottom;
+        if (language === "ar") {
+          setCoords({
+            bottom: bottomVal,
+            right: window.innerWidth - rect.left + 6,
+          });
+        } else {
+          setCoords({
+            bottom: bottomVal,
+            left: rect.right + 6,
+          });
+        }
       }
-    }
-  }, [isThemeOpen, language]);
+    };
+
+    updateCoords();
+
+    window.addEventListener("resize", updateCoords);
+    window.addEventListener("scroll", updateCoords, true);
+    return () => {
+      window.removeEventListener("resize", updateCoords);
+      window.removeEventListener("scroll", updateCoords, true);
+    };
+  }, [isThemeOpen, language, expanded]);
 
   useEffect(() => {
     if (!isThemeOpen) return;
@@ -272,8 +286,9 @@ export function NavigationRail({
             </button>
           );
         })}
-        <div className="rail-theme-control" ref={themeMenuRef}>
+        <div className="rail-theme-control">
           <button
+            ref={themeMenuRef}
             aria-label={language === "ar" ? "السمات" : "Themes"}
             className="rail-button"
             data-active={isThemeOpen}
@@ -297,44 +312,49 @@ export function NavigationRail({
               dir={language === "ar" ? "rtl" : "ltr"}
               style={{
                 position: "fixed",
-                top: `${coords.top}px`,
-                left: `${coords.left}px`,
-                transform: language === "ar" ? "translateX(-100%)" : "none",
+                bottom: `${coords.bottom}px`,
+                left: coords.left !== undefined ? `${coords.left}px` : undefined,
+                right: coords.right !== undefined ? `${coords.right}px` : undefined,
                 zIndex: "var(--z-popover, 2000)",
               }}
             >
-              {themesList.map((tItem) => {
-                const isSelected = tItem.value === theme;
-                return (
-                  <button
-                    key={tItem.value}
-                    className="rail-theme-item"
-                    role="menuitem"
-                    data-active={isSelected ? "true" : "false"}
-                    onClick={() => {
-                      onThemeChange(tItem.value);
-                      setIsThemeOpen(false);
-                    }}
-                    type="button"
-                  >
-                    <div className="theme-item-left">
-                      <span className="theme-item-name">
-                        {language === "ar" ? tItem.labelAr : tItem.labelEn}
-                      </span>
-                      <div className="theme-item-swatches">
-                        {tItem.colors.map((c, idx) => (
-                          <span
-                            key={idx}
-                            className="theme-item-swatch"
-                            style={{ backgroundColor: c }}
-                          />
-                        ))}
+              <h3 className="rail-theme-popover-title">
+                {language === "ar" ? "السمات" : "Themes"}
+              </h3>
+              <div className="rail-theme-list">
+                {themesList.map((tItem) => {
+                  const isSelected = tItem.value === theme;
+                  return (
+                    <button
+                      key={tItem.value}
+                      className="rail-theme-item"
+                      role="menuitem"
+                      data-active={isSelected ? "true" : "false"}
+                      onClick={() => {
+                        onThemeChange(tItem.value);
+                        setIsThemeOpen(false);
+                      }}
+                      type="button"
+                    >
+                      <div className="theme-item-left">
+                        <span className="theme-item-name">
+                          {language === "ar" ? tItem.labelAr : tItem.labelEn}
+                        </span>
+                        <div className="theme-item-swatches">
+                          {tItem.colors.map((c, idx) => (
+                            <span
+                              key={idx}
+                              className="theme-item-swatch"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    {isSelected && <span className="theme-item-checkmark">✓</span>}
-                  </button>
-                );
-              })}
+                      {isSelected && <span className="theme-item-checkmark">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>,
             document.body
           )}

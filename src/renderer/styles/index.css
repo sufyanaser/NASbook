@@ -3169,19 +3169,36 @@ body.is-resizing-notes-pane .notes-split-divider {
 }
 
 .rail-theme-popover {
-  position: absolute;
-  bottom: 0;
-  inset-inline-start: calc(100% + 8px);
-  z-index: 100;
-  min-width: 220px;
-  padding: 6px;
-  border: 1px solid var(--app-border-strong);
-  border-radius: 12px;
-  background: var(--app-surface);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  position: fixed;
+  z-index: var(--z-popover, 2000) !important;
+  min-width: 250px;
+  padding: 16px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 16px;
+  background: var(--app-glass-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-glass-shadow);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 12px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.rail-theme-popover-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--app-text-strong);
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--app-glass-border);
+}
+
+.rail-theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .rail-theme-item {
@@ -3189,46 +3206,49 @@ body.is-resizing-notes-pane .notes-split-divider {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
+  padding: 10px 12px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 10px;
+  background: var(--app-surface-raised);
   color: var(--app-text);
   font-size: 13px;
+  font-weight: 500;
   text-align: start;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: all 0.15s ease-in-out;
 }
 
 .rail-theme-item:hover {
   background: var(--rail-button-active-bg);
-  color: var(--app-text-strong);
+  border-color: var(--app-border-strong);
+  transform: translateY(-1px);
 }
 
 .rail-theme-item[data-active="true"] {
-  background: var(--rail-button-active-bg);
-  font-weight: 600;
+  background: var(--app-active-pill);
+  border-color: var(--app-accent);
   color: var(--app-text-strong);
 }
 
 .theme-item-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .theme-item-name {
-  min-width: 90px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .theme-item-swatches {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 
 .theme-item-swatch {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
@@ -3239,8 +3259,9 @@ body.is-resizing-notes-pane .notes-split-divider {
 }
 
 .theme-item-checkmark {
-  font-weight: bold;
   color: var(--app-accent);
+  font-weight: 700;
+  font-size: 14px;
 }
 
 /* Phase 7 / 23.1: Customize Toolbar (Arrange) Styles — compact dark-glass panel */
@@ -3353,104 +3374,7 @@ body.is-resizing-notes-pane .notes-split-divider {
   color: var(--app-text-strong);
 }
 
-/* Phase 23.1 hotfix: physical top-left slot for the theme dropdown.
-   Intentionally uses `left` (physical), not inset-inline-start. */
-.editor-theme-slot {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  z-index: 6;
-}
 
-/* Phase 23.1: compact editor-header theme dropdown */
-.editor-theme-control {
-  position: relative;
-}
-
-.editor-theme-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--app-text);
-  background: var(--app-surface-raised);
-  border: 1px solid var(--app-border-strong);
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.editor-theme-trigger:hover,
-.editor-theme-trigger[data-active="true"] {
-  border-color: var(--app-accent);
-}
-
-.editor-theme-caret {
-  font-size: 10px;
-  color: var(--app-text-muted);
-}
-
-.editor-theme-popover {
-  z-index: var(--z-popover);
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  border: 1px solid var(--app-glass-border);
-  border-radius: 10px;
-  background: var(--app-glass-bg);
-  backdrop-filter: blur(var(--app-glass-blur));
-  -webkit-backdrop-filter: blur(var(--app-glass-blur));
-  box-shadow: var(--app-glass-shadow);
-}
-
-.editor-theme-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  font-size: 13px;
-  color: var(--app-text);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: start;
-}
-
-.editor-theme-item:hover,
-.editor-theme-item[data-selected="true"] {
-  background: var(--rail-button-active-bg);
-}
-
-.editor-theme-swatches {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.editor-theme-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  margin-inline-start: -3px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-}
-
-.editor-theme-swatch:first-child {
-  margin-inline-start: 0;
-}
-
-.editor-theme-item-name {
-  flex: 1;
-}
-
-.editor-theme-check {
-  color: var(--app-accent);
-  font-weight: 700;
-}
 
 /* Typography Normalization and Consistency Overrides */
 html,

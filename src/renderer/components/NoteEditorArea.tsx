@@ -305,15 +305,7 @@ const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   table: true,
 };
 
-// Compact theme selector for the editor header (reuses existing AppTheme settings).
-const EDITOR_THEMES: readonly { value: AppTheme; labelEn: string; labelAr: string; colors: readonly string[] }[] = [
-  { value: "light", labelEn: "Light", labelAr: "فاتح", colors: ["#f5f5f4", "#ffffff", "#4f46e5"] },
-  { value: "dark", labelEn: "Dark", labelAr: "داكن", colors: ["#0c0a09", "#1c1917", "#6366f1"] },
-  { value: "graphite", labelEn: "Graphite", labelAr: "غرافيت", colors: ["#101214", "#1b1f23", "#3b82f6"] },
-  { value: "material-dark", labelEn: "Material Dark", labelAr: "ماتيريال داكن", colors: ["#121212", "#1e1e1e", "#b39ddb"] },
-  { value: "ulysses", labelEn: "Ulysses", labelAr: "يوليسيس", colors: ["#f8f5ee", "#fffdf7", "#d84b20"] },
-  { value: "one-dark", labelEn: "One Dark", labelAr: "ون دارك", colors: ["#1e2127", "#282c34", "#61afef"] },
-];
+
 
 // Grouping for the toolbar-customization popover (Text / Blocks / Insert / Advanced).
 const TOOL_GROUPS: readonly { id: string; labelEn: string; labelAr: string; tools: readonly string[] }[] = [
@@ -914,14 +906,12 @@ export function NoteEditorArea({
   saveStatus,
   selectedNote,
   showMetadata,
-  theme,
   language,
   onContentChange,
   onDeletePermanent,
   onDeleteToTrash,
   onRestore,
   onSave,
-  onThemeChange,
   onTitleChange,
   onExportNote,
 }: NoteEditorAreaProps): JSX.Element {
@@ -958,10 +948,7 @@ export function NoteEditorArea({
   const [isDividerMenuOpen, setIsDividerMenuOpen] = useState(false);
   const dividerControlRef = useRef<HTMLDivElement | null>(null);
 
-  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const themePopoverRef = useRef<HTMLDivElement | null>(null);
-  const themeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [themePos, setThemePos] = useState<{ top: number; left: number } | null>(null);
+
 
   // Visibility changes apply immediately and persist (no "Done" step).
   const persistVisibleTools = (next: Record<string, boolean>) => {
@@ -1008,34 +995,7 @@ export function NoteEditorArea({
     };
   }, [isArrangeOpen]);
 
-  useEffect(() => {
-    if (!isThemeMenuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        themePopoverRef.current &&
-        !themePopoverRef.current.contains(target) &&
-        themeButtonRef.current &&
-        !themeButtonRef.current.contains(target)
-      ) {
-        setIsThemeMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsThemeMenuOpen(false);
-    };
-    const close = () => setIsThemeMenuOpen(false);
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [isThemeMenuOpen]);
+
 
   useEffect(() => {
     if (!isDividerMenuOpen) return;
@@ -1350,11 +1310,7 @@ export function NoteEditorArea({
       editor.getHTML() === "<p><br></p>" ||
       editor.getHTML() === "<p><br class=\"ProseMirror-trailingBreak\"></p>"
     : true;
-  const activeThemeLabel = (() => {
-    const found = EDITOR_THEMES.find((th) => th.value === theme);
-    if (!found) return language === "ar" ? "السمة" : "Theme";
-    return language === "ar" ? found.labelAr : found.labelEn;
-  })();
+
 
   // Dropdown option maps
   const fontFamilies = [
@@ -1932,61 +1888,7 @@ export function NoteEditorArea({
       data-editor-font-size={fontSize}
       dir={language === "ar" ? "rtl" : "ltr"}
     >
-      {/* Physical top-left slot — intentionally uses left (not inset-inline). */}
-      <div className="editor-theme-slot">
-        <div className="editor-theme-control">
-          <button
-            ref={themeButtonRef}
-            aria-label={language === "ar" ? "السمات" : "Themes"}
-            className="editor-theme-trigger"
-            data-active={isThemeMenuOpen ? "true" : "false"}
-            data-tooltip={t("tooltipTheme", language)}
-            type="button"
-            onClick={() => {
-              if (!isThemeMenuOpen && themeButtonRef.current) {
-                const r = themeButtonRef.current.getBoundingClientRect();
-                setThemePos({ top: r.bottom + 6, left: r.left });
-              }
-              setIsThemeMenuOpen(!isThemeMenuOpen);
-            }}
-          >
-            <span className="editor-theme-name">{activeThemeLabel}</span>
-            <span className="editor-theme-caret" aria-hidden="true">▾</span>
-          </button>
-          {isThemeMenuOpen && themePos && createPortal(
-            <div
-              ref={themePopoverRef}
-              className="editor-theme-popover"
-              dir={language === "ar" ? "rtl" : "ltr"}
-              style={{ position: "fixed", top: themePos.top, left: themePos.left }}
-            >
-              {EDITOR_THEMES.map((th) => (
-                <button
-                  key={th.value}
-                  type="button"
-                  className="editor-theme-item"
-                  data-selected={th.value === theme ? "true" : "false"}
-                  onClick={() => {
-                    onThemeChange(th.value);
-                    setIsThemeMenuOpen(false);
-                  }}
-                >
-                  <span className="editor-theme-swatches" aria-hidden="true">
-                    {th.colors.map((c, i) => (
-                      <span key={i} className="editor-theme-swatch" style={{ background: c }} />
-                    ))}
-                  </span>
-                  <span className="editor-theme-item-name">
-                    {language === "ar" ? th.labelAr : th.labelEn}
-                  </span>
-                  {th.value === theme && <span className="editor-theme-check">✓</span>}
-                </button>
-              ))}
-            </div>,
-            document.body
-          )}
-        </div>
-      </div>
+
       <header className="editor-header">
         <div style={{ flex: 1 }}>
           <span className="editor-eyebrow">{activeCategoryName}</span>
