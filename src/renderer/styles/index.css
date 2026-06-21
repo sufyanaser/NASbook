@@ -1895,6 +1895,7 @@ body.is-resizing-notes-pane .notes-split-divider {
 }
 
 .font-family-dropdown,
+.font-weight-dropdown,
 .font-size-dropdown,
 .text-type-dropdown,
 .code-direction-dropdown,
@@ -1907,6 +1908,7 @@ body.is-resizing-notes-pane .notes-split-divider {
 }
 
 .font-family-dropdown .custom-dropdown-trigger,
+.font-weight-dropdown .custom-dropdown-trigger,
 .font-size-dropdown .custom-dropdown-trigger,
 .text-type-dropdown .custom-dropdown-trigger,
 .code-direction-dropdown .custom-dropdown-trigger,
@@ -1924,17 +1926,11 @@ body.is-resizing-notes-pane .notes-split-divider {
   gap: 2px !important;
 }
 
-/* Font Family shows real font names, so it needs more room than the
-   short-label dropdowns above. */
-.font-family-dropdown {
-  width: 140px;
-}
-
-.font-family-dropdown .custom-dropdown-trigger {
-  width: 140px !important;
-  padding: 0 8px 0 10px !important;
-  justify-content: space-between !important;
-  gap: 6px !important;
+.dropdown-trigger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--toolbar-button-text);
 }
 
 .dropdown-label-text {

@@ -17,6 +17,7 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
+import { FontWeight } from "../extensions/FontWeight";
 import { BackgroundColor } from "../extensions/BackgroundColor";
 import { LineHeight } from "../extensions/LineHeight";
 import { TextDirection } from "../extensions/TextDirection";
@@ -527,7 +528,29 @@ function formatDateTime(value: string): string {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-// Custom Dropdown Component
+function FontFamilyIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ width: 14, height: 14 }}>
+      <polyline points="4 7 4 4 20 4 20 7" />
+      <line x1="9" y1="20" x2="15" y2="20" />
+      <line x1="12" y1="4" x2="12" y2="20" />
+    </svg>
+  );
+}
+
+function getFontWeightShortLabel(value: string, lang: AppLanguage): string {
+  switch (value) {
+    case "100": return "100";
+    case "200": return "200";
+    case "300": return "300";
+    case "400": return lang === "ar" ? "عادي" : "R";
+    case "500": return lang === "ar" ? "متوسط" : "M";
+    case "600": return "600";
+    case "700": return lang === "ar" ? "عريض" : "B";
+    default: return value;
+  }
+}
+
 function Dropdown<T extends string>({
   options,
   value,
@@ -536,6 +559,8 @@ function Dropdown<T extends string>({
   tooltip,
   label,
   className,
+  icon,
+  renderOption,
 }: {
   readonly options: { readonly value: T; readonly label: string }[];
   readonly value: T;
@@ -544,6 +569,8 @@ function Dropdown<T extends string>({
   readonly tooltip?: string;
   readonly label: string;
   readonly className?: string;
+  readonly icon?: React.ReactNode;
+  readonly renderOption?: (option: { readonly value: T; readonly label: string }) => React.ReactNode;
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -579,7 +606,11 @@ function Dropdown<T extends string>({
         onClick={() => setIsOpen(!isOpen)}
         type="button"
       >
-        <span className="dropdown-label-text">{label}</span>
+        {icon ? (
+          <span className="dropdown-trigger-icon">{icon}</span>
+        ) : (
+          <span className="dropdown-label-text">{label}</span>
+        )}
         <svg viewBox="0 0 24 24" className="dropdown-arrow-icon" aria-hidden="true">
           <path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -598,7 +629,7 @@ function Dropdown<T extends string>({
               role="option"
               aria-selected={option.value === value}
             >
-              {option.label}
+              {renderOption ? renderOption(option) : option.label}
             </li>
           ))}
         </ul>
@@ -1051,6 +1082,7 @@ export function NoteEditorArea({
       Color,
       FontFamily,
       FontSize,
+      FontWeight,
       BackgroundColor,
       LineHeight,
       TextDirection,
@@ -1174,6 +1206,7 @@ export function NoteEditorArea({
             .unsetAllMarks()
             .unsetColor()
             .unsetFontFamily()
+            .unsetFontWeight()
             .unsetFontSize()
             .unsetLink()
             .run();
@@ -1322,6 +1355,16 @@ export function NoteEditorArea({
     { value: "Consolas", label: "Consolas" },
   ];
 
+  const fontWeights = [
+    { value: "100", label: language === "ar" ? "رفيع" : "Thin" },
+    { value: "200", label: language === "ar" ? "خفيف جداً" : "Extra Light" },
+    { value: "300", label: language === "ar" ? "خفيف" : "Light" },
+    { value: "400", label: language === "ar" ? "عادي" : "Regular" },
+    { value: "500", label: language === "ar" ? "متوسط" : "Medium" },
+    { value: "600", label: language === "ar" ? "شبه عريض" : "Semi Bold" },
+    { value: "700", label: language === "ar" ? "عريض" : "Bold" },
+  ];
+
   const fontSizes = [
     { value: "Default", label: language === "ar" ? "الافتراضي" : "Default" },
     { value: "13px", label: "13px" },
@@ -1356,6 +1399,10 @@ export function NoteEditorArea({
 
   const activeFontFamilyLabel =
     fontFamilies.find((font) => font.value === activeFontFamily)?.label || activeFontFamily;
+
+  const activeFontWeight = editor
+    ? editor.getAttributes("textStyle").fontWeight || (editor.isActive("bold") ? "700" : "400")
+    : "400";
 
   const activeFontSize = editor
     ? editor.getAttributes("textStyle").fontSize || "Default"
@@ -1688,7 +1735,7 @@ export function NoteEditorArea({
         kind: "item",
         id: "clearFormatting",
         label: isAr ? "مسح التنسيق" : "Clear formatting",
-        onSelect: () => editor.chain().focus().clearNodes().unsetAllMarks().unsetColor().unsetFontFamily().unsetFontSize().unsetLink().run(),
+        onSelect: () => editor.chain().focus().clearNodes().unsetAllMarks().unsetColor().unsetFontFamily().unsetFontWeight().unsetFontSize().unsetLink().run(),
       },
     ];
 
@@ -2126,21 +2173,48 @@ export function NoteEditorArea({
                 <div className="toolbar-divider" />
                 <div className="toolbar-group font-and-type-actions">
                   {visibleTools.fontFamily !== false && (
-                    <Dropdown
-                      label={activeFontFamilyLabel}
-                      value={activeFontFamily}
-                      options={fontFamilies}
-                      disabled={!hasSelectedNote || isTrashView}
-                      tooltip={`${t("tooltipFontFamily", language)}: ${language === "ar" && activeFontFamily === "System" ? "نظام" : activeFontFamily}`}
-                      className="font-family-dropdown"
-                      onChange={(val) => {
-                        if (val === "System") {
-                          editor.chain().focus().unsetFontFamily().run();
-                        } else {
-                          editor.chain().focus().setFontFamily(val).run();
-                        }
-                      }}
-                    />
+                    <>
+                      <Dropdown
+                        label={activeFontFamilyLabel}
+                        value={activeFontFamily}
+                        options={fontFamilies}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${t("tooltipFontFamily", language)}: ${language === "ar" && activeFontFamily === "System" ? "نظام" : activeFontFamily}`}
+                        className="font-family-dropdown"
+                        icon={<FontFamilyIcon />}
+                        renderOption={(option) => {
+                          const fontStyle = option.value === "System" ? {} : { fontFamily: option.value };
+                          return <span style={fontStyle}>{option.label}</span>;
+                        }}
+                        onChange={(val) => {
+                          if (val === "System") {
+                            editor.chain().focus().unsetFontFamily().run();
+                          } else {
+                            editor.chain().focus().setFontFamily(val).run();
+                          }
+                        }}
+                      />
+                      <Dropdown
+                        label={getFontWeightShortLabel(activeFontWeight, language)}
+                        value={activeFontWeight}
+                        options={fontWeights}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${language === "ar" ? "وزن الخط" : "Font Weight"}: ${
+                          fontWeights.find((w) => w.value === activeFontWeight)?.label || activeFontWeight
+                        }`}
+                        className="font-weight-dropdown"
+                        renderOption={(option) => (
+                          <span style={{ fontWeight: option.value }}>{option.label}</span>
+                        )}
+                        onChange={(val) => {
+                          if (val === "400") {
+                            editor.chain().focus().unsetFontWeight().run();
+                          } else {
+                            editor.chain().focus().setFontWeight(val).run();
+                          }
+                        }}
+                      />
+                    </>
                   )}
                   {visibleTools.fontSize !== false && (
                     <Dropdown
@@ -2715,6 +2789,7 @@ export function NoteEditorArea({
                         .unsetAllMarks()
                         .unsetColor()
                         .unsetFontFamily()
+                        .unsetFontWeight()
                         .unsetFontSize()
                         .unsetLink()
                         .run();
