@@ -17,6 +17,8 @@ import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
 import { LineHeight } from "../extensions/LineHeight";
+import { TextDirection } from "../extensions/TextDirection";
+import { Indent } from "../extensions/Indent";
 import { LinkDialog } from "./LinkDialog";
 import { EditorContextMenu } from "./EditorContextMenu";
 import type { MenuNode } from "./EditorContextMenu";
@@ -72,6 +74,10 @@ type ToolbarIcon =
   | "table"
   | "undo"
   | "redo"
+  | "indentIncrease"
+  | "indentDecrease"
+  | "dirRtl"
+  | "dirLtr"
   | "save"
   | "trash"
   | "restore"
@@ -145,6 +151,30 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
       )}
       {icon === "alignRight" && (
         <path d="M21 6H7M21 12H3M21 18H7" {...strokeProps} />
+      )}
+      {icon === "indentIncrease" && (
+        <>
+          <path d="M21 6H10M21 12H10M21 18H10M21 9v6" {...strokeProps} />
+          <path d="m3 9 3 3-3 3" {...strokeProps} />
+        </>
+      )}
+      {icon === "indentDecrease" && (
+        <>
+          <path d="M21 6H10M21 12H10M21 18H10M21 9v6" {...strokeProps} />
+          <path d="m6 9-3 3 3 3" {...strokeProps} />
+        </>
+      )}
+      {icon === "dirRtl" && (
+        <>
+          <path d="M21 5H6M21 12H6M21 19h-8" {...strokeProps} />
+          <path d="m8 8-4 4 4 4" {...strokeProps} />
+        </>
+      )}
+      {icon === "dirLtr" && (
+        <>
+          <path d="M3 5h15M3 12h15M3 19h8" {...strokeProps} />
+          <path d="m16 8 4 4-4 4" {...strokeProps} />
+        </>
       )}
       {icon === "bullets" && (
         <>
@@ -222,6 +252,10 @@ const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   alignLeft: true,
   alignCenter: true,
   alignRight: true,
+  dirRtl: true,
+  dirLtr: true,
+  outdent: true,
+  indent: true,
   clear: true,
   horizontalRule: true,
   table: true,
@@ -240,7 +274,7 @@ const EDITOR_THEMES: readonly { value: AppTheme; labelEn: string; labelAr: strin
 // Grouping for the toolbar-customization popover (Text / Blocks / Insert / Advanced).
 const TOOL_GROUPS: readonly { id: string; labelEn: string; labelAr: string; tools: readonly string[] }[] = [
   { id: "text", labelEn: "Text", labelAr: "النص", tools: ["fontFamily", "fontSize", "heading", "lineHeight", "bold", "italic", "underline", "textColor"] },
-  { id: "blocks", labelEn: "Blocks", labelAr: "الكتل", tools: ["bullets", "numbered", "alignLeft", "alignCenter", "alignRight", "codeBlock", "clear"] },
+  { id: "blocks", labelEn: "Blocks", labelAr: "الكتل", tools: ["bullets", "numbered", "alignLeft", "alignCenter", "alignRight", "dirRtl", "dirLtr", "outdent", "indent", "codeBlock", "clear"] },
   { id: "insert", labelEn: "Insert", labelAr: "إدراج", tools: ["link", "horizontalRule", "table"] },
   { id: "advanced", labelEn: "Advanced", labelAr: "متقدم", tools: ["undo", "redo"] },
 ];
@@ -263,6 +297,10 @@ function toolLabel(toolId: string, language: AppLanguage): string {
     case "alignLeft": return ar ? "محاذاة لليسار" : "Align Left";
     case "alignCenter": return ar ? "محاذاة للوسط" : "Align Center";
     case "alignRight": return ar ? "محاذاة لليمين" : "Align Right";
+    case "dirRtl": return ar ? "اتجاه من اليمين لليسار" : "Right-to-left";
+    case "dirLtr": return ar ? "اتجاه من اليسار لليمين" : "Left-to-right";
+    case "indent": return ar ? "زيادة الإزاحة" : "Increase Indent";
+    case "outdent": return ar ? "تقليل الإزاحة" : "Decrease Indent";
     case "clear": return ar ? "مسح التنسيق" : "Clear Formatting";
     case "horizontalRule": return ar ? "خط فاصل" : "Divider";
     case "table": return ar ? "جدول" : "Table";
@@ -880,6 +918,8 @@ export function NoteEditorArea({
       FontFamily,
       FontSize,
       LineHeight,
+      TextDirection,
+      Indent,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -1051,6 +1091,13 @@ export function NoteEditorArea({
 
   const activeTextColor = editor
     ? editor.getAttributes("textStyle").color || null
+    : null;
+
+  const activeBlockDir: string | null = editor
+    ? editor.getAttributes("paragraph").dir ||
+      editor.getAttributes("heading").dir ||
+      (editor.isActive("codeBlock") ? editor.getAttributes("codeBlock").dir : null) ||
+      null
     : null;
 
   const activeCodeBlockBoxColor = editor && editor.isActive("codeBlock")
@@ -2094,6 +2141,80 @@ export function NoteEditorArea({
                       data-tooltip={t("tooltipAlignRight", language)}
                     >
                       <ToolbarIconSvg icon="alignRight" />
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {(visibleTools.dirRtl !== false || visibleTools.dirLtr !== false || visibleTools.outdent !== false || visibleTools.indent !== false) && (
+              <>
+                <div className="toolbar-divider" />
+                <div className="toolbar-group direction-actions">
+                  {visibleTools.dirRtl !== false && (
+                    <button
+                      aria-label="Right to left"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().setBlockDirection("rtl").run();
+                      }}
+                      data-active={activeBlockDir === "rtl" ? "true" : "false"}
+                      data-tooltip={language === "ar" ? "اتجاه من اليمين لليسار" : "Right-to-left"}
+                    >
+                      <ToolbarIconSvg icon="dirRtl" />
+                    </button>
+                  )}
+                  {visibleTools.dirLtr !== false && (
+                    <button
+                      aria-label="Left to right"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().setBlockDirection("ltr").run();
+                      }}
+                      data-active={activeBlockDir === "ltr" ? "true" : "false"}
+                      data-tooltip={language === "ar" ? "اتجاه من اليسار لليمين" : "Left-to-right"}
+                    >
+                      <ToolbarIconSvg icon="dirLtr" />
+                    </button>
+                  )}
+                  {visibleTools.outdent !== false && (
+                    <button
+                      aria-label="Decrease indent"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().outdent().run();
+                      }}
+                      data-tooltip={language === "ar" ? "تقليل الإزاحة" : "Decrease indent"}
+                    >
+                      <ToolbarIconSvg icon="indentDecrease" />
+                    </button>
+                  )}
+                  {visibleTools.indent !== false && (
+                    <button
+                      aria-label="Increase indent"
+                      className="toolbar-icon-button"
+                      type="button"
+                      disabled={!hasSelectedNote || isTrashView}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        editor.chain().focus().indent().run();
+                      }}
+                      data-tooltip={language === "ar" ? "زيادة الإزاحة" : "Increase indent"}
+                    >
+                      <ToolbarIconSvg icon="indentIncrease" />
                     </button>
                   )}
                 </div>

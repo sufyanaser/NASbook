@@ -2168,6 +2168,15 @@ body.is-resizing-notes-pane .notes-split-divider {
   line-height: 1.9;
 }
 
+/* Phase 26: per-block direction. The dir attribute sets the base direction so
+   mixed Arabic/English orders correctly; isolate keeps each block's bidi from
+   leaking into siblings. Indentation uses inline margin-inline-start (logical),
+   so it grows on the correct side for each block's direction automatically. */
+.note-editor-content-wrapper .ProseMirror [dir="rtl"],
+.note-editor-content-wrapper .ProseMirror [dir="ltr"] {
+  unicode-bidi: isolate;
+}
+
 .note-editor-content-wrapper .ProseMirror h1 {
   margin: 28px 0 18px;
   font-size: 34px;
