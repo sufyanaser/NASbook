@@ -440,6 +440,52 @@ pre {
   display: none !important;
 }
 
+/* Notes list collapse: keep the nav rail, give the column + divider to the
+   editor. Selected note/category state is untouched (layout-only). */
+.app-shell[data-notes-collapsed="true"] {
+  grid-template-columns: var(--nav-rail-width) 0px 0px minmax(0, 1fr);
+}
+
+.app-shell[data-notes-collapsed="true"] .notes-list-column,
+.app-shell[data-notes-collapsed="true"] .notes-split-divider {
+  display: none !important;
+}
+
+/* Anchor to the `divider` grid area so the containing block is the notes/editor
+   row (NOT the full shell — that pushed it toward the footer). top/left:50%
+   then centers the toggle on the notes-pane / editor boundary, straddling the
+   divider. Collapsing makes the divider column 0px at the collapsed edge, so
+   the toggle follows it automatically. Works in RTL and LTR (cell midpoint). */
+.notes-pane-toggle {
+  grid-area: divider;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 43;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 38px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 8px;
+  background: var(--app-card-bg);
+  color: var(--app-text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.notes-pane-toggle:hover {
+  background: var(--app-surface-raised);
+  color: var(--app-text-strong);
+  border-color: var(--app-border-strong);
+}
+
+.notes-pane-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* Draggable Resizable Split Divider */
 .notes-split-divider {
   grid-area: divider;
@@ -1508,24 +1554,25 @@ body.is-resizing-notes-pane .notes-split-divider {
   padding: 8px 40px;
   background: var(--toolbar-bg);
   width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
+  /* Use the full available editor width so the toolbar expands when the notes
+     pane collapses; tools stay start-aligned and wrap only when needed. */
+  max-width: none;
+  margin: 0;
   transition: all 0.2s ease-in-out;
 }
 
 .editor-area[data-editor-density="compact"] .editor-toolbar {
-  max-width: 760px;
   padding: 8px 34px;
 }
 
 .editor-area[data-editor-density="wide"] .editor-toolbar {
-  max-width: 860px;
   padding: 8px 56px;
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
 }
@@ -2140,6 +2187,34 @@ body.is-resizing-notes-pane .notes-split-divider {
   font-size: 22px;
   font-weight: 700;
   line-height: 1.45;
+}
+
+/* H4–H6 had no size styling, rendering at tiny browser defaults.
+   Give them a visible, theme-aware hierarchy. */
+.note-editor-content-wrapper .ProseMirror h4 {
+  margin: 18px 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--app-text-strong);
+}
+
+.note-editor-content-wrapper .ProseMirror h5 {
+  margin: 16px 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--app-text);
+}
+
+.note-editor-content-wrapper .ProseMirror h6 {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-muted);
 }
 
 .note-editor-content-wrapper .ProseMirror pre {

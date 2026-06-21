@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type MenuNode =
   | { readonly kind: "separator"; readonly id: string }
@@ -159,7 +160,10 @@ export function EditorContextMenu({
     };
   }, [onClose]);
 
-  return (
+  // Portal to body: the editor area uses backdrop-filter, which makes it a
+  // containing block for fixed-position descendants. Rendering here keeps the
+  // menu's `position: fixed` relative to the viewport so clamping is correct.
+  return createPortal(
     <div
       ref={ref}
       className="editor-context-menu"
@@ -169,6 +173,7 @@ export function EditorContextMenu({
       onContextMenu={(event) => event.preventDefault()}
     >
       <MenuList nodes={nodes} onClose={onClose} />
-    </div>
+    </div>,
+    document.body,
   );
 }

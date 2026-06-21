@@ -35,6 +35,16 @@ type SaveStatus = "Idle" | "Unsaved" | "Saving" | "Saved" | "Error";
 
 const AUTOSAVE_DELAY_MS = 800;
 
+// Direction-neutral side-panel glyph, used to toggle the notes list.
+function PanelToggleIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+    </svg>
+  );
+}
+
 function createFallbackCategories(): readonly CategoryRecord[] {
   return defaultCategories.map((category, index) => ({
     ...category,
@@ -100,6 +110,19 @@ export function App(): JSX.Element {
     const saved = localStorage.getItem("nas-notesbook.layout.navRailExpanded");
     return saved === "true";
   });
+
+  const [notesListCollapsed, setNotesListCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem("nas-notesbook.layout.notesListCollapsed");
+    return saved === "true";
+  });
+
+  const handleToggleNotesList = useCallback(() => {
+    setNotesListCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("nas-notesbook.layout.notesListCollapsed", String(next));
+      return next;
+    });
+  }, []);
 
   const isFocusMode = useMemo(() => {
     const saved = sessionStorage.getItem("nas-notesbook.focusMode");
@@ -853,6 +876,7 @@ export function App(): JSX.Element {
       aria-label="NASbook workspace"
       onContextMenu={handleOpenContextMenu}
       data-focus-mode={isFocusMode ? "true" : "false"}
+      data-notes-collapsed={notesListCollapsed ? "true" : "false"}
       style={{
         "--nav-rail-width": `${navRailExpanded ? 196 : 60}px`,
         "--notes-list-width": `${notesListWidth}px`,
@@ -916,6 +940,24 @@ export function App(): JSX.Element {
         onPointerDown={handlePointerDown}
         onKeyDown={handleKeyDown}
       />
+      <button
+        type="button"
+        className="notes-pane-toggle"
+        data-collapsed={notesListCollapsed ? "true" : "false"}
+        aria-label={
+          notesListCollapsed
+            ? settings.language === "ar" ? "إظهار قائمة الملاحظات" : "Show notes list"
+            : settings.language === "ar" ? "إخفاء قائمة الملاحظات" : "Hide notes list"
+        }
+        data-tooltip={
+          notesListCollapsed
+            ? settings.language === "ar" ? "إظهار قائمة الملاحظات" : "Show notes list"
+            : settings.language === "ar" ? "إخفاء قائمة الملاحظات" : "Hide notes list"
+        }
+        onClick={handleToggleNotesList}
+      >
+        <PanelToggleIcon />
+      </button>
       <NoteEditorArea
         activeCategoryName={activeCategoryName}
         draftContent={draftContent}
