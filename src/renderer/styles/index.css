@@ -1146,8 +1146,9 @@ body.is-resizing-notes-pane .notes-split-divider {
 }
 
 .note-list-card:hover .note-actions,
-.note-list-card[data-selected="true"] .note-actions,
-.note-list-card:focus-within .note-actions {
+.note-list-card:focus .note-actions,
+.note-list-card:focus-within .note-actions,
+.note-list-card[data-move-open="true"] .note-actions {
   opacity: 1;
   visibility: visible;
 }
@@ -1189,7 +1190,7 @@ body.is-resizing-notes-pane .notes-split-divider {
 .note-move-popover {
   position: absolute;
   inset-inline-end: 0;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   z-index: 60;
   min-width: 180px;
   max-height: 260px;
@@ -1202,6 +1203,13 @@ body.is-resizing-notes-pane .notes-split-divider {
   border-radius: 10px;
   background: var(--app-surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.note-move-popover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .note-move-heading {
@@ -3184,6 +3192,13 @@ body.is-resizing-notes-pane .notes-split-divider {
   gap: 12px;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.rail-theme-popover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .rail-theme-popover-title {

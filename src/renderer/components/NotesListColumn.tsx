@@ -330,6 +330,7 @@ export function NotesListColumn({
             <div
               className="note-list-card"
               data-selected={note.id === selectedNoteId}
+              data-move-open={isMoveOpen ? "true" : "false"}
               key={note.id}
               role="button"
               tabIndex={0}
