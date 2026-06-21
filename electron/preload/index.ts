@@ -5,6 +5,7 @@ import type {
   NasNotesbookApi,
   NoteListOptions,
   UpdateNoteInput,
+  NasbkSaveInput,
 } from "../../src/shared/ipc";
 import type { AppSettings } from "../../src/shared/settings";
 
@@ -53,6 +54,10 @@ const api: NasNotesbookApi = Object.freeze({
   cloudBackup: Object.freeze({
     getStatus: () => ipcRenderer.invoke("cloudBackup:getStatus"),
     uploadLatest: () => ipcRenderer.invoke("cloudBackup:uploadLatest"),
+  }),
+  nasbk: Object.freeze({
+    saveFile: (input: NasbkSaveInput) => ipcRenderer.invoke("nasbk:saveFile", input),
+    importFile: () => ipcRenderer.invoke("nasbk:importFile"),
   }),
   window: Object.freeze({
     minimize: () => ipcRenderer.invoke("window:minimize"),

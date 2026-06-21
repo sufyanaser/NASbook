@@ -58,6 +58,16 @@ function isEditableCategory(slug: CategorySlug): boolean {
   return slug !== "trash";
 }
 
+function getPlainTextFromHtml(html: string): string {
+  if (typeof window === "undefined" || !html) return "";
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.body.textContent || "";
+  } catch {
+    return "";
+  }
+}
+
 export function App(): JSX.Element {
   const [categories, setCategories] =
     useState<readonly CategoryRecord[]>(createFallbackCategories);
@@ -97,6 +107,7 @@ export function App(): JSX.Element {
     title: "",
     content: "",
   });
+  const draftTextRef = useRef("");
   const activeCategoryRef = useRef<CategorySlug>("all-notes");
   const refreshNotesRef = useRef<() => Promise<readonly NoteListItem[]>>(async () => []);
   const confirmUnsavedSwitchRef = useRef(true);
@@ -234,7 +245,7 @@ export function App(): JSX.Element {
   // Core save used by both autosave and manual save. Reads the latest draft /
   // selected note from refs so debounced timers never act on stale closures.
   // Returns true when the note is persisted (or there was nothing to save).
-  const performSave = useCallback(async (): Promise<boolean> => {
+  const performSave = useCallback(async (isManualSave = false): Promise<boolean> => {
     const api = window.nasNotesbook;
     const note = selectedNoteRef.current;
 
@@ -247,6 +258,30 @@ export function App(): JSX.Element {
 
     // Skip if the draft already matches the last saved snapshot (selectedNote).
     if (!hasUnsavedNoteChanges(note, title, content)) {
+      if (isManualSave) {
+        const linkedPath = localStorage.getItem(`nasbook.nasbk.link.${note.id}`);
+        if (linkedPath) {
+          try {
+            const res = await api.nasbk.saveFile({
+              title: note.title,
+              contentHtml: note.contentMarkdown,
+              contentText: draftTextRef.current || getPlainTextFromHtml(note.contentMarkdown),
+              metadata: {
+                isRtl: !!note.isRtl,
+                createdAt: note.createdAt,
+                updatedAt: note.updatedAt,
+              },
+              formatVersion: 1,
+              filePath: linkedPath,
+            });
+            if (!res.ok) {
+              console.error("Failed to update linked NASBK file on manual save:", res.error);
+            }
+          } catch (err) {
+            console.error("Error during manual save NASBK update:", err);
+          }
+        }
+      }
       return true;
     }
 
@@ -288,10 +323,36 @@ export function App(): JSX.Element {
       }
       await refreshNotesRef.current();
 
+      // Silent NASBK Update
+      if (isManualSave) {
+        const linkedPath = localStorage.getItem(`nasbook.nasbk.link.${savingId}`);
+        if (linkedPath) {
+          try {
+            const res = await api.nasbk.saveFile({
+              title: updated.title,
+              contentHtml: updated.contentMarkdown,
+              contentText: draftTextRef.current || getPlainTextFromHtml(updated.contentMarkdown),
+              metadata: {
+                isRtl: !!updated.isRtl,
+                createdAt: updated.createdAt,
+                updatedAt: updated.updatedAt,
+              },
+              formatVersion: 1,
+              filePath: linkedPath,
+            });
+            if (!res.ok) {
+              console.error("Failed to silently update linked NASBK file:", res.error);
+            }
+          } catch (err) {
+            console.error("Error during silent NASBK update:", err);
+          }
+        }
+      }
+
       saveInProgressRef.current = false;
       if (pendingResaveRef.current) {
         pendingResaveRef.current = false;
-        return performSave();
+        return performSave(isManualSave);
       }
       return true;
     } catch {
@@ -305,12 +366,12 @@ export function App(): JSX.Element {
   }, []);
 
   // Cancel any pending debounce and persist immediately.
-  const flushSave = useCallback(async (): Promise<boolean> => {
+  const flushSave = useCallback(async (isManualSave = false): Promise<boolean> => {
     if (autosaveTimerRef.current !== null) {
       window.clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
     }
-    return performSave();
+    return performSave(isManualSave);
   }, [performSave]);
 
   // Gate note/category/new-note navigation behind autosave. If there is nothing
@@ -444,6 +505,19 @@ export function App(): JSX.Element {
         return;
       }
 
+      // 1.5 Save as NASBK
+      const saveNasbkShortcut = settings.shortcuts.saveNasbk;
+      if (
+        eventMatchesShortcut(event, saveNasbkShortcut) &&
+        selectedNote &&
+        activeCategory !== "trash"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleSaveNasbk();
+        return;
+      }
+
       // If user is typing, skip other non-modifier shortcuts
       // (For example, if they bound a shortcut to a single letter like 'n', don't trigger it while typing)
       
@@ -567,6 +641,7 @@ export function App(): JSX.Element {
     setSelectedNote(note);
     setDraftTitle(note.title);
     setDraftContent(note.contentMarkdown);
+    draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
     setSaveStatus("Idle");
   };
 
@@ -592,6 +667,7 @@ export function App(): JSX.Element {
     setSelectedNote(note);
     setDraftTitle(note.title);
     setDraftContent(note.contentMarkdown);
+    draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
     setSaveStatus("Saved");
   };
 
@@ -613,7 +689,7 @@ export function App(): JSX.Element {
 
   // Manual save / Ctrl+S: flush any pending autosave and persist immediately.
   const handleSaveNote = async (): Promise<void> => {
-    await flushSave();
+    await flushSave(true);
   };
 
   // Cancel a queued autosave for a note before a list action mutates it, so a
@@ -771,6 +847,107 @@ export function App(): JSX.Element {
     setSelectedNote(note);
     setDraftTitle(note.title);
     setDraftContent(note.contentMarkdown);
+    draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+    setSaveStatus("Saved");
+  };
+
+  const handleSaveNasbk = async (): Promise<void> => {
+    const api = window.nasNotesbook;
+    const note = selectedNoteRef.current;
+    if (!api || !note) {
+      return;
+    }
+
+    setSaveStatus("Saving");
+    const title = draftRef.current.title;
+    const content = draftRef.current.content;
+    const plainText = draftTextRef.current || getPlainTextFromHtml(content);
+
+    const result = await api.nasbk.saveFile({
+      title,
+      contentHtml: content,
+      contentText: plainText,
+      metadata: {
+        isRtl: !!note.isRtl,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+      },
+      formatVersion: 1,
+    });
+
+    if (result.ok && result.path) {
+      localStorage.setItem(`nasbook.nasbk.link.${note.id}`, result.path);
+      setSaveStatus("Saved");
+    } else if (result.canceled) {
+      setSaveStatus("Idle");
+    } else {
+      setSaveStatus("Error");
+    }
+  };
+
+  const handleImportNasbk = async (): Promise<void> => {
+    const api = window.nasNotesbook;
+    if (!api) {
+      return;
+    }
+
+    // Do NOT overwrite or clear the active note if the dialog is canceled or errors out.
+    const result = await api.nasbk.importFile();
+    if (!result.ok) {
+      if (result.error) {
+        setSaveStatus("Error");
+        console.error("Import NASBK failed:", result.error);
+      }
+      return;
+    }
+
+    // Validate parsed NASBK before writing anything
+    if (
+      typeof result.title !== "string" ||
+      typeof result.contentHtml !== "string" ||
+      result.formatVersion === undefined
+    ) {
+      setSaveStatus("Error");
+      console.error("Invalid NASBK format: missing title, contentHtml, or formatVersion.");
+      return;
+    }
+
+    const title = result.title;
+    const contentHtml = result.contentHtml;
+    const isRtl = result.metadata ? !!result.metadata.isRtl : true;
+    const categoryId = isEditableCategory(activeCategory)
+      ? activeCategory === "all-notes"
+        ? null
+        : activeCategoryRecord?.id ?? null
+      : null;
+
+    // Create the new note in database
+    const note = await api.notes.create({
+      title,
+      contentMarkdown: contentHtml,
+      categoryId,
+      isRtl,
+    });
+
+    if (result.filePath) {
+      // Clear any other notes linked to this same file path to prevent conflicts
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("nasbook.nasbk.link.")) {
+          if (localStorage.getItem(key) === result.filePath) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+      localStorage.setItem(`nasbook.nasbk.link.${note.id}`, result.filePath);
+    }
+
+    // Update list and selection to show the newly imported note
+    await refreshNotes();
+    setSelectedNote(note);
+    setDraftTitle(note.title);
+    setDraftContent(note.contentMarkdown);
+    draftTextRef.current = result.contentText || getPlainTextFromHtml(contentHtml);
     setSaveStatus("Saved");
   };
 
@@ -897,8 +1074,9 @@ export function App(): JSX.Element {
     setSaveStatus("Unsaved");
   };
 
-  const handleDraftContentChange = (content: string): void => {
+  const handleDraftContentChange = (content: string, text: string): void => {
     setDraftContent(content);
+    draftTextRef.current = text;
     setSaveStatus("Unsaved");
   };
 
@@ -993,6 +1171,9 @@ export function App(): JSX.Element {
         setMovePopoverNoteId={setMovePopoverNoteId}
         onImportMarkdown={() => {
           void handleImportMarkdown();
+        }}
+        onImportNasbk={() => {
+          void handleImportNasbk();
         }}
         onExportNote={() => {
           void handleExportNote();

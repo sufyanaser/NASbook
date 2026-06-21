@@ -170,6 +170,10 @@ export interface NasNotesbookApi {
     readonly getStatus: () => Promise<CloudBackupInfo>;
     readonly uploadLatest: () => Promise<CloudBackupUploadResult>;
   };
+  readonly nasbk: {
+    readonly saveFile: (input: NasbkSaveInput) => Promise<NasbkSaveResult>;
+    readonly importFile: () => Promise<NasbkImportResult>;
+  };
   readonly window: {
     readonly minimize: () => Promise<void>;
     readonly toggleMaximize: () => Promise<void>;
@@ -177,3 +181,40 @@ export interface NasNotesbookApi {
     readonly isMaximized: () => Promise<boolean>;
   };
 }
+
+export interface NasbkSaveInput {
+  readonly title: string;
+  readonly contentHtml: string;
+  readonly contentText: string;
+  readonly metadata: {
+    readonly isRtl: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+  };
+  readonly formatVersion: number;
+  readonly filePath?: string;
+}
+
+export interface NasbkSaveResult {
+  readonly ok: boolean;
+  readonly canceled?: boolean;
+  readonly path?: string;
+  readonly error?: string;
+}
+
+export interface NasbkImportResult {
+  readonly ok: boolean;
+  readonly canceled?: boolean;
+  readonly filePath?: string;
+  readonly title?: string;
+  readonly contentHtml?: string;
+  readonly contentText?: string;
+  readonly metadata?: {
+    readonly isRtl: boolean;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+  };
+  readonly formatVersion?: number;
+  readonly error?: string;
+}
+

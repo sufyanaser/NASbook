@@ -49,7 +49,7 @@ interface NoteEditorAreaProps {
   readonly showMetadata: boolean;
   readonly theme: AppTheme;
   readonly language: AppLanguage;
-  readonly onContentChange: (content: string) => void;
+  readonly onContentChange: (content: string, text: string) => void;
   readonly onDeletePermanent: () => void;
   readonly onDeleteToTrash: () => void;
   readonly onRestore: () => void;
@@ -1116,7 +1116,7 @@ export function NoteEditorArea({
         html === "<p><br class=\"ProseMirror-trailingBreak\"></p>";
       const isEmpty = editor.getText().trim() === "" || isMeaninglessHtml;
       const content = isEmpty ? "" : html;
-      onContentChange(content);
+      onContentChange(content, editor.getText());
     },
     editorProps: {
       handleKeyDown: (view, event) => {

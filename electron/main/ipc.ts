@@ -9,6 +9,9 @@ import type {
   MarkdownImportResult,
   NoteListOptions,
   UpdateNoteInput,
+  NasbkSaveInput,
+  NasbkSaveResult,
+  NasbkImportResult,
 } from "../../src/shared/ipc";
 import type { AppSettings } from "../../src/shared/settings";
 import type { NotesbookDatabase } from "./db";
@@ -145,6 +148,109 @@ export function registerIpcHandlers({
 
         await writeFile(result.filePath, input.markdown, "utf8");
         return { ok: true, path: result.filePath };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "nasbk:saveFile",
+    async (
+      _event,
+      input: NasbkSaveInput,
+    ): Promise<NasbkSaveResult> => {
+      try {
+        let filePath = input.filePath;
+        if (!filePath) {
+          const result = await dialog.showSaveDialog({
+            title: "Save as NASBK",
+            defaultPath: `${input.title}.nasbk`,
+            filters: [{ name: "NASBK Document", extensions: ["nasbk"] }],
+          });
+
+          if (result.canceled || !result.filePath) {
+            return { ok: false, canceled: true };
+          }
+          filePath = result.filePath;
+        }
+
+        const payload = {
+          format: "NASBK",
+          title: input.title,
+          contentHtml: input.contentHtml,
+          contentText: input.contentText,
+          metadata: input.metadata,
+          formatVersion: input.formatVersion,
+        };
+
+        await writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
+        return { ok: true, path: filePath };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "nasbk:importFile",
+    async (): Promise<NasbkImportResult> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          title: "Import NASBK Note",
+          properties: ["openFile"],
+          filters: [
+            { name: "NASBK Document", extensions: ["nasbk"] },
+          ],
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+          return { ok: false, canceled: true };
+        }
+
+        const filePath = result.filePaths[0];
+        const contentStr = await readFile(filePath, "utf8");
+        if (!contentStr || contentStr.trim() === "") {
+          throw new Error("File is empty.");
+        }
+        
+        const data = JSON.parse(contentStr);
+
+        if (!data || typeof data !== "object") {
+          throw new Error("Invalid file content. Must be a valid JSON object.");
+        }
+
+        if (data.format !== "NASBK") {
+          throw new Error("Invalid format. File is not a NASBK document.");
+        }
+
+        if (data.formatVersion === undefined || data.formatVersion === null) {
+          throw new Error("Invalid document. Missing formatVersion.");
+        }
+
+        if (typeof data.title !== "string" || typeof data.contentHtml !== "string") {
+          throw new Error("Invalid NASBK document content. title and contentHtml must be strings.");
+        }
+
+        return {
+          ok: true,
+          filePath,
+          title: data.title,
+          contentHtml: data.contentHtml,
+          contentText: data.contentText || "",
+          metadata: data.metadata || {
+            isRtl: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          formatVersion: data.formatVersion,
+        };
       } catch (error) {
         return {
           ok: false,
