@@ -1821,6 +1821,19 @@ body.is-resizing-notes-pane .notes-split-divider {
   gap: 2px !important;
 }
 
+/* Font Family shows real font names, so it needs more room than the
+   short-label dropdowns above. */
+.font-family-dropdown {
+  width: 140px;
+}
+
+.font-family-dropdown .custom-dropdown-trigger {
+  width: 140px !important;
+  padding: 0 8px 0 10px !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+}
+
 .dropdown-label-text {
   overflow: hidden;
   text-overflow: ellipsis;

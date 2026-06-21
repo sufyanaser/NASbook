@@ -16,6 +16,7 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import { FontSize } from "../extensions/FontSize";
+import { BackgroundColor } from "../extensions/BackgroundColor";
 import { LineHeight } from "../extensions/LineHeight";
 import { TextDirection } from "../extensions/TextDirection";
 import { Indent } from "../extensions/Indent";
@@ -78,6 +79,11 @@ type ToolbarIcon =
   | "indentDecrease"
   | "dirRtl"
   | "dirLtr"
+  | "tableRowAdd"
+  | "tableColAdd"
+  | "tableRowDelete"
+  | "tableColDelete"
+  | "tableDelete"
   | "save"
   | "trash"
   | "restore"
@@ -166,14 +172,49 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
       )}
       {icon === "dirRtl" && (
         <>
-          <path d="M21 5H6M21 12H6M21 19h-8" {...strokeProps} />
-          <path d="m8 8-4 4 4 4" {...strokeProps} />
+          <path d="M18 12a3.5 3.5 0 0 0 0-7h-5v12" {...strokeProps} />
+          <path d="M10 19H3M6 16l-3 3 3 3" {...strokeProps} />
         </>
       )}
       {icon === "dirLtr" && (
         <>
-          <path d="M3 5h15M3 12h15M3 19h8" {...strokeProps} />
-          <path d="m16 8 4 4-4 4" {...strokeProps} />
+          <path d="M6 12a3.5 3.5 0 0 1 0-7h5v12" {...strokeProps} />
+          <path d="M14 19h7M18 16l3 3-3 3" {...strokeProps} />
+        </>
+      )}
+      {icon === "tableRowAdd" && (
+        <>
+          <rect x="3" y="4" width="18" height="9" rx="1.5" {...strokeProps} />
+          <path d="M3 8.5h18" {...strokeProps} />
+          <path d="M12 16v6M9 19h6" {...strokeProps} />
+        </>
+      )}
+      {icon === "tableColAdd" && (
+        <>
+          <rect x="4" y="3" width="9" height="18" rx="1.5" {...strokeProps} />
+          <path d="M8.5 3v18" {...strokeProps} />
+          <path d="M18 9v6M15 12h6" {...strokeProps} />
+        </>
+      )}
+      {icon === "tableRowDelete" && (
+        <>
+          <rect x="3" y="4" width="18" height="9" rx="1.5" {...strokeProps} />
+          <path d="M3 8.5h18" {...strokeProps} />
+          <path d="M9 19h6" {...strokeProps} />
+        </>
+      )}
+      {icon === "tableColDelete" && (
+        <>
+          <rect x="4" y="3" width="9" height="18" rx="1.5" {...strokeProps} />
+          <path d="M8.5 3v18" {...strokeProps} />
+          <path d="M15 12h6" {...strokeProps} />
+        </>
+      )}
+      {icon === "tableDelete" && (
+        <>
+          <rect x="3" y="4" width="18" height="16" rx="1.5" {...strokeProps} />
+          <path d="M3 10h18M9 4v16" {...strokeProps} />
+          <path d="m14 13 5 5M19 13l-5 5" {...strokeProps} />
         </>
       )}
       {icon === "bullets" && (
@@ -245,6 +286,7 @@ const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   italic: true,
   underline: true,
   textColor: true,
+  fillColor: true,
   link: true,
   codeBlock: true,
   bullets: true,
@@ -273,7 +315,7 @@ const EDITOR_THEMES: readonly { value: AppTheme; labelEn: string; labelAr: strin
 
 // Grouping for the toolbar-customization popover (Text / Blocks / Insert / Advanced).
 const TOOL_GROUPS: readonly { id: string; labelEn: string; labelAr: string; tools: readonly string[] }[] = [
-  { id: "text", labelEn: "Text", labelAr: "النص", tools: ["fontFamily", "fontSize", "heading", "lineHeight", "bold", "italic", "underline", "textColor"] },
+  { id: "text", labelEn: "Text", labelAr: "النص", tools: ["fontFamily", "fontSize", "heading", "lineHeight", "bold", "italic", "underline", "textColor", "fillColor"] },
   { id: "blocks", labelEn: "Blocks", labelAr: "الكتل", tools: ["bullets", "numbered", "alignLeft", "alignCenter", "alignRight", "dirRtl", "dirLtr", "outdent", "indent", "codeBlock", "clear"] },
   { id: "insert", labelEn: "Insert", labelAr: "إدراج", tools: ["link", "horizontalRule", "table"] },
   { id: "advanced", labelEn: "Advanced", labelAr: "متقدم", tools: ["undo", "redo"] },
@@ -290,6 +332,7 @@ function toolLabel(toolId: string, language: AppLanguage): string {
     case "italic": return ar ? "مائل" : "Italic";
     case "underline": return ar ? "تحته خط" : "Underline";
     case "textColor": return ar ? "لون النص" : "Text Color";
+    case "fillColor": return ar ? "لون التعبئة" : "Fill Color";
     case "link": return ar ? "رابط" : "Link";
     case "codeBlock": return ar ? "كتلة كود" : "Code Block";
     case "bullets": return ar ? "قائمة نقطية" : "Bullet List";
@@ -308,16 +351,6 @@ function toolLabel(toolId: string, language: AppLanguage): string {
     case "redo": return ar ? "إعادة" : "Redo";
     default: return toolId;
   }
-}
-
-function getFontFamilyShortLabel(font: string): string {
-  if (font.includes("IBM Plex Sans Arabic")) return "IB";
-  if (font.startsWith("Segoe")) return "Se";
-  if (font.startsWith("Arial")) return "Ar";
-  if (font.startsWith("Georgia")) return "Ge";
-  if (font.startsWith("Consolas")) return "Co";
-  if (font === "System") return "F";
-  return font.slice(0, 2);
 }
 
 function getFontSizeShortLabel(size: string): string {
@@ -401,6 +434,35 @@ const CustomCodeBlock = CodeBlock.extend({
     return {
       "Mod-a": selectCurrentCodeBlock,
     };
+  },
+});
+
+// Table cells gain a backgroundColor attribute so the fill bucket can color
+// selected cells via the built-in setCellAttribute command.
+const cellBackgroundAttribute = {
+  backgroundColor: {
+    default: null as string | null,
+    parseHTML: (element: HTMLElement) =>
+      element.style.backgroundColor || element.getAttribute("data-bg") || null,
+    renderHTML: (attributes: Record<string, unknown>) => {
+      const color = attributes.backgroundColor as string | null;
+      if (!color) {
+        return {};
+      }
+      return { style: `background-color: ${color}`, "data-bg": color };
+    },
+  },
+};
+
+const TableCellWithBg = TableCell.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...cellBackgroundAttribute };
+  },
+});
+
+const TableHeaderWithBg = TableHeader.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...cellBackgroundAttribute };
   },
 });
 
@@ -507,12 +569,14 @@ function ColorPicker({
   disabled,
   tooltip,
   language,
+  kind = "text",
 }: {
   readonly value: string | null;
   readonly onChange: (value: string | null) => void;
   readonly disabled?: boolean;
   readonly tooltip?: string;
   readonly language: AppLanguage;
+  readonly kind?: "text" | "fill";
 }): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -542,10 +606,16 @@ function ColorPicker({
     { name: "White", value: "#f4f4f5", hex: "#f4f4f5" },
     { name: "Gray", value: "#71717a", hex: "#71717a" },
     { name: "Red", value: "#ef4444", hex: "#ef4444" },
+    { name: "Orange", value: "#f97316", hex: "#f97316" },
     { name: "Amber", value: "#f59e0b", hex: "#f59e0b" },
+    { name: "Lime", value: "#84cc16", hex: "#84cc16" },
     { name: "Green", value: "#10b981", hex: "#10b981" },
+    { name: "Teal", value: "#14b8a6", hex: "#14b8a6" },
+    { name: "Cyan", value: "#06b6d4", hex: "#06b6d4" },
     { name: "Blue", value: "#3b82f6", hex: "#3b82f6" },
+    { name: "Indigo", value: "#6366f1", hex: "#6366f1" },
     { name: "Purple", value: "#8b5cf6", hex: "#8b5cf6" },
+    { name: "Pink", value: "#ec4899", hex: "#ec4899" },
   ];
 
   return (
@@ -558,13 +628,21 @@ function ColorPicker({
         onClick={() => setIsOpen(!isOpen)}
         type="button"
       >
-        <svg viewBox="0 0 24 24" className="toolbar-button-icon" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35825 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z" />
-          <circle cx="7.5" cy="10.5" r="1.5" fill="currentColor" />
-          <circle cx="11.5" cy="7.5" r="1.5" fill="currentColor" />
-          <circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" />
-          <circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" />
-        </svg>
+        {kind === "fill" ? (
+          <svg viewBox="0 0 24 24" className="toolbar-button-icon" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 11 9 1 7.5 2.5l2 2L3 11a2 2 0 0 0 0 2.8L8.2 19a2 2 0 0 0 2.8 0L19 11Z" />
+            <path d="M5 13h12" />
+            <path d="M21 16s2 2.5 2 4a2 2 0 1 1-4 0c0-1.5 2-4 2-4Z" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="toolbar-button-icon" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35825 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z" />
+            <circle cx="7.5" cy="10.5" r="1.5" fill="currentColor" />
+            <circle cx="11.5" cy="7.5" r="1.5" fill="currentColor" />
+            <circle cx="16.5" cy="9.5" r="1.5" fill="currentColor" />
+            <circle cx="15.5" cy="14.5" r="1.5" fill="currentColor" />
+          </svg>
+        )}
         <span
           className="color-preview-indicator"
           style={{
@@ -584,10 +662,16 @@ function ColorPicker({
                     case "White": return "أبيض";
                     case "Gray": return "رمادي";
                     case "Red": return "أحمر";
+                    case "Orange": return "برتقالي";
                     case "Amber": return "كهرماني";
+                    case "Lime": return "ليموني";
                     case "Green": return "أخضر";
+                    case "Teal": return "أزرق مخضر";
+                    case "Cyan": return "سماوي";
                     case "Blue": return "أزرق";
+                    case "Indigo": return "نيلي";
                     case "Purple": return "أرجواني";
+                    case "Pink": return "وردي";
                     default: return name;
                   }
                 }
@@ -917,13 +1001,14 @@ export function NoteEditorArea({
       Color,
       FontFamily,
       FontSize,
+      BackgroundColor,
       LineHeight,
       TextDirection,
       Indent,
       Table.configure({ resizable: true }),
       TableRow,
-      TableHeader,
-      TableCell,
+      TableHeaderWithBg,
+      TableCellWithBg,
     ],
     content: draftContent,
     editable: !isTrashView && hasSelectedNote,
@@ -1024,7 +1109,7 @@ export function NoteEditorArea({
     { value: "System", label: language === "ar" ? "نظام" : "System" },
     { value: "Segoe UI", label: "Segoe UI" },
     { value: "Arial", label: "Arial" },
-    { value: "IBM Plex Sans Arabic Local", label: "IBM Plex Sans Arabic Local" },
+    { value: "IBM Plex Sans Arabic Local", label: "IBM Plex Sans Arabic" },
     { value: "Georgia", label: "Georgia" },
     { value: "Consolas", label: "Consolas" },
   ];
@@ -1061,6 +1146,9 @@ export function NoteEditorArea({
     ? editor.getAttributes("textStyle").fontFamily || "System"
     : "System";
 
+  const activeFontFamilyLabel =
+    fontFamilies.find((font) => font.value === activeFontFamily)?.label || activeFontFamily;
+
   const activeFontSize = editor
     ? editor.getAttributes("textStyle").fontSize || "Default"
     : "Default";
@@ -1091,6 +1179,17 @@ export function NoteEditorArea({
 
   const activeTextColor = editor
     ? editor.getAttributes("textStyle").color || null
+    : null;
+
+  const isCellSelected = editor
+    ? editor.isActive("tableCell") || editor.isActive("tableHeader")
+    : false;
+
+  const activeFillColor = editor
+    ? (isCellSelected
+        ? editor.getAttributes("tableCell").backgroundColor ||
+          editor.getAttributes("tableHeader").backgroundColor
+        : editor.getAttributes("textStyle").backgroundColor) || null
     : null;
 
   const activeBlockDir: string | null = editor
@@ -1849,7 +1948,7 @@ export function NoteEditorArea({
                 <div className="toolbar-group font-and-type-actions">
                   {visibleTools.fontFamily !== false && (
                     <Dropdown
-                      label={getFontFamilyShortLabel(activeFontFamily)}
+                      label={activeFontFamilyLabel}
                       value={activeFontFamily}
                       options={fontFamilies}
                       disabled={!hasSelectedNote || isTrashView}
@@ -1986,6 +2085,25 @@ export function NoteEditorArea({
                           editor.chain().focus().unsetColor().run();
                         } else {
                           editor.chain().focus().setColor(val).run();
+                        }
+                      }}
+                    />
+                  )}
+                  {visibleTools.fillColor !== false && (
+                    <ColorPicker
+                      value={activeFillColor}
+                      kind="fill"
+                      disabled={!hasSelectedNote || isTrashView}
+                      tooltip={language === "ar" ? "لون التعبئة" : "Fill color"}
+                      language={language}
+                      onChange={(val) => {
+                        const chain = editor.chain().focus();
+                        if (isCellSelected) {
+                          chain.setCellAttribute("backgroundColor", val).run();
+                        } else if (val === null) {
+                          chain.unsetBackgroundColor().run();
+                        } else {
+                          chain.setBackgroundColor(val).run();
                         }
                       }}
                     />
@@ -2266,7 +2384,7 @@ export function NoteEditorArea({
                         <>
                           <button
                             aria-label="Add row"
-                            className="toolbar-icon-button toolbar-text-button"
+                            className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
                             onMouseDown={(event) => {
@@ -2276,11 +2394,11 @@ export function NoteEditorArea({
                             }}
                             data-tooltip={language === "ar" ? "إضافة صف" : "Add row"}
                           >
-                            +<span aria-hidden="true">⬚</span>
+                            <ToolbarIconSvg icon="tableRowAdd" />
                           </button>
                           <button
                             aria-label="Add column"
-                            className="toolbar-icon-button toolbar-text-button"
+                            className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
                             onMouseDown={(event) => {
@@ -2290,11 +2408,11 @@ export function NoteEditorArea({
                             }}
                             data-tooltip={language === "ar" ? "إضافة عمود" : "Add column"}
                           >
-                            +<span aria-hidden="true">▥</span>
+                            <ToolbarIconSvg icon="tableColAdd" />
                           </button>
                           <button
                             aria-label="Delete row"
-                            className="toolbar-icon-button toolbar-text-button"
+                            className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
                             onMouseDown={(event) => {
@@ -2304,11 +2422,11 @@ export function NoteEditorArea({
                             }}
                             data-tooltip={language === "ar" ? "حذف صف" : "Delete row"}
                           >
-                            −<span aria-hidden="true">⬚</span>
+                            <ToolbarIconSvg icon="tableRowDelete" />
                           </button>
                           <button
                             aria-label="Delete column"
-                            className="toolbar-icon-button toolbar-text-button"
+                            className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
                             onMouseDown={(event) => {
@@ -2318,11 +2436,11 @@ export function NoteEditorArea({
                             }}
                             data-tooltip={language === "ar" ? "حذف عمود" : "Delete column"}
                           >
-                            −<span aria-hidden="true">▥</span>
+                            <ToolbarIconSvg icon="tableColDelete" />
                           </button>
                           <button
                             aria-label="Delete table"
-                            className="toolbar-icon-button toolbar-text-button"
+                            className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
                             onMouseDown={(event) => {
@@ -2332,7 +2450,7 @@ export function NoteEditorArea({
                             }}
                             data-tooltip={language === "ar" ? "حذف الجدول" : "Delete table"}
                           >
-                            ✕
+                            <ToolbarIconSvg icon="tableDelete" />
                           </button>
                         </>
                       )}
