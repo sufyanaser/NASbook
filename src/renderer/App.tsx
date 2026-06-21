@@ -5,7 +5,7 @@ import {
   type CategorySlug,
 } from "../shared/categories";
 import { hasUnsavedNoteChanges } from "../shared/dirtyState";
-import type { AppInfo, NoteRecord, NoteListItem } from "../shared/ipc";
+import type { AppInfo, NoteRecord, NoteListItem, NasbkImportResult } from "../shared/ipc";
 import {
   defaultAppSettings,
   getToggledLightDarkTheme,
@@ -415,6 +415,66 @@ export function App(): JSX.Element {
     setSaveStatus("Idle");
   };
 
+  const loadImportedNasbkData = useCallback(async (result: NasbkImportResult): Promise<void> => {
+    const api = window.nasNotesbook;
+    if (!api || !result || !result.ok) {
+      return;
+    }
+
+    if (
+      typeof result.title !== "string" ||
+      typeof result.contentHtml !== "string" ||
+      result.formatVersion === undefined
+    ) {
+      setSaveStatus("Error");
+      console.error("Invalid NASBK format: missing title, contentHtml, or formatVersion.");
+      return;
+    }
+
+    const title = result.title;
+    const contentHtml = result.contentHtml;
+    const isRtl = result.metadata ? !!result.metadata.isRtl : true;
+    const categoryId = isEditableCategory(activeCategoryRef.current)
+      ? activeCategoryRef.current === "all-notes"
+        ? null
+        : categories.find((c) => c.slug === activeCategoryRef.current)?.id ?? null
+      : null;
+
+    // Create the new note in database
+    const note = await api.notes.create({
+      title,
+      contentMarkdown: contentHtml,
+      categoryId,
+      isRtl,
+    });
+
+    if (result.filePath) {
+      // Clear any other notes linked to this same file path to prevent conflicts
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("nasbook.nasbk.link.")) {
+          if (localStorage.getItem(key) === result.filePath) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+      localStorage.setItem(`nasbook.nasbk.link.${note.id}`, result.filePath);
+    }
+
+    // Update list and selection to show the newly imported note
+    await refreshNotes();
+    setSelectedNote(note);
+    setDraftTitle(note.title);
+    setDraftContent(note.contentMarkdown);
+    draftTextRef.current = result.contentText || getPlainTextFromHtml(contentHtml);
+    setSaveStatus("Saved");
+  }, [categories, refreshNotes]);
+
+  const loadImportedNasbkDataRef = useRef(loadImportedNasbkData);
+  useEffect(() => {
+    loadImportedNasbkDataRef.current = loadImportedNasbkData;
+  }, [loadImportedNasbkData]);
+
   useEffect(() => {
     let isMounted = true;
     const api = window.nasNotesbook;
@@ -425,6 +485,13 @@ export function App(): JSX.Element {
         isMounted = false;
       };
     }
+
+    // Register listener for runtime associated file opens
+    const unsubscribeOpenFile = api.nasbk.onOpenFile((fileData) => {
+      if (isMounted && fileData && fileData.ok) {
+        void loadImportedNasbkDataRef.current(fileData);
+      }
+    });
 
     Promise.all([
       api.app.getInfo(),
@@ -447,6 +514,15 @@ export function App(): JSX.Element {
         );
         setNotes(nextNotes);
         setNotesCount(nextNotes.length);
+
+        // Check for associated file opened on startup
+        api.nasbk.getStartupFile().then((startupResult) => {
+          if (isMounted && startupResult && startupResult.ok) {
+            void loadImportedNasbkDataRef.current(startupResult);
+          }
+        }).catch((err) => {
+          console.error("Failed to load startup NASBK file:", err);
+        });
       })
       .catch(() => {
         if (isMounted) {
@@ -458,6 +534,7 @@ export function App(): JSX.Element {
 
     return () => {
       isMounted = false;
+      unsubscribeOpenFile();
     };
   }, []);
 
@@ -901,54 +978,7 @@ export function App(): JSX.Element {
       return;
     }
 
-    // Validate parsed NASBK before writing anything
-    if (
-      typeof result.title !== "string" ||
-      typeof result.contentHtml !== "string" ||
-      result.formatVersion === undefined
-    ) {
-      setSaveStatus("Error");
-      console.error("Invalid NASBK format: missing title, contentHtml, or formatVersion.");
-      return;
-    }
-
-    const title = result.title;
-    const contentHtml = result.contentHtml;
-    const isRtl = result.metadata ? !!result.metadata.isRtl : true;
-    const categoryId = isEditableCategory(activeCategory)
-      ? activeCategory === "all-notes"
-        ? null
-        : activeCategoryRecord?.id ?? null
-      : null;
-
-    // Create the new note in database
-    const note = await api.notes.create({
-      title,
-      contentMarkdown: contentHtml,
-      categoryId,
-      isRtl,
-    });
-
-    if (result.filePath) {
-      // Clear any other notes linked to this same file path to prevent conflicts
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("nasbook.nasbk.link.")) {
-          if (localStorage.getItem(key) === result.filePath) {
-            localStorage.removeItem(key);
-          }
-        }
-      }
-      localStorage.setItem(`nasbook.nasbk.link.${note.id}`, result.filePath);
-    }
-
-    // Update list and selection to show the newly imported note
-    await refreshNotes();
-    setSelectedNote(note);
-    setDraftTitle(note.title);
-    setDraftContent(note.contentMarkdown);
-    draftTextRef.current = result.contentText || getPlainTextFromHtml(contentHtml);
-    setSaveStatus("Saved");
+    await loadImportedNasbkData(result);
   };
 
   const handleExportNote = async (): Promise<void> => {

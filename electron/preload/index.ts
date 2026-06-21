@@ -6,6 +6,7 @@ import type {
   NoteListOptions,
   UpdateNoteInput,
   NasbkSaveInput,
+  NasbkImportResult,
 } from "../../src/shared/ipc";
 import type { AppSettings } from "../../src/shared/settings";
 
@@ -58,6 +59,14 @@ const api: NasNotesbookApi = Object.freeze({
   nasbk: Object.freeze({
     saveFile: (input: NasbkSaveInput) => ipcRenderer.invoke("nasbk:saveFile", input),
     importFile: () => ipcRenderer.invoke("nasbk:importFile"),
+    getStartupFile: () => ipcRenderer.invoke("nasbk:getStartupFile"),
+    onOpenFile: (callback: (fileData: NasbkImportResult) => void) => {
+      const listener = (_event: unknown, data: NasbkImportResult) => callback(data);
+      ipcRenderer.on("nasbk:openFile", listener);
+      return () => {
+        ipcRenderer.removeListener("nasbk:openFile", listener);
+      };
+    },
   }),
   window: Object.freeze({
     minimize: () => ipcRenderer.invoke("window:minimize"),

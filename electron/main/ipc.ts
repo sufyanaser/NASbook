@@ -18,7 +18,53 @@ import type { NotesbookDatabase } from "./db";
 import type { SettingsStore } from "./settingsStore";
 import type { BackupService } from "./backupService";
 import type { GoogleAuthService } from "./googleAuthService";
-import type { GoogleDriveBackupService } from "./googleDriveBackupService";
+import { GoogleDriveBackupService } from "./googleDriveBackupService";
+
+export async function parseAndValidateNasbk(filePath: string): Promise<NasbkImportResult> {
+  try {
+    const contentStr = await readFile(filePath, "utf8");
+    if (!contentStr || contentStr.trim() === "") {
+      throw new Error("File is empty.");
+    }
+    
+    const data = JSON.parse(contentStr);
+
+    if (!data || typeof data !== "object") {
+      throw new Error("Invalid file content. Must be a valid JSON object.");
+    }
+
+    if (data.format !== "NASBK") {
+      throw new Error("Invalid format. File is not a NASBK document.");
+    }
+
+    if (data.formatVersion === undefined || data.formatVersion === null) {
+      throw new Error("Invalid document. Missing formatVersion.");
+    }
+
+    if (typeof data.title !== "string" || typeof data.contentHtml !== "string") {
+      throw new Error("Invalid NASBK document content. title and contentHtml must be strings.");
+    }
+
+    return {
+      ok: true,
+      filePath,
+      title: data.title,
+      contentHtml: data.contentHtml,
+      contentText: data.contentText || "",
+      metadata: data.metadata || {
+        isRtl: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      formatVersion: data.formatVersion,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
 
 interface RegisterIpcOptions {
   readonly appName: string;
@@ -215,42 +261,7 @@ export function registerIpcHandlers({
         }
 
         const filePath = result.filePaths[0];
-        const contentStr = await readFile(filePath, "utf8");
-        if (!contentStr || contentStr.trim() === "") {
-          throw new Error("File is empty.");
-        }
-        
-        const data = JSON.parse(contentStr);
-
-        if (!data || typeof data !== "object") {
-          throw new Error("Invalid file content. Must be a valid JSON object.");
-        }
-
-        if (data.format !== "NASBK") {
-          throw new Error("Invalid format. File is not a NASBK document.");
-        }
-
-        if (data.formatVersion === undefined || data.formatVersion === null) {
-          throw new Error("Invalid document. Missing formatVersion.");
-        }
-
-        if (typeof data.title !== "string" || typeof data.contentHtml !== "string") {
-          throw new Error("Invalid NASBK document content. title and contentHtml must be strings.");
-        }
-
-        return {
-          ok: true,
-          filePath,
-          title: data.title,
-          contentHtml: data.contentHtml,
-          contentText: data.contentText || "",
-          metadata: data.metadata || {
-            isRtl: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          formatVersion: data.formatVersion,
-        };
+        return await parseAndValidateNasbk(filePath);
       } catch (error) {
         return {
           ok: false,

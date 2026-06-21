@@ -173,6 +173,8 @@ export interface NasNotesbookApi {
   readonly nasbk: {
     readonly saveFile: (input: NasbkSaveInput) => Promise<NasbkSaveResult>;
     readonly importFile: () => Promise<NasbkImportResult>;
+    readonly getStartupFile: () => Promise<NasbkImportResult | null>;
+    readonly onOpenFile: (callback: (fileData: NasbkImportResult) => void) => () => void;
   };
   readonly window: {
     readonly minimize: () => Promise<void>;

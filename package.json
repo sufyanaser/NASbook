@@ -65,7 +65,17 @@
     "files": [
       "dist/**/*",
       "assets/icon.ico",
+      "assets/nasbk-file-icon.ico",
       "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "nasbk",
+        "name": "NASBK Note Document",
+        "description": "NASbook Note Backup Document",
+        "icon": "assets/nasbk-file-icon.ico",
+        "role": "Editor"
+      }
     ],
     "asarUnpack": [
       "node_modules/better-sqlite3/build/Release/*.node"
