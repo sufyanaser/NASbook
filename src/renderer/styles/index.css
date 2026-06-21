@@ -3465,23 +3465,29 @@ textarea,
 }
 
 /* Phase 23: editor tables, divider, version label */
-/* Tables v2: the table extension wraps the table in .tableWrapper (editing
-   view); the wrapper scrolls horizontally so resized columns never overflow
-   the editor. Saved HTML stays a plain <table> (no wrapper) for compatibility. */
+/* Tables v2: the table extension wraps the table in .tableWrapper while
+   editing. Column resize keeps the table width fixed and transfers width
+   between adjacent columns; saved HTML remains a plain <table>. */
 .ProseMirror table {
   border-collapse: collapse;
   table-layout: fixed;
-  width: 100%;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
   margin: 14px 0;
   border-radius: 8px;
 }
 
 .ProseMirror .tableWrapper {
-  overflow-x: auto;
+  overflow: hidden !important;
+  max-width: 100%;
   margin: 14px 0;
 }
 
 .ProseMirror .tableWrapper table {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
   margin: 0;
 }
 
@@ -3491,9 +3497,10 @@ textarea,
   padding: 8px 12px;
   vertical-align: top;
   text-align: start;
-  min-width: 4em;
+  min-width: 0;
   position: relative;
   box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
 
 .ProseMirror th {

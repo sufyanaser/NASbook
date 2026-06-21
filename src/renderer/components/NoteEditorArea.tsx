@@ -20,6 +20,8 @@ import { FontSize } from "../extensions/FontSize";
 import { FontWeight } from "../extensions/FontWeight";
 import { BackgroundColor } from "../extensions/BackgroundColor";
 import { LineHeight } from "../extensions/LineHeight";
+import { customColumnResizing, normalizeSelectedTableColumnWidths } from "../extensions/CustomTableResize";
+import { tableEditing } from "@tiptap/pm/tables";
 import { TextDirection } from "../extensions/TextDirection";
 import { Indent } from "../extensions/Indent";
 import { LinkDialog } from "./LinkDialog";
@@ -509,6 +511,28 @@ const TableCellWithBg = TableCell.extend({
 const TableHeaderWithBg = TableHeader.extend({
   addAttributes() {
     return { ...this.parent?.(), ...cellBackgroundAttribute };
+  },
+});
+
+const CustomTable = Table.extend({
+  addProseMirrorPlugins() {
+    const isResizable = this.options.resizable && this.editor.isEditable;
+
+    return [
+      ...(isResizable
+        ? [
+            customColumnResizing({
+              handleWidth: this.options.handleWidth,
+              cellMinWidth: this.options.cellMinWidth,
+              defaultCellMinWidth: this.options.cellMinWidth,
+              View: this.options.View,
+            }),
+          ]
+        : []),
+      tableEditing({
+        allowTableNodeSelection: this.options.allowTableNodeSelection,
+      }),
+    ];
   },
 });
 
@@ -1087,7 +1111,7 @@ export function NoteEditorArea({
       LineHeight,
       TextDirection,
       Indent,
-      Table.configure({ resizable: true, cellMinWidth: 96 }),
+      CustomTable.configure({ resizable: true, cellMinWidth: 96, lastColumnResizable: false }),
       TableRow,
       TableHeaderWithBg,
       TableCellWithBg,
@@ -2714,7 +2738,9 @@ export function NoteEditorArea({
                             onMouseDown={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
-                              editor.chain().focus().addColumnAfter().run();
+                              if (editor.chain().focus().addColumnAfter().run()) {
+                                normalizeSelectedTableColumnWidths(editor.view);
+                              }
                             }}
                             data-tooltip={language === "ar" ? "إضافة عمود" : "Add column"}
                           >
@@ -2742,7 +2768,9 @@ export function NoteEditorArea({
                             onMouseDown={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
-                              editor.chain().focus().deleteColumn().run();
+                              if (editor.chain().focus().deleteColumn().run()) {
+                                normalizeSelectedTableColumnWidths(editor.view);
+                              }
                             }}
                             data-tooltip={language === "ar" ? "حذف عمود" : "Delete column"}
                           >

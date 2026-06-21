@@ -84,3 +84,28 @@ test("renderer defines reusable CSS tooltip system", async () => {
   assert.match(editorSource, /data-tooltip=\{t\("tooltipSave",\s*language\)\}/);
   assert.match(settingsSource, /data-tooltip=\{t\("settingsClose",\s*lang\)\}/);
 });
+
+test("table resizing transfers width between adjacent columns only", async () => {
+  const resizeSource = await readFile(
+    join(projectRoot, "src/renderer/extensions/CustomTableResize.ts"),
+    "utf8",
+  );
+  const editorSource = await readFile(
+    join(projectRoot, "src/renderer/components/NoteEditorArea.tsx"),
+    "utf8",
+  );
+  const stylesSource = await readFile(
+    join(projectRoot, "src/renderer/styles/index.css"),
+    "utf8",
+  );
+
+  assert.match(resizeSource, /export function transferColumnResizeDelta/);
+  assert.match(resizeSource, /nextWidths\[physicalLeftCol\]\s*=\s*leftStart \+ clampedDelta/);
+  assert.match(resizeSource, /nextWidths\[physicalRightCol\]\s*=\s*rightStart - clampedDelta/);
+  assert.match(resizeSource, /roundColumnWidthsPreservingTotal/);
+  assert.match(resizeSource, /direction === "rtl" \? handleCol - 1 : handleCol \+ 1/);
+  assert.match(editorSource, /customColumnResizing\(/);
+  assert.match(editorSource, /lastColumnResizable:\s*false/);
+  assert.match(stylesSource, /\.ProseMirror \.tableWrapper \{\s*overflow:\s*hidden !important;/);
+  assert.match(stylesSource, /\.ProseMirror table \{[^}]*width:\s*100% !important;[^}]*min-width:\s*0 !important;[^}]*max-width:\s*100% !important;/s);
+});
