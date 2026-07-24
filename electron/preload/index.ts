@@ -72,6 +72,14 @@ const api: NasNotesbookApi = Object.freeze({
     minimize: () => ipcRenderer.invoke("window:minimize"),
     toggleMaximize: () => ipcRenderer.invoke("window:toggleMaximize"),
     close: () => ipcRenderer.invoke("window:close"),
+    confirmClose: () => ipcRenderer.invoke("window:confirmClose"),
+    onCloseRequested: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("window:close-requested", listener);
+      return () => {
+        ipcRenderer.removeListener("window:close-requested", listener);
+      };
+    },
     isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
   }),
 });

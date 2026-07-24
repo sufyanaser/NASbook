@@ -28,3 +28,28 @@ google-credentials.json
 client_secret*.json
 *token*.json
 .aider*
+
+# NASbook repository safety rules
+# Local secrets and credentials
+google-credentials.json
+*.credentials.json
+*.secret.json
+.env
+.env.*
+!.env.example
+# Local databases and runtime state
+*.db
+*.db-shm
+*.db-wal
+# Build outputs
+node_modules/
+dist/
+release/
+# Local AI/editor state
+.claude/
+.aider.tags.cache.v4/
+.aider.chat.history.md
+.aider.input.history
+# OS metadata
+desktop.ini
+.DS_Store

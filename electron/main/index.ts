@@ -1,7 +1,11 @@
 import { app, BrowserWindow, shell, Menu, ipcMain } from "electron";
 import path from "node:path";
 import { createNotesbookDatabase, type NotesbookDatabase } from "./db";
-import { registerIpcHandlers, parseAndValidateNasbk } from "./ipc";
+import {
+  isWindowCloseApproved,
+  registerIpcHandlers,
+  parseAndValidateNasbk,
+} from "./ipc";
 import { createSettingsStore } from "./settingsStore";
 import { createBackupService } from "./backupService";
 import { createGoogleAuthService } from "./googleAuthService";
@@ -84,6 +88,18 @@ if (!gotTheLock) {
 
     mainWindow.once("ready-to-show", () => {
       mainWindow?.show();
+    });
+
+    mainWindow.on("close", (event) => {
+      const window = mainWindow;
+      if (
+        window &&
+        !isWindowCloseApproved(window) &&
+        !window.webContents.isDestroyed()
+      ) {
+        event.preventDefault();
+        window.webContents.send("window:close-requested");
+      }
     });
 
     mainWindow.on("closed", () => {

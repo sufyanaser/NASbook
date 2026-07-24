@@ -93,6 +93,12 @@ export function App(): JSX.Element {
   const [movePopoverNoteId, setMovePopoverNoteId] = useState<number | null>(null);
   const contextFocusRef = useRef<HTMLElement | null>(null);
 
+  const nasDebugLog = (message: string, ...args: unknown[]) => {
+    if (localStorage.getItem("NAS_DEBUG_STORAGE") === "1") {
+      console.log(message, ...args);
+    }
+  };
+
 
   const [pendingNavigationAction, setPendingNavigationAction] = useState<
     (() => void) | null
@@ -102,6 +108,7 @@ export function App(): JSX.Element {
   const autosaveTimerRef = useRef<number | null>(null);
   const saveInProgressRef = useRef(false);
   const pendingResaveRef = useRef(false);
+  const closeRequestInProgressRef = useRef(false);
   const selectedNoteRef = useRef<NoteRecord | null>(null);
   const draftRef = useRef<{ title: string; content: string }>({
     title: "",
@@ -249,12 +256,44 @@ export function App(): JSX.Element {
     const api = window.nasNotesbook;
     const note = selectedNoteRef.current;
 
+    nasDebugLog("[TRACE] App performSave START", {
+      reason: isManualSave ? "manualSave" : "autosave",
+      noteId: note?.id,
+      selectedNoteId: selectedNoteRef.current?.id,
+      hasApi: !!api,
+      activeCategory: activeCategoryRef.current,
+    });
+
     // Nothing to save, or note not editable (e.g. trash) -> treat as success.
     if (!api || !note || activeCategoryRef.current === "trash") {
+      nasDebugLog("[TRACE] App performSave early exit: no api/note or trash");
       return true;
     }
 
     const { title, content } = draftRef.current;
+
+    // Guard: Prevent autosave from overwriting non-empty database content with empty content
+    // unless the deletion was intentional (detected by the editor having active focus).
+    if (!isManualSave && content === "" && note.contentMarkdown !== "") {
+      const isEditorFocused = document.activeElement?.classList.contains("ProseMirror");
+      if (!isEditorFocused) {
+        nasDebugLog("[TRACE] App performSave GUARD triggered: blocked empty autosave during transition (reason: transition empty-save guard active)", {
+          noteId: note.id,
+          savedContentLength: note.contentMarkdown.length,
+        });
+        return true; // Treat as success but skip writing to DB to protect existing content.
+      }
+    }
+
+    nasDebugLog("[TRACE] App performSave comparing draft", {
+      reason: isManualSave ? "manualSave" : "autosave",
+      noteId: note.id,
+      draftTitle: title,
+      draftContentLength: content.length,
+      noteTitle: note.title,
+      noteContentLength: note.contentMarkdown?.length,
+      hasChanges: hasUnsavedNoteChanges(note, title, content),
+    });
 
     // Skip if the draft already matches the last saved snapshot (selectedNote).
     if (!hasUnsavedNoteChanges(note, title, content)) {
@@ -282,11 +321,15 @@ export function App(): JSX.Element {
           }
         }
       }
+      nasDebugLog("[TRACE] App performSave skipped: no unsaved changes");
       return true;
     }
 
     // A save is already running: queue exactly one follow-up and bail.
     if (saveInProgressRef.current) {
+      nasDebugLog("[TRACE] App performSave queued resave: saveInProgress is true", {
+        noteId: note.id,
+      });
       pendingResaveRef.current = true;
       return true;
     }
@@ -295,6 +338,13 @@ export function App(): JSX.Element {
     const savingId = note.id;
     setSaveStatus("Saving");
 
+    nasDebugLog("[TRACE] App performSave calling notes.update", {
+      reason: isManualSave ? "manualSave" : "autosave",
+      savingId,
+      title,
+      contentLength: content.length,
+    });
+
     try {
       const updated = await api.notes.update({
         id: savingId,
@@ -302,6 +352,13 @@ export function App(): JSX.Element {
         contentMarkdown: content,
         categoryId: note.categoryId,
         isRtl: note.isRtl,
+      });
+
+      nasDebugLog("[TRACE] App performSave notes.update RESOLVED", {
+        reason: isManualSave ? "manualSave" : "autosave",
+        savingId,
+        updatedId: updated.id,
+        updatedContentLength: updated.contentMarkdown.length,
       });
 
       // Only reflect the result if the user is still on the same note.
@@ -373,6 +430,35 @@ export function App(): JSX.Element {
     }
     return performSave(isManualSave);
   }, [performSave]);
+
+  // Closing must wait for the async SQLite IPC write. A beforeunload callback
+  // cannot provide that guarantee because Electron destroys the renderer
+  // without awaiting its Promise.
+  const flushSaveBeforeClose = useCallback(async (): Promise<boolean> => {
+    const firstResult = await flushSave(true);
+    if (!firstResult && !saveInProgressRef.current) {
+      return false;
+    }
+
+    const deadline = Date.now() + 15_000;
+    while (saveInProgressRef.current && Date.now() < deadline) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 25);
+      });
+    }
+
+    if (saveInProgressRef.current) {
+      return false;
+    }
+
+    const stillDirty = hasUnsavedNoteChanges(
+      selectedNoteRef.current,
+      draftRef.current.title,
+      draftRef.current.content,
+    );
+
+    return stillDirty ? flushSave(true) : true;
+  }, [flushSave]);
 
   // Gate note/category/new-note navigation behind autosave. If there is nothing
   // pending, navigate immediately. Otherwise flush; only surface the in-app
@@ -664,12 +750,33 @@ export function App(): JSX.Element {
   // Every draft change resets the timer; the timer is skipped entirely when
   // there is no selected note, the note is trashed, or nothing is dirty.
   useEffect(() => {
+    nasDebugLog("[TRACE] App autosave useEffect evaluating", {
+      reason: "autosaveEvaluate",
+      hasSelectedNote: !!selectedNote,
+      selectedNoteId: selectedNote?.id,
+      activeCategory,
+      hasUnsavedChanges,
+      draftContentLength: draftContent.length,
+      noteContentLength: selectedNote?.contentMarkdown?.length,
+    });
+
     if (!selectedNote || activeCategory === "trash" || !hasUnsavedChanges) {
       return undefined;
     }
 
     setSaveStatus("Unsaved");
+    nasDebugLog("[TRACE] App autosave scheduling timeout", {
+      reason: "autosaveSchedule",
+      selectedNoteId: selectedNote.id,
+      delayMs: AUTOSAVE_DELAY_MS,
+    });
+
     const handle = window.setTimeout(() => {
+      nasDebugLog("[TRACE] App autosave timeout fired", {
+        reason: "autosaveFire",
+        selectedNoteId: selectedNoteRef.current?.id,
+        currentDraftLength: draftRef.current.content.length,
+      });
       autosaveTimerRef.current = null;
       void performSave();
     }, AUTOSAVE_DELAY_MS);
@@ -690,23 +797,36 @@ export function App(): JSX.Element {
     performSave,
   ]);
 
-  // Best-effort flush when the window is closing.
+  // Main-process close handshake. This covers both the custom title-bar button
+  // and native close requests such as Alt+F4.
   useEffect(() => {
-    const handler = (): void => {
-      const dirty = hasUnsavedNoteChanges(
-        selectedNoteRef.current,
-        draftRef.current.title,
-        draftRef.current.content,
-      );
-      if (dirty || autosaveTimerRef.current !== null) {
-        void flushSave();
+    const api = window.nasNotesbook;
+    if (!api?.window.onCloseRequested) {
+      return undefined;
+    }
+
+    return api.window.onCloseRequested(() => {
+      if (closeRequestInProgressRef.current) {
+        return;
       }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => {
-      window.removeEventListener("beforeunload", handler);
-    };
-  }, [flushSave]);
+
+      closeRequestInProgressRef.current = true;
+      void flushSaveBeforeClose().then((ok) => {
+        if (ok) {
+          void api.window.confirmClose().catch((error) => {
+            closeRequestInProgressRef.current = false;
+            console.error("Failed to confirm window close:", error);
+          });
+          return;
+        }
+
+        setPendingNavigationAction(() => () => {
+          void api.window.confirmClose();
+        });
+        setIsSaveFailedDialogOpen(true);
+      });
+    });
+  }, [flushSaveBeforeClose]);
 
   const doSelectNote = async (id: number): Promise<void> => {
     const note = await window.nasNotesbook?.notes.getById(id);
@@ -1105,6 +1225,13 @@ export function App(): JSX.Element {
   };
 
   const handleDraftContentChange = (content: string, text: string): void => {
+    nasDebugLog("[TRACE] App handleDraftContentChange", {
+      reason: "onContentChange",
+      noteId: selectedNoteRef.current?.id,
+      selectedNoteId: selectedNoteRef.current?.id,
+      draftContentLength: content.length,
+      textLength: text.length,
+    });
     setDraftContent(content);
     draftTextRef.current = text;
     setSaveStatus("Unsaved");
@@ -1321,6 +1448,7 @@ export function App(): JSX.Element {
         onCancel={() => {
           setIsSaveFailedDialogOpen(false);
           setPendingNavigationAction(null);
+          closeRequestInProgressRef.current = false;
         }}
         onConfirm={() => {
           setIsSaveFailedDialogOpen(false);

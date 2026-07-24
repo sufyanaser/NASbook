@@ -974,6 +974,12 @@ export function NoteEditorArea({
   const isSettingContentRef = useRef(false);
   const loadedNoteIdRef = useRef<number | null>(null);
   
+  const nasDebugLog = (message: string, ...args: unknown[]) => {
+    if (localStorage.getItem("NAS_DEBUG_STORAGE") === "1") {
+      console.log(message, ...args);
+    }
+  };
+  
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
   const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -1121,7 +1127,27 @@ export function NoteEditorArea({
     // during construction; the effect below still enforces no-note/trash mode.
     editable: true,
     onUpdate: ({ editor }) => {
-      if (isSettingContentRef.current) {
+      nasDebugLog("[TRACE] NoteEditorArea onUpdate START", {
+        reason: "onUpdate",
+        noteId: selectedNote?.id,
+        selectedNoteId: selectedNote?.id,
+        loadedNoteIdRef: loadedNoteIdRef.current,
+        isSettingContentRef: isSettingContentRef.current,
+        contentLength: editor.getHTML().length,
+        textLength: editor.getText().length,
+        editorIsEmpty: editor.isEmpty,
+      });
+
+      if (
+        isSettingContentRef.current ||
+        !selectedNote ||
+        loadedNoteIdRef.current !== selectedNote.id
+      ) {
+        nasDebugLog("[TRACE] NoteEditorArea onUpdate skipped: transition guard active", {
+          isSettingContent: isSettingContentRef.current,
+          noSelectedNote: !selectedNote,
+          idMismatch: selectedNote ? loadedNoteIdRef.current !== selectedNote.id : false,
+        });
         return;
       }
       const html = editor.getHTML();
@@ -1130,8 +1156,21 @@ export function NoteEditorArea({
         html === "<p></p>" ||
         html === "<p><br></p>" ||
         html === "<p><br class=\"ProseMirror-trailingBreak\"></p>";
-      const isEmpty = editor.getText().trim() === "" || isMeaninglessHtml;
+      const isEmpty = editor.isEmpty || isMeaninglessHtml;
       const content = isEmpty ? "" : html;
+
+      nasDebugLog("[TRACE] NoteEditorArea onUpdate onContentChange", {
+        reason: "onUpdate",
+        noteId: selectedNote?.id,
+        selectedNoteId: selectedNote?.id,
+        loadedNoteIdRef: loadedNoteIdRef.current,
+        isSettingContentRef: isSettingContentRef.current,
+        contentLength: content.length,
+        textLength: editor.getText().length,
+        editorIsEmpty: editor.isEmpty,
+        isEmptyVar: isEmpty,
+      });
+
       onContentChange(content, editor.getText());
     },
     editorProps: {
@@ -1347,16 +1386,54 @@ export function NoteEditorArea({
               ? selectedNote.contentHtml
               : selectedNote.contentMarkdown || "";
           
+          nasDebugLog("[TRACE] NoteEditorArea setContent START (has note)", {
+            reason: "setContent",
+            noteId: selectedNote.id,
+            selectedNoteId: selectedNote.id,
+            loadedNoteIdRef: loadedNoteIdRef.current,
+            isSettingContentRef: isSettingContentRef.current,
+            targetContentLength: targetContent.length,
+            editorIsEmpty: editor.isEmpty,
+          });
+
           isSettingContentRef.current = true;
           editor.commands.setContent(targetContent);
           loadedNoteIdRef.current = selectedNote.id;
           isSettingContentRef.current = false;
+
+          nasDebugLog("[TRACE] NoteEditorArea setContent END (has note)", {
+            reason: "setContent",
+            noteId: selectedNote.id,
+            selectedNoteId: selectedNote.id,
+            loadedNoteIdRef: loadedNoteIdRef.current,
+            isSettingContentRef: isSettingContentRef.current,
+            editorContentLength: editor.getHTML().length,
+            editorIsEmpty: editor.isEmpty,
+          });
         }
       } else {
+        nasDebugLog("[TRACE] NoteEditorArea setContent START (no note)", {
+          reason: "setContent",
+          noteId: null,
+          selectedNoteId: null,
+          loadedNoteIdRef: loadedNoteIdRef.current,
+          isSettingContentRef: isSettingContentRef.current,
+          editorIsEmpty: editor.isEmpty,
+        });
+
         isSettingContentRef.current = true;
         editor.commands.setContent("");
         loadedNoteIdRef.current = null;
         isSettingContentRef.current = false;
+
+        nasDebugLog("[TRACE] NoteEditorArea setContent END (no note)", {
+          reason: "setContent",
+          noteId: null,
+          selectedNoteId: null,
+          loadedNoteIdRef: loadedNoteIdRef.current,
+          isSettingContentRef: isSettingContentRef.current,
+          editorIsEmpty: editor.isEmpty,
+        });
       }
     }
   }, [selectedNote?.id, editor]);

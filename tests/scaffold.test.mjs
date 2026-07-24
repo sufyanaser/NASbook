@@ -49,6 +49,32 @@ test("electron main process keeps renderer security enabled", async () => {
   assert.match(mainSource, /assets\/icon\.ico/);
 });
 
+test("window close waits for the renderer save handshake", async () => {
+  const mainSource = await readFile(
+    join(projectRoot, "electron/main/index.ts"),
+    "utf8",
+  );
+  const ipcSource = await readFile(
+    join(projectRoot, "electron/main/ipc.ts"),
+    "utf8",
+  );
+  const preloadSource = await readFile(
+    join(projectRoot, "electron/preload/index.ts"),
+    "utf8",
+  );
+  const rendererSource = await readFile(
+    join(projectRoot, "src/renderer/App.tsx"),
+    "utf8",
+  );
+
+  assert.match(mainSource, /event\.preventDefault\(\)/);
+  assert.match(mainSource, /window:close-requested/);
+  assert.match(ipcSource, /window:confirmClose/);
+  assert.match(preloadSource, /onCloseRequested/);
+  assert.match(rendererSource, /flushSaveBeforeClose/);
+  assert.doesNotMatch(rendererSource, /addEventListener\("beforeunload"/);
+});
+
 test("renderer defines reusable CSS tooltip system", async () => {
   const stylesSource = await readFile(
     join(projectRoot, "src/renderer/styles/index.css"),

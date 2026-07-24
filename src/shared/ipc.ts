@@ -180,6 +180,8 @@ export interface NasNotesbookApi {
     readonly minimize: () => Promise<void>;
     readonly toggleMaximize: () => Promise<void>;
     readonly close: () => Promise<void>;
+    readonly confirmClose: () => Promise<void>;
+    readonly onCloseRequested: (callback: () => void) => () => void;
     readonly isMaximized: () => Promise<boolean>;
   };
 }

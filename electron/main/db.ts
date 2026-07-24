@@ -14,6 +14,12 @@ import type {
 } from "../../src/shared/ipc";
 import { schemaStatements, seedCategories } from "./schema";
 
+const nasDebugLog = (message: string, ...args: unknown[]) => {
+  if (process.env.NAS_DEBUG_STORAGE === "1") {
+    console.log(message, ...args);
+  }
+};
+
 interface CategoryRow {
   readonly id: number;
   readonly name: string;
@@ -235,6 +241,13 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
     },
     updateNote: (input) => {
       const id = normalizeId(input.id);
+      nasDebugLog("[TRACE] DB updateNote START", {
+        reason: "db",
+        noteId: id,
+        selectedNoteId: id,
+        title: input.title,
+        contentMarkdownLength: input.contentMarkdown?.length,
+      });
       database
         .prepare(
           `UPDATE notes
@@ -255,7 +268,14 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
           id,
         );
 
-      return requireNote(database, id);
+      const result = requireNote(database, id);
+      nasDebugLog("[TRACE] DB updateNote END", {
+        reason: "db",
+        noteId: result.id,
+        selectedNoteId: result.id,
+        savedContentLength: result.contentMarkdown?.length,
+      });
+      return result;
     },
     deleteNoteToTrash: (id) => {
       database

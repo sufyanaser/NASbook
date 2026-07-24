@@ -20,6 +20,18 @@ import type { BackupService } from "./backupService";
 import type { GoogleAuthService } from "./googleAuthService";
 import { GoogleDriveBackupService } from "./googleDriveBackupService";
 
+const nasDebugLog = (message: string, ...args: unknown[]) => {
+  if (process.env.NAS_DEBUG_STORAGE === "1") {
+    console.log(message, ...args);
+  }
+};
+
+const approvedWindowCloses = new WeakSet<BrowserWindow>();
+
+export function isWindowCloseApproved(window: BrowserWindow): boolean {
+  return approvedWindowCloses.has(window);
+}
+
 export async function parseAndValidateNasbk(filePath: string): Promise<NasbkImportResult> {
   try {
     const contentStr = await readFile(filePath, "utf8");
@@ -132,6 +144,12 @@ export function registerIpcHandlers({
   });
 
   ipcMain.handle("notes:update", (_event, input: UpdateNoteInput) => {
+    nasDebugLog("[TRACE] Main IPC notes:update received", {
+      reason: "ipc",
+      noteId: input.id,
+      selectedNoteId: input.id,
+      contentMarkdownLength: input.contentMarkdown?.length,
+    });
     return database.updateNote(input);
   });
 
@@ -322,6 +340,14 @@ export function registerIpcHandlers({
   ipcMain.handle("window:close", (event): void => {
     const win = BrowserWindow.fromWebContents(event.sender);
     win?.close();
+  });
+
+  ipcMain.handle("window:confirmClose", (event): void => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      approvedWindowCloses.add(win);
+      win.close();
+    }
   });
 
   ipcMain.handle("window:isMaximized", (event): boolean => {
