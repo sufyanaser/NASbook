@@ -1,6 +1,6 @@
 {
   "name": "nas-notesbook",
-  "version": "0.9.0-dev.1",
+  "version": "0.9.0",
   "private": true,
   "description": "RTL-first local desktop notebook for NASbook.",
   "main": "dist/electron/main/index.js",
