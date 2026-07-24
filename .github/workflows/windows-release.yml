@@ -3,6 +3,7 @@ name: NASbook Windows Release
 on:
   push:
     branches:
+      - main
       - develop
     paths:
       - "electron/**"
@@ -14,6 +15,9 @@ on:
       - "tsconfig*.json"
       - "vite.config.ts"
       - ".github/workflows/windows-release.yml"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
