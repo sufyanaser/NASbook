@@ -28,9 +28,13 @@ jobs:
           cache: npm
 
       - name: Extract and run implementation script
+        id: apply
+        continue-on-error: true
         shell: bash
         run: |
-          python - <<'PY'
+          set -o pipefail
+          {
+            python - <<'PY'
           from pathlib import Path
 
           workflow = Path('.github/workflows/implement-category-customization.yml').read_text(encoding='utf-8')
@@ -45,27 +49,48 @@ jobs:
           )
           Path('/tmp/apply_category_customization.py').write_text(script + "\n", encoding='utf-8')
           PY
-          python /tmp/apply_category_customization.py
+            python /tmp/apply_category_customization.py
+          } 2>&1 | tee /tmp/category-customization.log
+
+      - name: Upload implementation diagnostic
+        if: steps.apply.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: category-customization-diagnostic
+          path: /tmp/category-customization.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop on implementation failure
+        if: steps.apply.outcome == 'failure'
+        run: exit 1
 
       - name: Install dependencies
+        if: steps.apply.outcome == 'success'
         run: npm ci
 
       - name: Set version 0.9.1
+        if: steps.apply.outcome == 'success'
         run: npm version 0.9.1 --no-git-tag-version --allow-same-version
 
       - name: Lint
+        if: steps.apply.outcome == 'success'
         run: npm run lint
 
       - name: Typecheck
+        if: steps.apply.outcome == 'success'
         run: npm run typecheck
 
       - name: Test
+        if: steps.apply.outcome == 'success'
         run: npm test
 
       - name: Build
+        if: steps.apply.outcome == 'success'
         run: npm run build
 
       - name: Commit and push feature
+        if: steps.apply.outcome == 'success'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
