@@ -1,0 +1,78 @@
+name: NASbook Windows Release
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "electron/**"
+      - "src/**"
+      - "tests/**"
+      - "assets/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - "vite.config.ts"
+      - ".github/workflows/windows-release.yml"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-installer:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build application
+        run: npm run build
+
+      - name: Build NSIS installer
+        run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify installer exists
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release -Filter "NASbook Setup 0.9.0.exe" -File -ErrorAction Stop
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one NASbook 0.9.0 installer."
+          }
+          Write-Host "Installer: $($installer.FullName)"
+          Write-Host "Size: $([math]::Round($installer.Length / 1MB, 2)) MB"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NASbook-Setup-0.9.0-Windows
+          path: release/NASbook Setup 0.9.0.exe
+          if-no-files-found: error
+          retention-days: 30

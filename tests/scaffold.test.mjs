@@ -75,6 +75,20 @@ test("window close waits for the renderer save handshake", async () => {
   assert.doesNotMatch(rendererSource, /addEventListener\("beforeunload"/);
 });
 
+test("database validates integrity and creates bounded snapshots", async () => {
+  const databaseSource = await readFile(
+    join(projectRoot, "electron/main/db.ts"),
+    "utf8",
+  );
+
+  assert.match(databaseSource, /pragma\("integrity_check"\)/);
+  assert.match(databaseSource, /wal_checkpoint\(TRUNCATE\)/);
+  assert.match(databaseSource, /database-backups/);
+  assert.match(databaseSource, /DATABASE_BACKUP_LIMIT\s*=\s*7/);
+  assert.match(databaseSource, /copyFileSync\(databasePath, backupPath\)/);
+  assert.match(databaseSource, /if \(isClosed\)/);
+});
+
 test("renderer defines reusable CSS tooltip system", async () => {
   const stylesSource = await readFile(
     join(projectRoot, "src/renderer/styles/index.css"),
