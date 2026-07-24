@@ -1,0 +1,1029 @@
+name: Implement category customization
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/implement-category-customization.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply category customization feature
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file_path = Path(path)
+              text = file_path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"Expected one match in {path}, found {count}: {old[:100]!r}")
+              file_path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          Path("src/shared/categoryIcons.ts").write_text(r'''import type { CategorySlug } from "./categories";
+
+export type CategoryIconKey =
+  | "notes"
+  | "folder"
+  | "broadcast"
+  | "home"
+  | "person"
+  | "code"
+  | "warning"
+  | "grid";
+
+export interface CategoryIconChoice {
+  readonly key: CategoryIconKey;
+  readonly fileName: string;
+  readonly labelAr: string;
+  readonly labelEn: string;
+}
+
+export const categoryIconChoices: readonly CategoryIconChoice[] = [
+  { key: "notes", fileName: "all-notes.svg", labelAr: "ملاحظات", labelEn: "Notes" },
+  { key: "folder", fileName: "projects.svg", labelAr: "مجلد", labelEn: "Folder" },
+  { key: "broadcast", fileName: "channels.svg", labelAr: "قناة", labelEn: "Channel" },
+  { key: "home", fileName: "nas.svg", labelAr: "رئيسي", labelEn: "Home" },
+  { key: "person", fileName: "personal.svg", labelAr: "شخصي", labelEn: "Personal" },
+  { key: "code", fileName: "development.svg", labelAr: "تطوير", labelEn: "Development" },
+  { key: "warning", fileName: "errors.svg", labelAr: "تنبيه", labelEn: "Warning" },
+  { key: "grid", fileName: "templates.svg", labelAr: "قوالب", labelEn: "Templates" },
+] as const;
+
+export const customizableCategorySlugs = [
+  "prompts",
+  "chatgpt-instructions",
+  "nas-projects",
+  "powershell-commands",
+  "development-notes",
+  "errors-fixes",
+  "templates",
+] as const satisfies readonly CategorySlug[];
+
+const fileByIconKey = Object.fromEntries(
+  categoryIconChoices.map((choice) => [choice.key, choice.fileName]),
+) as Record<CategoryIconKey, string>;
+
+const legacyIconFiles: Readonly<Record<string, string>> = {
+  "notebook-tabs": "all-notes.svg",
+  "message-square-code": "projects.svg",
+  "shield-alert": "channels.svg",
+  "folder-git-2": "nas.svg",
+  terminal: "personal.svg",
+  "code-2": "development.svg",
+  bug: "errors.svg",
+  "layout-template": "templates.svg",
+  archive: "archive.svg",
+  "trash-2": "trash.svg",
+};
+
+const fallbackIconFiles: Readonly<Partial<Record<CategorySlug, string>>> = {
+  "all-notes": "all-notes.svg",
+  prompts: "projects.svg",
+  "chatgpt-instructions": "channels.svg",
+  "nas-projects": "nas.svg",
+  "powershell-commands": "personal.svg",
+  "development-notes": "development.svg",
+  "errors-fixes": "errors.svg",
+  templates: "templates.svg",
+  archive: "archive.svg",
+  trash: "trash.svg",
+};
+
+const defaultKeyBySlug: Readonly<Partial<Record<CategorySlug, CategoryIconKey>>> = {
+  prompts: "folder",
+  "chatgpt-instructions": "broadcast",
+  "nas-projects": "home",
+  "powershell-commands": "person",
+  "development-notes": "code",
+  "errors-fixes": "warning",
+  templates: "grid",
+};
+
+export function isCategoryIconKey(value: string): value is CategoryIconKey {
+  return Object.prototype.hasOwnProperty.call(fileByIconKey, value);
+}
+
+export function resolveCategoryIconFile(
+  icon: string | undefined,
+  slug: CategorySlug,
+): string {
+  if (icon && isCategoryIconKey(icon)) {
+    return fileByIconKey[icon];
+  }
+
+  if (icon && legacyIconFiles[icon]) {
+    return legacyIconFiles[icon];
+  }
+
+  return fallbackIconFiles[slug] ?? "projects.svg";
+}
+
+export function resolveCategoryIconKey(
+  icon: string | undefined,
+  slug: CategorySlug,
+): CategoryIconKey {
+  if (icon && isCategoryIconKey(icon)) {
+    return icon;
+  }
+
+  return defaultKeyBySlug[slug] ?? "folder";
+}
+''', encoding="utf-8")
+
+          Path("src/renderer/components/CategoryCustomizationDialog.tsx").write_text(r'''import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
+import type { CategoryRecord } from "../../shared/categories";
+import {
+  categoryIconChoices,
+  resolveCategoryIconKey,
+  type CategoryIconKey,
+} from "../../shared/categoryIcons";
+import type { UpdateCategoryInput } from "../../shared/ipc";
+import type { AppLanguage, RailIconMode } from "../../shared/settings";
+import "../styles/category-customization.css";
+
+interface CategoryCustomizationDialogProps {
+  readonly category: CategoryRecord | null;
+  readonly language: AppLanguage;
+  readonly railIconMode: RailIconMode;
+  readonly onClose: () => void;
+  readonly onSave: (input: UpdateCategoryInput) => Promise<void>;
+}
+
+const iconAssetPath = (mode: RailIconMode, fileName: string): string =>
+  `${import.meta.env.BASE_URL}category-icons/${mode}/${fileName}`;
+
+export function CategoryCustomizationDialog({
+  category,
+  language,
+  railIconMode,
+  onClose,
+  onSave,
+}: CategoryCustomizationDialogProps): JSX.Element | null {
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState<CategoryIconKey>("folder");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!category) {
+      return;
+    }
+
+    setName(category.name);
+    setIcon(resolveCategoryIconKey(category.icon, category.slug));
+    setError("");
+    setIsSaving(false);
+  }, [category]);
+
+  useEffect(() => {
+    if (!category) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape" && !isSaving) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [category, isSaving, onClose]);
+
+  if (!category) {
+    return null;
+  }
+
+  const isArabic = language === "ar";
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    const normalizedName = name.trim();
+
+    if (!normalizedName) {
+      setError(isArabic ? "اكتب اسم المجلد." : "Enter a folder name.");
+      return;
+    }
+
+    setIsSaving(true);
+    setError("");
+
+    try {
+      await onSave({ id: category.id, name: normalizedName, icon });
+      onClose();
+    } catch (saveError) {
+      console.error("Failed to update category:", saveError);
+      setError(isArabic ? "تعذر حفظ التعديلات." : "Unable to save changes.");
+      setIsSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div
+      className="category-customization-overlay"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isSaving) {
+          onClose();
+        }
+      }}
+    >
+      <form
+        className="category-customization-dialog"
+        dir={isArabic ? "rtl" : "ltr"}
+        onSubmit={(event) => void handleSubmit(event)}
+      >
+        <div className="category-customization-header">
+          <div>
+            <h2>{isArabic ? "تخصيص المجلد" : "Customize folder"}</h2>
+            <p>
+              {isArabic
+                ? "غيّر الاسم واختر أيقونة محفوظة داخل NASbook."
+                : "Rename the folder and choose a built-in NASbook icon."}
+            </p>
+          </div>
+          <button
+            aria-label={isArabic ? "إغلاق" : "Close"}
+            className="category-customization-close"
+            disabled={isSaving}
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <label className="category-customization-field">
+          <span>{isArabic ? "اسم المجلد" : "Folder name"}</span>
+          <input
+            autoFocus
+            maxLength={40}
+            onChange={(event) => setName(event.target.value)}
+            value={name}
+          />
+        </label>
+
+        <fieldset className="category-customization-icons">
+          <legend>{isArabic ? "الأيقونة" : "Icon"}</legend>
+          <div className="category-customization-icon-grid">
+            {categoryIconChoices.map((choice) => {
+              const selected = choice.key === icon;
+              const src = iconAssetPath(railIconMode, choice.fileName);
+
+              return (
+                <button
+                  aria-label={isArabic ? choice.labelAr : choice.labelEn}
+                  className="category-customization-icon-button"
+                  data-selected={selected ? "true" : "false"}
+                  key={choice.key}
+                  onClick={() => setIcon(choice.key)}
+                  title={isArabic ? choice.labelAr : choice.labelEn}
+                  type="button"
+                >
+                  {railIconMode === "colored" ? (
+                    <img alt="" src={src} />
+                  ) : (
+                    <span
+                      className="category-customization-icon-mask"
+                      style={{ "--category-icon-url": `url(${src})` } as React.CSSProperties}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        {error && <p className="category-customization-error" role="alert">{error}</p>}
+
+        <div className="category-customization-actions">
+          <button
+            className="category-customization-secondary"
+            disabled={isSaving}
+            onClick={onClose}
+            type="button"
+          >
+            {isArabic ? "إلغاء" : "Cancel"}
+          </button>
+          <button
+            className="category-customization-primary"
+            disabled={isSaving}
+            type="submit"
+          >
+            {isSaving
+              ? isArabic ? "جارٍ الحفظ..." : "Saving..."
+              : isArabic ? "حفظ" : "Save"}
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
+  );
+}
+''', encoding="utf-8")
+
+          Path("src/renderer/styles/category-customization.css").write_text(r'''.category-customization-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(8px);
+}
+
+.category-customization-dialog {
+  width: min(440px, calc(100vw - 32px));
+  border: 1px solid var(--app-border-strong);
+  border-radius: 18px;
+  padding: 20px;
+  color: var(--app-text);
+  background: var(--app-surface);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.category-customization-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.category-customization-header h2 {
+  margin: 0;
+  color: var(--app-text-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.category-customization-header p {
+  margin: 6px 0 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.category-customization-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--app-text-muted);
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.category-customization-close:hover {
+  color: var(--app-text-strong);
+  background: var(--app-chrome-button-hover);
+}
+
+.category-customization-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: var(--app-text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.category-customization-field input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: var(--app-text-strong);
+  background: var(--app-surface-muted);
+  outline: none;
+}
+
+.category-customization-field input:focus {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.category-customization-icons {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.category-customization-icons legend {
+  margin-bottom: 10px;
+  color: var(--app-text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.category-customization-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.category-customization-icon-button {
+  display: grid;
+  place-items: center;
+  min-height: 58px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  color: var(--rail-icon-color);
+  background: var(--app-surface-muted);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.category-customization-icon-button:hover {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface-raised);
+  transform: translateY(-1px);
+}
+
+.category-customization-icon-button[data-selected="true"] {
+  border-color: var(--app-accent);
+  color: var(--app-text-strong);
+  background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface-muted));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.category-customization-icon-button img,
+.category-customization-icon-mask {
+  width: 23px;
+  height: 23px;
+}
+
+.category-customization-icon-button img {
+  object-fit: contain;
+}
+
+.category-customization-icon-mask {
+  display: block;
+  background: currentColor;
+  mask: var(--category-icon-url) center / contain no-repeat;
+  -webkit-mask: var(--category-icon-url) center / contain no-repeat;
+}
+
+.category-customization-error {
+  margin: 12px 0 0;
+  color: var(--app-danger);
+  font-size: 12px;
+}
+
+.category-customization-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.category-customization-actions button {
+  min-width: 88px;
+  height: 38px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.category-customization-secondary {
+  border: 1px solid var(--app-border-strong);
+  color: var(--app-text);
+  background: var(--app-surface-muted);
+}
+
+.category-customization-primary {
+  border: 1px solid var(--app-accent);
+  color: #fff;
+  background: var(--app-accent);
+}
+
+.category-customization-actions button:disabled,
+.category-customization-close:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.rail-category-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.rail-category-row > .rail-button {
+  flex: 1;
+  min-width: 0;
+}
+
+.rail-category-edit {
+  position: absolute;
+  inset-inline-end: 6px;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--app-text-subtle);
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.rail-category-row:hover .rail-category-edit,
+.rail-category-edit:focus-visible {
+  opacity: 1;
+}
+
+.rail-category-edit:hover {
+  color: var(--app-text-strong);
+  background: var(--rail-button-active-bg);
+}
+
+.rail-category-edit svg {
+  width: 14px;
+  height: 14px;
+}
+
+.navigation-rail:not(.navigation-rail--expanded) .rail-category-edit {
+  display: none;
+}
+''', encoding="utf-8")
+
+          replace_once(
+              "src/shared/ipc.ts",
+              '''export interface MarkdownImportResult {''',
+              '''export interface UpdateCategoryInput {
+  readonly id: number;
+  readonly name: string;
+  readonly icon: string;
+}
+
+export interface MarkdownImportResult {''',
+          )
+          replace_once(
+              "src/shared/ipc.ts",
+              '''  readonly categories: {
+    readonly list: () => Promise<readonly CategoryRecord[]>;
+  };''',
+              '''  readonly categories: {
+    readonly list: () => Promise<readonly CategoryRecord[]>;
+    readonly update: (input: UpdateCategoryInput) => Promise<CategoryRecord>;
+  };''',
+          )
+
+          replace_once(
+              "electron/preload/index.ts",
+              '''  UpdateNoteInput,
+  NasbkSaveInput,''',
+              '''  UpdateNoteInput,
+  UpdateCategoryInput,
+  NasbkSaveInput,''',
+          )
+          replace_once(
+              "electron/preload/index.ts",
+              '''  categories: Object.freeze({
+    list: () => ipcRenderer.invoke("categories:list"),
+  }),''',
+              '''  categories: Object.freeze({
+    list: () => ipcRenderer.invoke("categories:list"),
+    update: (input: UpdateCategoryInput) =>
+      ipcRenderer.invoke("categories:update", input),
+  }),''',
+          )
+
+          replace_once(
+              "electron/main/ipc.ts",
+              '''  UpdateNoteInput,
+  NasbkSaveInput,''',
+              '''  UpdateNoteInput,
+  UpdateCategoryInput,
+  NasbkSaveInput,''',
+          )
+          replace_once(
+              "electron/main/ipc.ts",
+              '''  ipcMain.handle("categories:list", () => {
+    return database.listCategories();
+  });''',
+              '''  ipcMain.handle("categories:list", () => {
+    return database.listCategories();
+  });
+
+  ipcMain.handle("categories:update", (_event, input: UpdateCategoryInput) => {
+    return database.updateCategory(input);
+  });''',
+          )
+
+          replace_once(
+              "electron/main/db.ts",
+              '''  UpdateNoteInput,
+} from "../../src/shared/ipc";''',
+              '''  UpdateNoteInput,
+  UpdateCategoryInput,
+} from "../../src/shared/ipc";
+import {
+  customizableCategorySlugs,
+  isCategoryIconKey,
+} from "../../src/shared/categoryIcons";''',
+          )
+          replace_once(
+              "electron/main/db.ts",
+              '''  readonly listCategories: () => readonly CategoryRecord[];
+  readonly listNotes:''',
+              '''  readonly listCategories: () => readonly CategoryRecord[];
+  readonly updateCategory: (input: UpdateCategoryInput) => CategoryRecord;
+  readonly listNotes:''',
+          )
+          replace_once(
+              "electron/main/db.ts",
+              '''function requireNote(database: SqliteDatabase, id: number): NoteRecord {''',
+              '''function requireCategory(database: SqliteDatabase, id: number): CategoryRecord {
+  const row = database
+    .prepare(
+      `SELECT id, name, slug, icon, is_system
+       FROM categories
+       WHERE id = ?`,
+    )
+    .get(normalizeId(id)) as CategoryRow | undefined;
+
+  if (!row) {
+    throw new Error("Category not found.");
+  }
+
+  return toCategoryRecord(row);
+}
+
+function normalizeCategoryName(name: string): string {
+  const normalized = name.trim();
+  if (normalized.length === 0 || normalized.length > 40) {
+    throw new Error("Category name must contain 1 to 40 characters.");
+  }
+  return normalized;
+}
+
+function requireNote(database: SqliteDatabase, id: number): NoteRecord {''',
+          )
+          replace_once(
+              "electron/main/db.ts",
+              '''      return rows.map(toCategoryRecord);
+    },
+    listNotes:''',
+              '''      return rows.map(toCategoryRecord);
+    },
+    updateCategory: (input) => {
+      const category = requireCategory(database, input.id);
+
+      if (!customizableCategorySlugs.includes(category.slug)) {
+        throw new Error("This system category cannot be customized.");
+      }
+
+      if (!isCategoryIconKey(input.icon)) {
+        throw new Error("Invalid category icon.");
+      }
+
+      database
+        .prepare("UPDATE categories SET name = ?, icon = ? WHERE id = ?")
+        .run(normalizeCategoryName(input.name), input.icon, category.id);
+
+      return requireCategory(database, category.id);
+    },
+    listNotes:''',
+          )
+
+          replace_once(
+              "src/shared/i18n.ts",
+              '''import type { CategorySlug } from "./categories";''',
+              '''import { defaultCategories, type CategorySlug } from "./categories";''',
+          )
+          replace_once(
+              "src/shared/i18n.ts",
+              '''export function getCategoryDisplayName(
+  slug: CategorySlug,
+  defaultName: string,
+  lang: AppLanguage,
+): string {
+  if (lang === "ar") {''',
+              '''export function getCategoryDisplayName(
+  slug: CategorySlug,
+  defaultName: string,
+  lang: AppLanguage,
+): string {
+  const originalName = defaultCategories.find((category) => category.slug === slug)?.name;
+  if (defaultName.trim() && originalName && defaultName !== originalName) {
+    return defaultName;
+  }
+
+  if (lang === "ar") {''',
+          )
+
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''import type { CategoryDefinition, CategorySlug } from "../../shared/categories";''',
+              '''import type { CategoryRecord, CategorySlug } from "../../shared/categories";
+import { customizableCategorySlugs, resolveCategoryIconFile } from "../../shared/categoryIcons";
+import type { UpdateCategoryInput } from "../../shared/ipc";
+import { CategoryCustomizationDialog } from "./CategoryCustomizationDialog";''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''  slug: CategorySlug | "settings",
+  name: string,
+ ): IconResolution => {
+  const fileName = categoryIconFiles[slug];''',
+              '''  slug: CategorySlug | "settings",
+  name: string,
+  icon?: string,
+ ): IconResolution => {
+  const fileName = slug === "settings"
+    ? categoryIconFiles.settings
+    : resolveCategoryIconFile(icon, slug);''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''  readonly categories: readonly CategoryDefinition[];''',
+              '''  readonly categories: readonly CategoryRecord[];''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''  readonly onSelectCategory: (category: CategorySlug) => void;
+  readonly expanded:''',
+              '''  readonly onSelectCategory: (category: CategorySlug) => void;
+  readonly onUpdateCategory: (input: UpdateCategoryInput) => Promise<void>;
+  readonly expanded:''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''  onSelectCategory,
+  expanded,''',
+              '''  onSelectCategory,
+  onUpdateCategory,
+  expanded,''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''  const [isThemeOpen, setIsThemeOpen] = useState(false);''',
+              '''  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryRecord | null>(null);''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''  return (
+    <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label="Categories">''',
+              '''  const renderCategoryButton = (
+    category: CategoryRecord,
+    canCustomize: boolean,
+  ): JSX.Element => {
+    const iconRes = getCategoryIcon(
+      railIconMode,
+      category.slug,
+      category.name,
+      category.icon,
+    );
+    const displayName = getCategoryDisplayName(category.slug, category.name, language);
+    const customizable = canCustomize && customizableCategorySlugs.includes(category.slug);
+
+    return (
+      <div className="rail-category-row" key={category.slug}>
+        <button
+          className="rail-button"
+          data-active={category.slug === activeCategory}
+          data-trash={category.slug === "trash" ? "true" : "false"}
+          data-tooltip={expanded ? "" : displayName}
+          data-tooltip-placement={language === "ar" ? "left" : "right"}
+          onClick={() => onSelectCategory(category.slug)}
+          onContextMenu={(event) => {
+            if (customizable) {
+              event.preventDefault();
+              setEditingCategory(category);
+            }
+          }}
+          onDoubleClick={() => {
+            if (customizable) {
+              setEditingCategory(category);
+            }
+          }}
+          type="button"
+        >
+          <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
+          {expanded && <span className="rail-button-label">{displayName}</span>}
+          <span className="sr-only">{displayName}</span>
+        </button>
+        {expanded && customizable && (
+          <button
+            aria-label={language === "ar" ? `تخصيص ${displayName}` : `Customize ${displayName}`}
+            className="rail-category-edit"
+            data-tooltip={language === "ar" ? "إعادة التسمية وتغيير الأيقونة" : "Rename and change icon"}
+            data-tooltip-placement={language === "ar" ? "left" : "right"}
+            onClick={() => setEditingCategory(category)}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label="Categories">''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''        {primaryCategories.map((category) => {
+          const iconRes = getCategoryIcon(
+            railIconMode,
+            category.slug,
+            category.name,
+          );
+          const displayName = getCategoryDisplayName(category.slug, category.name, language);
+
+          return (
+            <button
+              className="rail-button"
+              data-active={category.slug === activeCategory}
+              data-trash={category.slug === "trash" ? "true" : "false"}
+              data-tooltip={expanded ? "" : displayName}
+              data-tooltip-placement={language === "ar" ? "left" : "right"}
+              key={category.slug}
+              onClick={() => onSelectCategory(category.slug)}
+              type="button"
+            >
+              <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
+              {expanded && <span className="rail-button-label">{displayName}</span>}
+              <span className="sr-only">{displayName}</span>
+            </button>
+          );
+        })}''',
+              '''        {primaryCategories.map((category) => renderCategoryButton(category, true))}''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''        {secondaryCategories.map((category) => {
+          const iconRes = getCategoryIcon(
+            railIconMode,
+            category.slug,
+            category.name,
+          );
+          const displayName = getCategoryDisplayName(category.slug, category.name, language);
+
+          return (
+            <button
+              className="rail-button"
+              data-active={category.slug === activeCategory}
+              data-trash={category.slug === "trash" ? "true" : "false"}
+              data-tooltip={expanded ? "" : displayName}
+              data-tooltip-placement={language === "ar" ? "left" : "right"}
+              key={category.slug}
+              onClick={() => onSelectCategory(category.slug)}
+              type="button"
+            >
+              <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
+              {expanded && <span className="rail-button-label">{displayName}</span>}
+              <span className="sr-only">{displayName}</span>
+            </button>
+          );
+        })}''',
+              '''        {secondaryCategories.map((category) => renderCategoryButton(category, false))}''',
+          )
+          replace_once(
+              "src/renderer/components/NavigationRail.tsx",
+              '''      </nav>
+    </aside>''',
+              '''      </nav>
+      <CategoryCustomizationDialog
+        category={editingCategory}
+        language={language}
+        railIconMode={railIconMode}
+        onClose={() => setEditingCategory(null)}
+        onSave={onUpdateCategory}
+      />
+    </aside>''',
+          )
+
+          replace_once(
+              "src/renderer/App.tsx",
+              '''import type { AppInfo, NoteRecord, NoteListItem, NasbkImportResult } from "../shared/ipc";''',
+              '''import type {
+  AppInfo,
+  NoteRecord,
+  NoteListItem,
+  NasbkImportResult,
+  UpdateCategoryInput,
+} from "../shared/ipc";''',
+          )
+          replace_once(
+              "src/renderer/App.tsx",
+              '''  const handleOpenDataFolder = (): void => {''',
+              '''  const handleUpdateCategory = useCallback(
+    async (input: UpdateCategoryInput): Promise<void> => {
+      const api = window.nasNotesbook;
+      if (!api) {
+        return;
+      }
+
+      const updated = await api.categories.update(input);
+      setCategories((current) =>
+        current.map((category) => category.id === updated.id ? updated : category),
+      );
+    },
+    [],
+  );
+
+  const handleOpenDataFolder = (): void => {''',
+          )
+          replace_once(
+              "src/renderer/App.tsx",
+              '''        onSelectCategory={handleSelectCategory}
+        expanded={navRailExpanded}''',
+              '''        onSelectCategory={handleSelectCategory}
+        onUpdateCategory={handleUpdateCategory}
+        expanded={navRailExpanded}''',
+          )
+
+          tests_path = Path("tests/scaffold.test.mjs")
+          tests_text = tests_path.read_text(encoding="utf-8")
+          marker = 'test("category customization persists names and built-in icons", async () => {'
+          if marker not in tests_text:
+              tests_text += r'''
+
+test("category customization persists names and built-in icons", async () => {
+  const dbSource = await readFile(join(projectRoot, "electron/main/db.ts"), "utf8");
+  const ipcSource = await readFile(join(projectRoot, "electron/main/ipc.ts"), "utf8");
+  const preloadSource = await readFile(join(projectRoot, "electron/preload/index.ts"), "utf8");
+  const railSource = await readFile(join(projectRoot, "src/renderer/components/NavigationRail.tsx"), "utf8");
+  const dialogSource = await readFile(join(projectRoot, "src/renderer/components/CategoryCustomizationDialog.tsx"), "utf8");
+
+  assert.match(dbSource, /updateCategory:/);
+  assert.match(dbSource, /UPDATE categories SET name = \?, icon = \?/);
+  assert.match(ipcSource, /categories:update/);
+  assert.match(preloadSource, /categories:update/);
+  assert.match(railSource, /CategoryCustomizationDialog/);
+  assert.match(railSource, /rail-category-edit/);
+  assert.match(dialogSource, /categoryIconChoices/);
+});
+'''
+              tests_path.write_text(tests_text, encoding="utf-8")
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set version 0.9.1
+        run: npm version 0.9.1 --no-git-tag-version
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit and push feature
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add electron src tests package.json package-lock.json
+          git commit -m "feat: customize primary category names and icons"
+          git push origin develop
