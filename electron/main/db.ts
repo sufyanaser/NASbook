@@ -1,5 +1,12 @@
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import path from "node:path";
 import {
   defaultCategories,
@@ -13,6 +20,8 @@ import type {
   UpdateNoteInput,
 } from "../../src/shared/ipc";
 import { schemaStatements, seedCategories } from "./schema";
+
+const DATABASE_BACKUP_LIMIT = 7;
 
 const nasDebugLog = (message: string, ...args: unknown[]) => {
   if (process.env.NAS_DEBUG_STORAGE === "1") {
@@ -38,6 +47,10 @@ interface NoteRow {
   readonly created_at: string;
   readonly updated_at: string;
   readonly deleted_at: string | null;
+}
+
+interface IntegrityCheckRow {
+  readonly integrity_check: string;
 }
 
 export interface NotesbookDatabase {
@@ -181,6 +194,61 @@ function ensureDatabaseReady(database: SqliteDatabase): void {
   applyInitialMigration(database);
 }
 
+function verifyDatabaseIntegrity(database: SqliteDatabase): void {
+  const rows = database.pragma("integrity_check") as IntegrityCheckRow[];
+  const isHealthy =
+    rows.length === 1 && rows[0]?.integrity_check.toLowerCase() === "ok";
+
+  if (!isHealthy) {
+    const details = rows.map((row) => row.integrity_check).join("; ");
+    throw new Error(`SQLite integrity check failed: ${details || "unknown error"}`);
+  }
+}
+
+function getBackupDirectory(userDataPath: string): string {
+  return path.join(userDataPath, "database-backups");
+}
+
+function getBackupFilename(date = new Date()): string {
+  const timestamp = date.toISOString().replace(/[:.]/g, "-");
+  return `storage-${timestamp}.db`;
+}
+
+function pruneDatabaseBackups(backupDirectory: string): void {
+  const backups = readdirSync(backupDirectory)
+    .filter((filename) => /^storage-.*\.db$/u.test(filename))
+    .map((filename) => {
+      const filePath = path.join(backupDirectory, filename);
+      return {
+        filePath,
+        modifiedAt: statSync(filePath).mtimeMs,
+      };
+    })
+    .sort((left, right) => right.modifiedAt - left.modifiedAt);
+
+  for (const backup of backups.slice(DATABASE_BACKUP_LIMIT)) {
+    unlinkSync(backup.filePath);
+  }
+}
+
+function createDatabaseBackup(
+  databasePath: string,
+  userDataPath: string,
+): string | null {
+  if (!existsSync(databasePath)) {
+    return null;
+  }
+
+  const backupDirectory = getBackupDirectory(userDataPath);
+  mkdirSync(backupDirectory, { recursive: true });
+
+  const backupPath = path.join(backupDirectory, getBackupFilename());
+  copyFileSync(databasePath, backupPath);
+  pruneDatabaseBackups(backupDirectory);
+
+  return backupPath;
+}
+
 export function getDatabasePath(userDataPath: string): string {
   return path.join(userDataPath, "storage.db");
 }
@@ -191,6 +259,9 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
   const databasePath = getDatabasePath(userDataPath);
   const database = new Database(databasePath);
   ensureDatabaseReady(database);
+  verifyDatabaseIntegrity(database);
+
+  let isClosed = false;
 
   return {
     databasePath,
@@ -304,7 +375,20 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
       database.pragma("wal_checkpoint(TRUNCATE)");
     },
     close: () => {
+      if (isClosed) {
+        return;
+      }
+
+      isClosed = true;
+      database.pragma("wal_checkpoint(TRUNCATE)");
       database.close();
+
+      try {
+        const backupPath = createDatabaseBackup(databasePath, userDataPath);
+        nasDebugLog("[TRACE] DB backup created", { backupPath });
+      } catch (error) {
+        console.error("Failed to create NASbook database backup:", error);
+      }
     },
   };
 }
