@@ -27,30 +27,13 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Extract and run implementation script
+      - name: Apply category customization patch
         id: apply
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          {
-            python - <<'PY'
-          from pathlib import Path
-
-          workflow = Path('.github/workflows/implement-category-customization.yml').read_text(encoding='utf-8')
-          start_marker = "          python - <<'PY'\n"
-          end_marker = "\n          PY\n"
-          start = workflow.index(start_marker) + len(start_marker)
-          end = workflow.index(end_marker, start)
-          embedded = workflow[start:end]
-          script = "\n".join(
-              line[10:] if line.startswith("          ") else line
-              for line in embedded.splitlines()
-          )
-          Path('/tmp/apply_category_customization.py').write_text(script + "\n", encoding='utf-8')
-          PY
-            python /tmp/apply_category_customization.py
-          } 2>&1 | tee /tmp/category-customization.log
+          python scripts/apply_category_customization.py 2>&1 | tee /tmp/category-customization.log
 
       - name: Upload implementation diagnostic
         if: steps.apply.outcome == 'failure'
