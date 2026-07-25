@@ -10,6 +10,7 @@ import { createSettingsStore } from "./settingsStore";
 import { createBackupService } from "./backupService";
 import { createGoogleAuthService } from "./googleAuthService";
 import { createGoogleDriveBackupService } from "./googleDriveBackupService";
+import { createGmailBackupService } from "./gmailBackupService";
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -32,29 +33,25 @@ if (!gotTheLock) {
     return null;
   }
 
-  // Parse startup argument immediately
   const startupFile = getFilePathFromArgs(process.argv);
   if (startupFile) {
     fileToOpenOnStartup = startupFile;
   }
 
-  // Handle secondary instances opening associated files
-  app.on("second-instance", async (event, commandLine) => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
+  app.on("second-instance", async (_event, commandLine) => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.focus();
 
-      const filePath = getFilePathFromArgs(commandLine);
-      if (filePath) {
-        try {
-          const result = await parseAndValidateNasbk(filePath);
-          mainWindow.webContents.send("nasbk:openFile", result);
-        } catch (err) {
-          console.error("Failed to parse/validate nasbk on second instance:", err);
-        }
-      }
+    const filePath = getFilePathFromArgs(commandLine);
+    if (!filePath) return;
+    try {
+      const result = await parseAndValidateNasbk(filePath);
+      mainWindow.webContents.send("nasbk:openFile", result);
+    } catch (error) {
+      console.error("Failed to parse NASBK file from secondary instance:", error);
     }
   });
 
@@ -128,30 +125,44 @@ if (!gotTheLock) {
       userDataPath,
       notesbookDatabase.databasePath,
       settingsStore,
-      () => notesbookDatabase?.checkpoint?.()
+      () => notesbookDatabase?.checkpoint?.(),
     );
-
-    setTimeout(() => {
-      backupService.runStartupBackup().catch((err) => {
-        console.error("Startup auto-backup failed:", err);
-      });
-    }, 1000);
 
     const googleAuthService = createGoogleAuthService(userDataPath, settingsStore);
     const googleDriveBackupService = createGoogleDriveBackupService(
       userDataPath,
       googleAuthService,
-      settingsStore
+      settingsStore,
+    );
+    const gmailBackupService = createGmailBackupService(
+      backupService,
+      googleAuthService,
+      settingsStore,
     );
 
-    // Register startup file IPC retriever
+    setTimeout(() => {
+      void backupService
+        .runStartupBackup()
+        .then(async (result) => {
+          if (result?.success && settingsStore.getSettings().gmailBackupEnabled) {
+            const gmailResult = await gmailBackupService.sendLatest();
+            if (!gmailResult.ok) {
+              console.error("Automatic Gmail backup failed:", gmailResult.error);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error("Startup auto-backup failed:", error);
+        });
+    }, 1000);
+
     ipcMain.handle("nasbk:getStartupFile", async () => {
-      if (fileToOpenOnStartup) {
-        const result = await parseAndValidateNasbk(fileToOpenOnStartup);
-        fileToOpenOnStartup = null;
-        return result;
+      if (!fileToOpenOnStartup) {
+        return null;
       }
-      return null;
+      const result = await parseAndValidateNasbk(fileToOpenOnStartup);
+      fileToOpenOnStartup = null;
+      return result;
     });
 
     registerIpcHandlers({
@@ -162,6 +173,7 @@ if (!gotTheLock) {
       backupService,
       googleAuthService,
       googleDriveBackupService,
+      gmailBackupService,
     });
 
     createMainWindow();

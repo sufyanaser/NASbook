@@ -5,7 +5,6 @@ import { shell } from "electron";
 import type { BackupStatus, BackupResult } from "../../src/shared/ipc";
 import type { SettingsStore } from "./settingsStore";
 
-// Pure helper function to format a date to local YYYY-MM-DD and HHmmss
 export function getLocalDateString(date: Date): { dateStr: string; timeStr: string } {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -19,7 +18,6 @@ export function getLocalDateString(date: Date): { dateStr: string; timeStr: stri
   };
 }
 
-// Pure helper function to generate backup filenames for a given timestamp
 export function getBackupFilenames(timestamp: string): {
   dbFile: string;
   settingsFile: string;
@@ -32,7 +30,6 @@ export function getBackupFilenames(timestamp: string): {
   };
 }
 
-// Pure helper function to find older files to delete based on retention count
 export function getRetentionActions(filenames: string[], retentionCount: number): string[] {
   const dbPattern = /^nas-notesbook-backup-(\d{4}-\d{2}-\d{2}-\d{6})\.db$/;
   const timestamps: string[] = [];
@@ -44,42 +41,45 @@ export function getRetentionActions(filenames: string[], retentionCount: number)
     }
   }
 
-  // Sort lexicographically (oldest first)
   timestamps.sort();
-
   if (timestamps.length <= retentionCount) {
     return [];
   }
 
   const toDeleteTimestamps = timestamps.slice(0, timestamps.length - retentionCount);
   const filesToDelete: string[] = [];
-
-  for (const ts of toDeleteTimestamps) {
-    const names = getBackupFilenames(ts);
+  for (const timestamp of toDeleteTimestamps) {
+    const names = getBackupFilenames(timestamp);
     filesToDelete.push(names.dbFile, names.settingsFile, names.metaFile);
   }
-
   return filesToDelete;
 }
 
 export interface BackupService {
   getStatus: () => Promise<BackupStatus>;
+  getBackupsFolder: () => string;
   createBackup: () => Promise<BackupResult>;
   openFolder: () => Promise<void>;
-  runStartupBackup: () => Promise<void>;
+  runStartupBackup: () => Promise<BackupResult | null>;
 }
 
 export function createBackupService(
   userDataPath: string,
   databasePath: string,
   settingsStore: SettingsStore,
-  checkpointDatabase?: () => void
+  checkpointDatabase?: () => void,
 ): BackupService {
-  const backupsFolder = path.join(userDataPath, "backups");
   let lastError: string | null = null;
 
-  // Resolves the latest backup's timestamp and date
-  const getLatestBackupTime = async (filenames: string[]): Promise<string | null> => {
+  const getBackupsFolder = (): string => {
+    const configured = settingsStore.getSettings().backupDirectory;
+    return configured || path.join(userDataPath, "backups");
+  };
+
+  const getLatestBackupTime = async (
+    backupsFolder: string,
+    filenames: string[],
+  ): Promise<string | null> => {
     const dbPattern = /^nas-notesbook-backup-(\d{4}-\d{2}-\d{2}-\d{6})\.db$/;
     const timestamps: string[] = [];
 
@@ -94,45 +94,44 @@ export function createBackupService(
       return null;
     }
 
-    // Sort to get the latest
     timestamps.sort();
-    const latestTs = timestamps[timestamps.length - 1];
-    
-    // Attempt to read metadata file
-    const names = getBackupFilenames(latestTs);
+    const latestTimestamp = timestamps[timestamps.length - 1];
+    const names = getBackupFilenames(latestTimestamp);
     const metaPath = path.join(backupsFolder, names.metaFile);
+
     try {
       if (existsSync(metaPath)) {
         const raw = await readFile(metaPath, "utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed.timestamp === "string") {
+        const parsed = JSON.parse(raw) as { timestamp?: unknown };
+        if (typeof parsed.timestamp === "string") {
           return parsed.timestamp;
         }
       }
-    } catch (err) {
-      console.error("Failed to read latest backup metadata:", err);
+    } catch (error) {
+      console.error("Failed to read latest backup metadata:", error);
     }
 
-    // Fallback: parse from timestamp YYYY-MM-DD-HHmmss in local date format
-    const match = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(latestTs);
-    if (match) {
-      const [, yyyy, mm, dd, hh, min, ss] = match;
-      const date = new Date(
-        Number(yyyy),
-        Number(mm) - 1,
-        Number(dd),
-        Number(hh),
-        Number(min),
-        Number(ss)
-      );
-      return date.toISOString();
+    const match = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(
+      latestTimestamp,
+    );
+    if (!match) {
+      return null;
     }
 
-    return null;
+    const [, yyyy, mm, dd, hh, min, ss] = match;
+    return new Date(
+      Number(yyyy),
+      Number(mm) - 1,
+      Number(dd),
+      Number(hh),
+      Number(min),
+      Number(ss),
+    ).toISOString();
   };
 
   const getStatus = async (): Promise<BackupStatus> => {
     const currentSettings = settingsStore.getSettings();
+    const backupsFolder = getBackupsFolder();
     let backupCount = 0;
     let lastBackupAt: string | null = null;
     let lastBackupFileName: string | null = null;
@@ -141,30 +140,30 @@ export function createBackupService(
       if (existsSync(backupsFolder)) {
         const files = await readdir(backupsFolder);
         const dbPattern = /^nas-notesbook-backup-(\d{4}-\d{2}-\d{2}-\d{6})\.db$/;
-        const dbFiles = files.filter((f) => dbPattern.test(f));
+        const dbFiles = files.filter((file) => dbPattern.test(file)).sort();
         backupCount = dbFiles.length;
-        if (dbFiles.length > 0) {
-          dbFiles.sort();
-          lastBackupFileName = dbFiles[dbFiles.length - 1];
-        }
-        lastBackupAt = await getLatestBackupTime(files);
+        lastBackupFileName = dbFiles.at(-1) ?? null;
+        lastBackupAt = await getLatestBackupTime(backupsFolder, files);
       }
-    } catch (err: unknown) {
-      console.error("Failed to retrieve backup directory status:", err);
+    } catch (error: unknown) {
+      lastError = error instanceof Error ? error.message : String(error);
     }
 
     return {
       backupsFolder,
+      usesCustomFolder: currentSettings.backupDirectory !== null,
       lastBackupAt,
       lastBackupFileName,
       backupCount,
       autoBackupEnabled: currentSettings.autoBackupEnabled,
       retentionCount: currentSettings.backupRetentionCount,
+      frequency: currentSettings.backupFrequency,
       lastError,
     };
   };
 
   const createBackup = async (): Promise<BackupResult> => {
+    const backupsFolder = getBackupsFolder();
     try {
       await mkdir(backupsFolder, { recursive: true });
 
@@ -172,74 +171,57 @@ export function createBackupService(
       const { dateStr, timeStr } = getLocalDateString(date);
       const timestamp = `${dateStr}-${timeStr}`;
       const names = getBackupFilenames(timestamp);
+      const dbDestination = path.join(backupsFolder, names.dbFile);
+      const settingsDestination = path.join(backupsFolder, names.settingsFile);
+      const metaDestination = path.join(backupsFolder, names.metaFile);
 
-      const dbDest = path.join(backupsFolder, names.dbFile);
-      const settingsDest = path.join(backupsFolder, names.settingsFile);
-      const metaDest = path.join(backupsFolder, names.metaFile);
-
-      if (existsSync(dbDest)) {
+      if (existsSync(dbDestination)) {
         throw new Error(`Backup file already exists: ${names.dbFile}`);
       }
 
-      // Checkpoint DB to flush write ahead logs
-      if (checkpointDatabase) {
-        checkpointDatabase();
-      }
+      checkpointDatabase?.();
+      await copyFile(databasePath, dbDestination);
 
-      // Copy database file
-      await copyFile(databasePath, dbDest);
-
-      // Copy settings.json if exists
       let settingsCopied = false;
-      const settingsPath = settingsStore.settingsPath;
-      if (existsSync(settingsPath)) {
-        await copyFile(settingsPath, settingsDest);
+      if (existsSync(settingsStore.settingsPath)) {
+        await copyFile(settingsStore.settingsPath, settingsDestination);
         settingsCopied = true;
       }
 
-      // Create metadata manifest
       const metadata = {
         timestamp: date.toISOString(),
         localTime: `${dateStr} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`,
         databaseFile: names.dbFile,
         settingsFile: settingsCopied ? names.settingsFile : null,
-        version: "0.2.0",
+        application: "NASbook",
+        version: "0.10.0",
       };
-      await writeFile(metaDest, JSON.stringify(metadata, null, 2), "utf8");
+      await writeFile(metaDestination, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
 
-      // Apply retention policy
       const files = await readdir(backupsFolder);
-      const currentSettings = settingsStore.getSettings();
-      const filesToDelete = getRetentionActions(files, currentSettings.backupRetentionCount);
-
-      for (const fileToDelete of filesToDelete) {
+      const retentionCount = settingsStore.getSettings().backupRetentionCount;
+      for (const fileToDelete of getRetentionActions(files, retentionCount)) {
         const fullPath = path.join(backupsFolder, fileToDelete);
-        try {
-          if (existsSync(fullPath)) {
+        if (existsSync(fullPath)) {
+          try {
             await rm(fullPath, { force: true });
+          } catch (error) {
+            console.error(`Failed to delete old backup file ${fullPath}:`, error);
           }
-        } catch (err) {
-          console.error(`Failed to delete old backup file ${fullPath}:`, err);
         }
       }
 
       lastError = null;
-      return {
-        success: true,
-        lastBackupAt: metadata.timestamp,
-      };
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error("Backup creation failed:", err);
-      lastError = errMsg;
-      return {
-        success: false,
-        error: errMsg,
-      };
+      return { success: true, lastBackupAt: metadata.timestamp };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      lastError = message;
+      return { success: false, error: message };
     }
   };
 
   const openFolder = async (): Promise<void> => {
+    const backupsFolder = getBackupsFolder();
     await mkdir(backupsFolder, { recursive: true });
     const result = await shell.openPath(backupsFolder);
     if (result) {
@@ -247,37 +229,31 @@ export function createBackupService(
     }
   };
 
-  const runStartupBackup = async (): Promise<void> => {
-    const currentSettings = settingsStore.getSettings();
-    if (!currentSettings.autoBackupEnabled) {
-      return;
+  const runStartupBackup = async (): Promise<BackupResult | null> => {
+    const settings = settingsStore.getSettings();
+    if (!settings.autoBackupEnabled) {
+      return null;
     }
 
-    try {
-      const todayStr = getLocalDateString(new Date()).dateStr;
-      if (existsSync(backupsFolder)) {
-        const files = await readdir(backupsFolder);
-        const todayPattern = new RegExp(`^nas-notesbook-backup-${todayStr}-\\d{6}\\.db$`);
-        const todayBackupExists = files.some((f) => todayPattern.test(f));
-        if (todayBackupExists) {
-          return;
-        }
-      }
+    const backupsFolder = getBackupsFolder();
+    const today = getLocalDateString(new Date()).dateStr;
 
-      console.log(`Running daily auto-backup for ${todayStr}...`);
-      const result = await createBackup();
-      if (result.success) {
-        console.log("Daily auto-backup completed successfully.");
-      } else {
-        console.error("Daily auto-backup failed:", result.error);
+    if (settings.backupFrequency === "daily" && existsSync(backupsFolder)) {
+      const files = await readdir(backupsFolder);
+      const todayPattern = new RegExp(
+        `^nas-notesbook-backup-${today}-\\d{6}\\.db$`,
+      );
+      if (files.some((file) => todayPattern.test(file))) {
+        return null;
       }
-    } catch (err) {
-      console.error("Startup auto-backup verification failed:", err);
     }
+
+    return createBackup();
   };
 
   return {
     getStatus,
+    getBackupsFolder,
     createBackup,
     openFolder,
     runStartupBackup,

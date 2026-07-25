@@ -122,7 +122,7 @@ test("renderer defines reusable CSS tooltip system", async () => {
   assert.match(stylesSource, /data-tooltip-placement="right"/);
   assert.match(railSource, /data-tooltip-placement="right"/);
   assert.match(editorSource, /data-tooltip=\{t\("tooltipSave",\s*language\)\}/);
-  assert.match(settingsSource, /data-tooltip=\{t\("settingsClose",\s*lang\)\}/);
+  assert.match(settingsSource, /data-tooltip=\{c\.close\}/);
 });
 
 test("table resizing transfers width between adjacent columns only", async () => {
