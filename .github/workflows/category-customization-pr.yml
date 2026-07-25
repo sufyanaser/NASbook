@@ -35,6 +35,21 @@ jobs:
           set -o pipefail
           python scripts/apply_category_customization.py 2>&1 | tee /tmp/category-customization.log
 
+      - name: Normalize regression assertion
+        if: steps.apply.outcome == 'success'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tests/scaffold.test.mjs")
+          text = path.read_text(encoding="utf-8")
+          old = "  assert.match(dbSource, /UPDATE categories SET name = \\?, icon = \\?/);"
+          new = '  assert.ok(dbSource.includes("UPDATE categories SET name = ?, icon = ?"));'
+          if old not in text:
+              raise RuntimeError("Category SQL regression assertion was not found.")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Upload implementation diagnostic
         if: steps.apply.outcome == 'failure'
         uses: actions/upload-artifact@v4
