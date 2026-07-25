@@ -153,4 +153,40 @@ replace_once(
       setFeedback({ type: "success", message: c.successBackup });''',
 )
 
+replace_once(
+    "src/renderer/components/SettingsPanel.tsx",
+    '''            <button
+              aria-label={c.close}
+              className="settings-center-close"''',
+    '''            <button
+              aria-label={c.close}
+              className="settings-center-close"
+              data-tooltip={c.close}''',
+)
+
+replace_once(
+    "tests/database.test.mjs",
+    '''    autoBackupEnabled: true,
+    backupRetentionCount: 10,
+    cloudBackupEnabled: false,
+    lastCloudBackupAt: null,
+    lastCloudBackupFileName: null,''',
+    '''    autoBackupEnabled: true,
+    backupRetentionCount: 10,
+    backupFrequency: "daily",
+    backupDirectory: null,
+    cloudBackupEnabled: false,
+    lastCloudBackupAt: null,
+    lastCloudBackupFileName: null,
+    gmailBackupEnabled: false,
+    lastGmailBackupAt: null,
+    lastGmailBackupFileName: null,''',
+)
+
+replace_once(
+    "tests/scaffold.test.mjs",
+    '''  assert.match(settingsSource, /data-tooltip=\\{t\\("settingsClose",\\s*lang\\)\\}/);''',
+    '''  assert.match(settingsSource, /data-tooltip=\\{c\\.close\\}/);''',
+)
+
 print("Settings Center backend patch applied.")
