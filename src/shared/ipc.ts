@@ -74,17 +74,26 @@ export interface MarkdownExportResult {
 
 export interface BackupStatus {
   readonly backupsFolder: string;
+  readonly usesCustomFolder: boolean;
   readonly lastBackupAt: string | null;
   readonly lastBackupFileName: string | null;
   readonly backupCount: number;
   readonly autoBackupEnabled: boolean;
   readonly retentionCount: number;
+  readonly frequency: AppSettings["backupFrequency"];
   readonly lastError: string | null;
 }
 
 export interface BackupResult {
   readonly success: boolean;
   readonly lastBackupAt?: string;
+  readonly error?: string;
+}
+
+export interface BackupLocationResult {
+  readonly ok: boolean;
+  readonly canceled?: boolean;
+  readonly path?: string;
   readonly error?: string;
 }
 
@@ -131,6 +140,36 @@ export interface CloudBackupUploadResult {
   readonly error?: string;
 }
 
+export type GmailBackupStatus =
+  | "not_configured"
+  | "not_linked"
+  | "permission_required"
+  | "ready"
+  | "sending"
+  | "success"
+  | "error"
+  | "token_storage_unavailable";
+
+export interface GmailBackupInfo {
+  readonly configured: boolean;
+  readonly linked: boolean;
+  readonly authorized: boolean;
+  readonly enabled: boolean;
+  readonly email: string | null;
+  readonly lastGmailBackupAt: string | null;
+  readonly lastGmailBackupFileName: string | null;
+  readonly lastError: string | null;
+  readonly status: GmailBackupStatus;
+}
+
+export interface GmailBackupSendResult {
+  readonly ok: boolean;
+  readonly sentAt: string;
+  readonly email: string | null;
+  readonly attachmentFiles: string[];
+  readonly error?: string;
+}
+
 export interface NasNotesbookApi {
   readonly app: {
     readonly getInfo: () => Promise<AppInfo>;
@@ -167,6 +206,8 @@ export interface NasNotesbookApi {
     readonly create: () => Promise<BackupResult>;
     readonly getStatus: () => Promise<BackupStatus>;
     readonly openFolder: () => Promise<void>;
+    readonly chooseFolder: () => Promise<BackupLocationResult>;
+    readonly resetFolder: () => Promise<BackupLocationResult>;
   };
   readonly googleAuth: {
     readonly link: () => Promise<GoogleAuthState>;
@@ -176,6 +217,10 @@ export interface NasNotesbookApi {
   readonly cloudBackup: {
     readonly getStatus: () => Promise<CloudBackupInfo>;
     readonly uploadLatest: () => Promise<CloudBackupUploadResult>;
+  };
+  readonly gmailBackup: {
+    readonly getStatus: () => Promise<GmailBackupInfo>;
+    readonly sendLatest: () => Promise<GmailBackupSendResult>;
   };
   readonly nasbk: {
     readonly saveFile: (input: NasbkSaveInput) => Promise<NasbkSaveResult>;
@@ -228,4 +273,3 @@ export interface NasbkImportResult {
   readonly formatVersion?: number;
   readonly error?: string;
 }
-
