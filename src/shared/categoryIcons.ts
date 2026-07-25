@@ -8,7 +8,23 @@ export type CategoryIconKey =
   | "person"
   | "code"
   | "warning"
-  | "grid";
+  | "grid"
+  | "star"
+  | "bookmark"
+  | "briefcase"
+  | "calendar"
+  | "microphone"
+  | "radio"
+  | "music"
+  | "image"
+  | "database"
+  | "cloud"
+  | "shield"
+  | "rocket"
+  | "target"
+  | "palette"
+  | "lightbulb"
+  | "archive-box";
 
 export interface CategoryIconChoice {
   readonly key: CategoryIconKey;
@@ -26,6 +42,22 @@ export const categoryIconChoices: readonly CategoryIconChoice[] = [
   { key: "code", fileName: "development.svg", labelAr: "تطوير", labelEn: "Development" },
   { key: "warning", fileName: "errors.svg", labelAr: "تنبيه", labelEn: "Warning" },
   { key: "grid", fileName: "templates.svg", labelAr: "قوالب", labelEn: "Templates" },
+  { key: "star", fileName: "star.svg", labelAr: "نجمة", labelEn: "Star" },
+  { key: "bookmark", fileName: "bookmark.svg", labelAr: "علامة", labelEn: "Bookmark" },
+  { key: "briefcase", fileName: "briefcase.svg", labelAr: "أعمال", labelEn: "Briefcase" },
+  { key: "calendar", fileName: "calendar.svg", labelAr: "تقويم", labelEn: "Calendar" },
+  { key: "microphone", fileName: "microphone.svg", labelAr: "مايكروفون", labelEn: "Microphone" },
+  { key: "radio", fileName: "radio.svg", labelAr: "إذاعة", labelEn: "Radio" },
+  { key: "music", fileName: "music.svg", labelAr: "موسيقى", labelEn: "Music" },
+  { key: "image", fileName: "image.svg", labelAr: "صور", labelEn: "Images" },
+  { key: "database", fileName: "database.svg", labelAr: "بيانات", labelEn: "Database" },
+  { key: "cloud", fileName: "cloud.svg", labelAr: "سحابة", labelEn: "Cloud" },
+  { key: "shield", fileName: "shield.svg", labelAr: "حماية", labelEn: "Shield" },
+  { key: "rocket", fileName: "rocket.svg", labelAr: "انطلاق", labelEn: "Rocket" },
+  { key: "target", fileName: "target.svg", labelAr: "هدف", labelEn: "Target" },
+  { key: "palette", fileName: "palette.svg", labelAr: "تصميم", labelEn: "Palette" },
+  { key: "lightbulb", fileName: "lightbulb.svg", labelAr: "فكرة", labelEn: "Idea" },
+  { key: "archive-box", fileName: "archive-box.svg", labelAr: "صندوق", labelEn: "Archive box" },
 ] as const;
 
 export const customizableCategorySlugs = [
