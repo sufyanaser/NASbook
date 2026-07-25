@@ -13,6 +13,7 @@ import type {
   NasbkSaveInput,
   NasbkSaveResult,
   NasbkImportResult,
+  BackupLocationResult,
 } from "../../src/shared/ipc";
 import type { AppSettings } from "../../src/shared/settings";
 import type { NotesbookDatabase } from "./db";
@@ -20,6 +21,7 @@ import type { SettingsStore } from "./settingsStore";
 import type { BackupService } from "./backupService";
 import type { GoogleAuthService } from "./googleAuthService";
 import { GoogleDriveBackupService } from "./googleDriveBackupService";
+import type { GmailBackupService } from "./gmailBackupService";
 
 const nasDebugLog = (message: string, ...args: unknown[]) => {
   if (process.env.NAS_DEBUG_STORAGE === "1") {
@@ -87,6 +89,7 @@ interface RegisterIpcOptions {
   readonly backupService: BackupService;
   readonly googleAuthService: GoogleAuthService;
   readonly googleDriveBackupService: GoogleDriveBackupService;
+  readonly gmailBackupService: GmailBackupService;
 }
 
 export function registerIpcHandlers({
@@ -97,6 +100,7 @@ export function registerIpcHandlers({
   backupService,
   googleAuthService,
   googleDriveBackupService,
+  gmailBackupService,
 }: RegisterIpcOptions): void {
   ipcMain.handle("app:getInfo", (): AppInfo => {
     const dataDirectory = path.dirname(database.databasePath);
@@ -295,7 +299,14 @@ export function registerIpcHandlers({
   );
 
   ipcMain.handle("backup:create", async () => {
-    return backupService.createBackup();
+    const result = await backupService.createBackup();
+    if (result.success && settingsStore.getSettings().gmailBackupEnabled) {
+      const gmailResult = await gmailBackupService.sendLatest();
+      if (!gmailResult.ok) {
+        console.error("Automatic Gmail backup failed:", gmailResult.error);
+      }
+    }
+    return result;
   });
 
   ipcMain.handle("backup:getStatus", async () => {
@@ -304,6 +315,38 @@ export function registerIpcHandlers({
 
   ipcMain.handle("backup:openFolder", async () => {
     return backupService.openFolder();
+  });
+
+  ipcMain.handle("backup:chooseFolder", async (): Promise<BackupLocationResult> => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: "Choose NASbook backup location",
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { ok: false, canceled: true };
+      }
+      const selectedPath = path.resolve(result.filePaths[0]);
+      settingsStore.updateSettings({ backupDirectory: selectedPath });
+      return { ok: true, path: selectedPath };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
+  ipcMain.handle("backup:resetFolder", async (): Promise<BackupLocationResult> => {
+    try {
+      settingsStore.updateSettings({ backupDirectory: null });
+      return { ok: true, path: backupService.getBackupsFolder() };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   });
 
   ipcMain.handle("googleAuth:link", async () => {
@@ -324,6 +367,14 @@ export function registerIpcHandlers({
 
   ipcMain.handle("cloudBackup:uploadLatest", async () => {
     return googleDriveBackupService.uploadLatest();
+  });
+
+  ipcMain.handle("gmailBackup:getStatus", async () => {
+    return gmailBackupService.getStatus();
+  });
+
+  ipcMain.handle("gmailBackup:sendLatest", async () => {
+    return gmailBackupService.sendLatest();
   });
 
   ipcMain.handle("window:minimize", (event): void => {

@@ -357,17 +357,8 @@ export function SettingsPanel({
         throw new Error(result.error || "Backup failed");
       }
       await refreshBackup();
+      await refreshIntegrations();
       setFeedback({ type: "success", message: c.successBackup });
-      if (settings.gmailBackupEnabled) {
-        const gmailResult = await window.nasNotesbook.gmailBackup.sendLatest();
-        await refreshIntegrations();
-        if (!gmailResult.ok) {
-          setFeedback({
-            type: "error",
-            message: `${c.successBackup} ${gmailResult.error || "Gmail backup failed"}`,
-          });
-        }
-      }
     });
   };
 
@@ -506,6 +497,7 @@ export function SettingsPanel({
             <button
               aria-label={c.close}
               className="settings-center-close"
+              data-tooltip={c.close}
               onClick={onClose}
               type="button"
             >
