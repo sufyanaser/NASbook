@@ -22,6 +22,47 @@ interface CategoryCustomizationDialogProps {
 const iconAssetPath = (mode: RailIconMode, fileName: string): string =>
   `${import.meta.env.BASE_URL}category-icons/${mode}/${fileName}`;
 
+function InlineCategoryIcon({ src }: { readonly src: string }): JSX.Element {
+  const [svgMarkup, setSvgMarkup] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(src)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Icon request failed: ${response.status}`);
+        }
+        return response.text();
+      })
+      .then((markup) => {
+        if (isMounted) {
+          setSvgMarkup(markup);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSvgMarkup(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [src]);
+
+  if (!svgMarkup) {
+    return <span className="category-customization-icon-loading" aria-hidden="true" />;
+  }
+
+  return (
+    <span
+      className="category-customization-icon-inline"
+      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+    />
+  );
+}
+
 export function CategoryCustomizationDialog({
   category,
   language,
@@ -152,15 +193,10 @@ export function CategoryCustomizationDialog({
                   title={isArabic ? choice.labelAr : choice.labelEn}
                   type="button"
                 >
-                  {railIconMode === "colored" ? (
-                    <img alt="" src={src} />
+                  {railIconMode === "adaptive" ? (
+                    <InlineCategoryIcon src={src} />
                   ) : (
-                    <span
-                      className="category-customization-icon-mask"
-                      style={{
-                        "--category-icon-url": `url(${src})`,
-                      } as React.CSSProperties}
-                    />
+                    <img alt="" src={src} />
                   )}
                 </button>
               );

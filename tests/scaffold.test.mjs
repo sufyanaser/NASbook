@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -165,4 +165,43 @@ test("category customization persists names and built-in icons", async () => {
   assert.match(railSource, /CategoryCustomizationDialog/);
   assert.match(railSource, /rail-category-edit/);
   assert.match(dialogSource, /categoryIconChoices/);
+});
+
+test("category icon catalog exposes 24 packaged Electron-safe icons", async () => {
+  const catalogSource = await readFile(
+    join(projectRoot, "src/shared/categoryIcons.ts"),
+    "utf8",
+  );
+  const dialogSource = await readFile(
+    join(projectRoot, "src/renderer/components/CategoryCustomizationDialog.tsx"),
+    "utf8",
+  );
+  const iconEntries = catalogSource.match(/\{ key: /g) ?? [];
+
+  assert.equal(iconEntries.length, 24);
+  assert.match(dialogSource, /function InlineCategoryIcon/);
+  assert.match(dialogSource, /dangerouslySetInnerHTML/);
+  assert.doesNotMatch(dialogSource, /category-customization-icon-mask/);
+
+  for (const fileName of [
+    "star.svg",
+    "bookmark.svg",
+    "briefcase.svg",
+    "calendar.svg",
+    "microphone.svg",
+    "radio.svg",
+    "music.svg",
+    "image.svg",
+    "database.svg",
+    "cloud.svg",
+    "shield.svg",
+    "rocket.svg",
+    "target.svg",
+    "palette.svg",
+    "lightbulb.svg",
+    "archive-box.svg",
+  ]) {
+    await access(join(projectRoot, "public/category-icons/adaptive", fileName));
+    await access(join(projectRoot, "public/category-icons/colored", fileName));
+  }
 });
