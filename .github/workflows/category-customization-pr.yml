@@ -1,0 +1,116 @@
+name: Category customization implementation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.event.pull_request.head.ref == 'develop' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply category customization patch
+        id: apply
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/apply_category_customization.py 2>&1 | tee /tmp/category-customization.log
+
+      - name: Normalize regression assertion
+        if: steps.apply.outcome == 'success'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tests/scaffold.test.mjs")
+          text = path.read_text(encoding="utf-8")
+          old = "  assert.match(dbSource, /UPDATE categories SET name = \\?, icon = \\?/);"
+          new = '  assert.ok(dbSource.includes("UPDATE categories SET name = ?, icon = ?"));'
+          if old not in text:
+              raise RuntimeError("Category SQL regression assertion was not found.")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Upload implementation diagnostic
+        if: steps.apply.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: category-customization-diagnostic
+          path: /tmp/category-customization.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop on implementation failure
+        if: steps.apply.outcome == 'failure'
+        run: exit 1
+
+      - name: Install dependencies
+        if: steps.apply.outcome == 'success'
+        run: npm ci
+
+      - name: Set version 0.9.1
+        if: steps.apply.outcome == 'success'
+        run: npm version 0.9.1 --no-git-tag-version --allow-same-version
+
+      - name: Lint
+        if: steps.apply.outcome == 'success'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.apply.outcome == 'success'
+        run: npm run typecheck
+
+      - name: Test
+        id: test
+        if: steps.apply.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/category-customization-tests.log
+
+      - name: Upload test diagnostic
+        if: steps.test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: category-customization-test-diagnostic
+          path: /tmp/category-customization-tests.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop on test failure
+        if: steps.test.outcome == 'failure'
+        run: exit 1
+
+      - name: Build
+        if: steps.apply.outcome == 'success' && steps.test.outcome == 'success'
+        run: npm run build
+
+      - name: Commit and push feature
+        if: steps.apply.outcome == 'success' && steps.test.outcome == 'success'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add electron src tests package.json package-lock.json
+          git commit -m "feat: customize primary category names and icons"
+          git push origin develop
