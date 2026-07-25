@@ -50,6 +50,50 @@ jobs:
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
 
+      - name: Preserve localized default category aliases
+        if: steps.apply.outcome == 'success'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("src/shared/i18n.ts")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              'import { defaultCategories, type CategorySlug } from "./categories";',
+              'import type { CategorySlug } from "./categories";',
+              1,
+          )
+          old = '''  const originalName = defaultCategories.find(
+            (category) => category.slug === slug,
+          )?.name;
+          if (defaultName.trim() && originalName && defaultName !== originalName) {
+            return defaultName;
+          }
+
+          if (lang === "ar") {'''
+          new = '''  const defaultAliases: Readonly<Partial<Record<CategorySlug, readonly string[]>>> = {
+            "all-notes": ["All Notes", "كل الملاحظات"],
+            prompts: ["Prompts", "Projects", "المشاريع"],
+            "chatgpt-instructions": ["ChatGPT Instructions", "Channels", "القنوات"],
+            "nas-projects": ["NAS Projects", "NAS"],
+            "powershell-commands": ["PowerShell Commands", "Personal", "شخصي"],
+            "development-notes": ["Development Notes", "Development", "التطوير"],
+            "errors-fixes": ["Errors & Fixes", "Errors", "الأخطاء"],
+            templates: ["Templates", "القوالب"],
+            archive: ["Archive", "الأرشيف"],
+            trash: ["Trash", "سلة المهملات"],
+          };
+          const aliases = defaultAliases[slug];
+          if (defaultName.trim() && (!aliases || !aliases.includes(defaultName))) {
+            return defaultName;
+          }
+
+          if (lang === "ar") {'''
+          if old not in text:
+              raise RuntimeError("Generated category display-name block was not found.")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Upload implementation diagnostic
         if: steps.apply.outcome == 'failure'
         uses: actions/upload-artifact@v4
