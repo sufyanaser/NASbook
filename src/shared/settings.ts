@@ -7,16 +7,17 @@ export type AppTheme =
   | "one-dark";
 
 export type RailIconMode = "colored" | "adaptive";
-
 export type EditorDirection = "auto" | "rtl" | "ltr";
-
 export type EditorDensity = "compact" | "comfortable" | "wide";
-
 export type EditorFontSize = "small" | "medium" | "large";
-
 export type AppLanguage = "ar" | "en";
+export type BackupFrequency = "daily" | "every-launch";
 
 export const appLanguages = ["ar", "en"] as const satisfies readonly AppLanguage[];
+export const backupFrequencies = [
+  "daily",
+  "every-launch",
+] as const satisfies readonly BackupFrequency[];
 
 export interface AppSettings {
   readonly theme: AppTheme;
@@ -31,9 +32,14 @@ export interface AppSettings {
   readonly language: AppLanguage;
   readonly autoBackupEnabled: boolean;
   readonly backupRetentionCount: number;
+  readonly backupFrequency: BackupFrequency;
+  readonly backupDirectory: string | null;
   readonly cloudBackupEnabled: boolean;
   readonly lastCloudBackupAt: string | null;
   readonly lastCloudBackupFileName: string | null;
+  readonly gmailBackupEnabled: boolean;
+  readonly lastGmailBackupAt: string | null;
+  readonly lastGmailBackupFileName: string | null;
   readonly shortcuts: Record<string, string>;
 }
 
@@ -82,9 +88,14 @@ export const defaultAppSettings: AppSettings = {
   language: "ar",
   autoBackupEnabled: true,
   backupRetentionCount: 10,
+  backupFrequency: "daily",
+  backupDirectory: null,
   cloudBackupEnabled: false,
   lastCloudBackupAt: null,
   lastCloudBackupFileName: null,
+  gmailBackupEnabled: false,
+  lastGmailBackupAt: null,
+  lastGmailBackupFileName: null,
   shortcuts: {
     saveNote: "Ctrl+S",
     newNote: "Ctrl+Alt+N",
@@ -131,6 +142,17 @@ function normalizeShortcuts(value: unknown): Record<string, string> {
     }
   }
   return result;
+}
+
+function normalizeNullableString(value: unknown, fallback: string | null): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+  return fallback;
 }
 
 export function normalizeAppSettings(value: unknown): AppSettings {
@@ -183,24 +205,42 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       typeof candidate.backupRetentionCount === "number" &&
       Number.isInteger(candidate.backupRetentionCount) &&
       candidate.backupRetentionCount > 0
-        ? candidate.backupRetentionCount
+        ? Math.min(candidate.backupRetentionCount, 250)
         : defaultAppSettings.backupRetentionCount,
+    backupFrequency: isOneOf(candidate.backupFrequency, backupFrequencies)
+      ? candidate.backupFrequency
+      : defaultAppSettings.backupFrequency,
+    backupDirectory: normalizeNullableString(
+      candidate.backupDirectory,
+      defaultAppSettings.backupDirectory,
+    ),
     cloudBackupEnabled:
       typeof candidate.cloudBackupEnabled === "boolean"
         ? candidate.cloudBackupEnabled
         : defaultAppSettings.cloudBackupEnabled,
-    lastCloudBackupAt:
-      typeof candidate.lastCloudBackupAt === "string" || candidate.lastCloudBackupAt === null
-        ? candidate.lastCloudBackupAt
-        : defaultAppSettings.lastCloudBackupAt,
-    lastCloudBackupFileName:
-      typeof candidate.lastCloudBackupFileName === "string" || candidate.lastCloudBackupFileName === null
-        ? candidate.lastCloudBackupFileName
-        : defaultAppSettings.lastCloudBackupFileName,
+    lastCloudBackupAt: normalizeNullableString(
+      candidate.lastCloudBackupAt,
+      defaultAppSettings.lastCloudBackupAt,
+    ),
+    lastCloudBackupFileName: normalizeNullableString(
+      candidate.lastCloudBackupFileName,
+      defaultAppSettings.lastCloudBackupFileName,
+    ),
+    gmailBackupEnabled:
+      typeof candidate.gmailBackupEnabled === "boolean"
+        ? candidate.gmailBackupEnabled
+        : defaultAppSettings.gmailBackupEnabled,
+    lastGmailBackupAt: normalizeNullableString(
+      candidate.lastGmailBackupAt,
+      defaultAppSettings.lastGmailBackupAt,
+    ),
+    lastGmailBackupFileName: normalizeNullableString(
+      candidate.lastGmailBackupFileName,
+      defaultAppSettings.lastGmailBackupFileName,
+    ),
     shortcuts:
       candidate.shortcuts && typeof candidate.shortcuts === "object"
         ? normalizeShortcuts(candidate.shortcuts)
         : defaultAppSettings.shortcuts,
   };
 }
-
