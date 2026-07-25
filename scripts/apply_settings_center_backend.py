@@ -28,7 +28,7 @@ replace_once(
     '''  NasbkImportResult,
 } from "../../src/shared/ipc";''',
     '''  NasbkImportResult,
-  type BackupLocationResult,
+  BackupLocationResult,
 } from "../../src/shared/ipc";''',
 )
 
