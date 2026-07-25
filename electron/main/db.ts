@@ -18,7 +18,12 @@ import type {
   NoteListOptions,
   NoteRecord,
   UpdateNoteInput,
+  UpdateCategoryInput,
 } from "../../src/shared/ipc";
+import {
+  customizableCategorySlugs,
+  isCategoryIconKey,
+} from "../../src/shared/categoryIcons";
 import { schemaStatements, seedCategories } from "./schema";
 
 const DATABASE_BACKUP_LIMIT = 7;
@@ -56,6 +61,7 @@ interface IntegrityCheckRow {
 export interface NotesbookDatabase {
   readonly databasePath: string;
   readonly listCategories: () => readonly CategoryRecord[];
+  readonly updateCategory: (input: UpdateCategoryInput) => CategoryRecord;
   readonly listNotes: (options?: NoteListOptions) => readonly NoteListItem[];
   readonly listTrashNotes: () => readonly NoteListItem[];
   readonly getNoteById: (id: number) => NoteRecord | null;
@@ -127,6 +133,30 @@ function normalizeCategoryId(categoryId: number | null | undefined): number | nu
   }
 
   return categoryId;
+}
+
+function requireCategory(database: SqliteDatabase, id: number): CategoryRecord {
+  const row = database
+    .prepare(
+      `SELECT id, name, slug, icon, is_system
+       FROM categories
+       WHERE id = ?`,
+    )
+    .get(normalizeId(id)) as CategoryRow | undefined;
+
+  if (!row) {
+    throw new Error("Category not found.");
+  }
+
+  return toCategoryRecord(row);
+}
+
+function normalizeCategoryName(name: string): string {
+  const normalized = name.trim();
+  if (normalized.length === 0 || normalized.length > 40) {
+    throw new Error("Category name must contain 1 to 40 characters.");
+  }
+  return normalized;
 }
 
 function requireNote(database: SqliteDatabase, id: number): NoteRecord {
@@ -275,6 +305,26 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
         .all() as CategoryRow[];
 
       return rows.map(toCategoryRecord);
+    },
+    updateCategory: (input) => {
+      const category = requireCategory(database, input.id);
+
+      const customizable = customizableCategorySlugs.some(
+        (slug) => slug === category.slug,
+      );
+      if (!customizable) {
+        throw new Error("This system category cannot be customized.");
+      }
+
+      if (!isCategoryIconKey(input.icon)) {
+        throw new Error("Invalid category icon.");
+      }
+
+      database
+        .prepare("UPDATE categories SET name = ?, icon = ? WHERE id = ?")
+        .run(normalizeCategoryName(input.name), input.icon, category.id);
+
+      return requireCategory(database, category.id);
     },
     listNotes: (options) => {
       return createNoteListQuery(database, options ?? {});

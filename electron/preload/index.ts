@@ -5,6 +5,7 @@ import type {
   NasNotesbookApi,
   NoteListOptions,
   UpdateNoteInput,
+  UpdateCategoryInput,
   NasbkSaveInput,
   NasbkImportResult,
 } from "../../src/shared/ipc";
@@ -22,6 +23,8 @@ const api: NasNotesbookApi = Object.freeze({
   }),
   categories: Object.freeze({
     list: () => ipcRenderer.invoke("categories:list"),
+    update: (input: UpdateCategoryInput) =>
+      ipcRenderer.invoke("categories:update", input),
   }),
   notes: Object.freeze({
     list: (options?: NoteListOptions) =>

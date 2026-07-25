@@ -5,7 +5,13 @@ import {
   type CategorySlug,
 } from "../shared/categories";
 import { hasUnsavedNoteChanges } from "../shared/dirtyState";
-import type { AppInfo, NoteRecord, NoteListItem, NasbkImportResult } from "../shared/ipc";
+import type {
+  AppInfo,
+  NoteRecord,
+  NoteListItem,
+  NasbkImportResult,
+  UpdateCategoryInput,
+} from "../shared/ipc";
 import {
   defaultAppSettings,
   getToggledLightDarkTheme,
@@ -1177,6 +1183,23 @@ export function App(): JSX.Element {
       });
   };
 
+  const handleUpdateCategory = useCallback(
+    async (input: UpdateCategoryInput): Promise<void> => {
+      const api = window.nasNotesbook;
+      if (!api) {
+        return;
+      }
+
+      const updated = await api.categories.update(input);
+      setCategories((current) =>
+        current.map((category) =>
+          category.id === updated.id ? updated : category,
+        ),
+      );
+    },
+    [],
+  );
+
   const handleOpenDataFolder = (): void => {
     void window.nasNotesbook?.app.openDataFolder();
   };
@@ -1304,6 +1327,7 @@ export function App(): JSX.Element {
         language={settings.language}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSelectCategory={handleSelectCategory}
+        onUpdateCategory={handleUpdateCategory}
         expanded={navRailExpanded}
         onToggleExpanded={handleToggleNavRail}
         theme={settings.theme}

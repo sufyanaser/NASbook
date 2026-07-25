@@ -149,3 +149,20 @@ test("table resizing transfers width between adjacent columns only", async () =>
   assert.match(stylesSource, /\.ProseMirror \.tableWrapper \{\s*overflow:\s*hidden !important;/);
   assert.match(stylesSource, /\.ProseMirror table \{[^}]*width:\s*100% !important;[^}]*min-width:\s*0 !important;[^}]*max-width:\s*100% !important;/s);
 });
+
+
+test("category customization persists names and built-in icons", async () => {
+  const dbSource = await readFile(join(projectRoot, "electron/main/db.ts"), "utf8");
+  const ipcSource = await readFile(join(projectRoot, "electron/main/ipc.ts"), "utf8");
+  const preloadSource = await readFile(join(projectRoot, "electron/preload/index.ts"), "utf8");
+  const railSource = await readFile(join(projectRoot, "src/renderer/components/NavigationRail.tsx"), "utf8");
+  const dialogSource = await readFile(join(projectRoot, "src/renderer/components/CategoryCustomizationDialog.tsx"), "utf8");
+
+  assert.match(dbSource, /updateCategory:/);
+  assert.ok(dbSource.includes("UPDATE categories SET name = ?, icon = ?"));
+  assert.match(ipcSource, /categories:update/);
+  assert.match(preloadSource, /categories:update/);
+  assert.match(railSource, /CategoryCustomizationDialog/);
+  assert.match(railSource, /rail-category-edit/);
+  assert.match(dialogSource, /categoryIconChoices/);
+});

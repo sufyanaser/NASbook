@@ -575,6 +575,23 @@ export function getCategoryDisplayName(
   defaultName: string,
   lang: AppLanguage,
 ): string {
+  const defaultAliases: Readonly<Partial<Record<CategorySlug, readonly string[]>>> = {
+    "all-notes": ["All Notes", "كل الملاحظات"],
+    prompts: ["Prompts", "Projects", "المشاريع"],
+    "chatgpt-instructions": ["ChatGPT Instructions", "Channels", "القنوات"],
+    "nas-projects": ["NAS Projects", "NAS"],
+    "powershell-commands": ["PowerShell Commands", "Personal", "شخصي"],
+    "development-notes": ["Development Notes", "Development", "التطوير"],
+    "errors-fixes": ["Errors & Fixes", "Errors", "الأخطاء"],
+    templates: ["Templates", "القوالب"],
+    archive: ["Archive", "الأرشيف"],
+    trash: ["Trash", "سلة المهملات"],
+  };
+  const aliases = defaultAliases[slug];
+  if (defaultName.trim() && (!aliases || !aliases.includes(defaultName))) {
+    return defaultName;
+  }
+
   if (lang === "ar") {
     switch (slug) {
       case "all-notes":
