@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 
-import type { CategoryDefinition, CategorySlug } from "../../shared/categories";
+import type { CategoryRecord, CategorySlug } from "../../shared/categories";
+import {
+  customizableCategorySlugs,
+  resolveCategoryIconFile,
+} from "../../shared/categoryIcons";
+import type { UpdateCategoryInput } from "../../shared/ipc";
+import { CategoryCustomizationDialog } from "./CategoryCustomizationDialog";
 import type { RailIconMode, AppLanguage, AppTheme } from "../../shared/settings";
 import { t, getCategoryDisplayName } from "../../shared/i18n";
 
@@ -34,8 +40,11 @@ const getCategoryIcon = (
   mode: RailIconMode,
   slug: CategorySlug | "settings",
   name: string,
- ): IconResolution => {
-  const fileName = categoryIconFiles[slug];
+  icon?: string,
+): IconResolution => {
+  const fileName = slug === "settings"
+    ? categoryIconFiles.settings
+    : resolveCategoryIconFile(icon, slug);
 
   if (fileName) {
     const value = categoryIconPath(mode, fileName);
@@ -104,11 +113,12 @@ const renderRailIcon = (icon: IconResolution): JSX.Element | string => {
 
 interface NavigationRailProps {
   readonly activeCategory: CategorySlug;
-  readonly categories: readonly CategoryDefinition[];
+  readonly categories: readonly CategoryRecord[];
   readonly railIconMode: RailIconMode;
   readonly language: AppLanguage;
   readonly onOpenSettings: () => void;
   readonly onSelectCategory: (category: CategorySlug) => void;
+  readonly onUpdateCategory: (input: UpdateCategoryInput) => Promise<void>;
   readonly expanded: boolean;
   readonly onToggleExpanded: () => void;
   readonly theme: AppTheme;
@@ -141,12 +151,14 @@ export function NavigationRail({
   language,
   onOpenSettings,
   onSelectCategory,
+  onUpdateCategory,
   expanded,
   onToggleExpanded,
   theme,
   onThemeChange,
 }: NavigationRailProps): JSX.Element {
   const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryRecord | null>(null);
   const themeMenuRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [coords, setCoords] = useState<{ bottom: number; left?: number; right?: number }>({ bottom: 24, left: 66 });
@@ -213,6 +225,70 @@ export function NavigationRail({
     (category) => category.placement === "secondary",
   );
 
+  const renderCategoryButton = (
+    category: CategoryRecord,
+    canCustomize: boolean,
+  ): JSX.Element => {
+    const iconRes = getCategoryIcon(
+      railIconMode,
+      category.slug,
+      category.name,
+      category.icon,
+    );
+    const displayName = getCategoryDisplayName(
+      category.slug,
+      category.name,
+      language,
+    );
+    const customizable = canCustomize && customizableCategorySlugs.some(
+      (slug) => slug === category.slug,
+    );
+
+    return (
+      <div className="rail-category-row" key={category.slug}>
+        <button
+          className="rail-button"
+          data-active={category.slug === activeCategory}
+          data-trash={category.slug === "trash" ? "true" : "false"}
+          data-tooltip={expanded ? "" : displayName}
+          data-tooltip-placement={language === "ar" ? "left" : "right"}
+          onClick={() => onSelectCategory(category.slug)}
+          onContextMenu={(event) => {
+            if (customizable) {
+              event.preventDefault();
+              setEditingCategory(category);
+            }
+          }}
+          onDoubleClick={() => {
+            if (customizable) {
+              setEditingCategory(category);
+            }
+          }}
+          type="button"
+        >
+          <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
+          {expanded && <span className="rail-button-label">{displayName}</span>}
+          <span className="sr-only">{displayName}</span>
+        </button>
+        {expanded && customizable && (
+          <button
+            aria-label={language === "ar" ? `تخصيص ${displayName}` : `Customize ${displayName}`}
+            className="rail-category-edit"
+            data-tooltip={language === "ar" ? "إعادة التسمية وتغيير الأيقونة" : "Rename and change icon"}
+            data-tooltip-placement={language === "ar" ? "left" : "right"}
+            onClick={() => setEditingCategory(category)}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label="Categories">
       <div className="rail-brand" aria-label="NASbook">
@@ -233,59 +309,11 @@ export function NavigationRail({
       </div>
 
       <nav className="rail-section" aria-label="Primary categories">
-        {primaryCategories.map((category) => {
-          const iconRes = getCategoryIcon(
-            railIconMode,
-            category.slug,
-            category.name,
-          );
-          const displayName = getCategoryDisplayName(category.slug, category.name, language);
-
-          return (
-            <button
-              className="rail-button"
-              data-active={category.slug === activeCategory}
-              data-trash={category.slug === "trash" ? "true" : "false"}
-              data-tooltip={expanded ? "" : displayName}
-              data-tooltip-placement={language === "ar" ? "left" : "right"}
-              key={category.slug}
-              onClick={() => onSelectCategory(category.slug)}
-              type="button"
-            >
-              <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
-              {expanded && <span className="rail-button-label">{displayName}</span>}
-              <span className="sr-only">{displayName}</span>
-            </button>
-          );
-        })}
+        {primaryCategories.map((category) => renderCategoryButton(category, true))}
       </nav>
 
       <nav className="rail-section rail-section-bottom" aria-label="System">
-        {secondaryCategories.map((category) => {
-          const iconRes = getCategoryIcon(
-            railIconMode,
-            category.slug,
-            category.name,
-          );
-          const displayName = getCategoryDisplayName(category.slug, category.name, language);
-
-          return (
-            <button
-              className="rail-button"
-              data-active={category.slug === activeCategory}
-              data-trash={category.slug === "trash" ? "true" : "false"}
-              data-tooltip={expanded ? "" : displayName}
-              data-tooltip-placement={language === "ar" ? "left" : "right"}
-              key={category.slug}
-              onClick={() => onSelectCategory(category.slug)}
-              type="button"
-            >
-              <span aria-hidden="true">{renderRailIcon(iconRes)}</span>
-              {expanded && <span className="rail-button-label">{displayName}</span>}
-              <span className="sr-only">{displayName}</span>
-            </button>
-          );
-        })}
+        {secondaryCategories.map((category) => renderCategoryButton(category, false))}
         <div className="rail-theme-control">
           <button
             ref={themeMenuRef}
@@ -393,6 +421,13 @@ export function NavigationRail({
           <span className="sr-only">Toggle Rail</span>
         </button>
       </nav>
+      <CategoryCustomizationDialog
+        category={editingCategory}
+        language={language}
+        railIconMode={railIconMode}
+        onClose={() => setEditingCategory(null)}
+        onSave={onUpdateCategory}
+      />
     </aside>
   );
 }

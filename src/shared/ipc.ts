@@ -46,6 +46,12 @@ export interface UpdateNoteInput {
   readonly isRtl: boolean;
 }
 
+export interface UpdateCategoryInput {
+  readonly id: number;
+  readonly name: string;
+  readonly icon: string;
+}
+
 export interface MarkdownImportResult {
   readonly ok: boolean;
   readonly canceled?: boolean;
@@ -138,6 +144,7 @@ export interface NasNotesbookApi {
   };
   readonly categories: {
     readonly list: () => Promise<readonly CategoryRecord[]>;
+    readonly update: (input: UpdateCategoryInput) => Promise<CategoryRecord>;
   };
   readonly notes: {
     readonly list: (

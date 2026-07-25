@@ -9,6 +9,7 @@ import type {
   MarkdownImportResult,
   NoteListOptions,
   UpdateNoteInput,
+  UpdateCategoryInput,
   NasbkSaveInput,
   NasbkSaveResult,
   NasbkImportResult,
@@ -129,6 +130,10 @@ export function registerIpcHandlers({
 
   ipcMain.handle("categories:list", () => {
     return database.listCategories();
+  });
+
+  ipcMain.handle("categories:update", (_event, input: UpdateCategoryInput) => {
+    return database.updateCategory(input);
   });
 
   ipcMain.handle("notes:list", (_event, options?: NoteListOptions) => {
