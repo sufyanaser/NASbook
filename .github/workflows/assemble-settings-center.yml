@@ -1,18 +1,16 @@
 name: Assemble NASbook Settings Center
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/settings-center-gmail-backup
-    paths:
-      - ".github/workflows/assemble-settings-center.yml"
+      - main
 
 permissions:
   contents: write
 
 jobs:
   assemble:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.head.ref == 'feature/settings-center-gmail-backup' && github.actor != 'github-actions[bot]'
     runs-on: windows-latest
     timeout-minutes: 30
 
