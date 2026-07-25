@@ -35,7 +35,7 @@ function buildMimeMessage(
     `To: ${email}`,
     `Subject: NASbook backup ${timestamp}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary=\"${boundary}\"`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
     "",
     `--${boundary}`,
     "Content-Type: text/plain; charset=UTF-8",
@@ -51,8 +51,8 @@ function buildMimeMessage(
       : "application/octet-stream";
     lines.push(
       `--${boundary}`,
-      `Content-Type: ${mimeType}; name=\"${file.name}\"`,
-      `Content-Disposition: attachment; filename=\"${file.name}\"`,
+      `Content-Type: ${mimeType}; name="${file.name}"`,
+      `Content-Disposition: attachment; filename="${file.name}"`,
       "Content-Transfer-Encoding: base64",
       "",
       wrapBase64(file.content.toString("base64")),
