@@ -49,6 +49,8 @@ const api: NasNotesbookApi = Object.freeze({
     create: () => ipcRenderer.invoke("backup:create"),
     getStatus: () => ipcRenderer.invoke("backup:getStatus"),
     openFolder: () => ipcRenderer.invoke("backup:openFolder"),
+    chooseFolder: () => ipcRenderer.invoke("backup:chooseFolder"),
+    resetFolder: () => ipcRenderer.invoke("backup:resetFolder"),
   }),
   googleAuth: Object.freeze({
     link: () => ipcRenderer.invoke("googleAuth:link"),
@@ -58,6 +60,10 @@ const api: NasNotesbookApi = Object.freeze({
   cloudBackup: Object.freeze({
     getStatus: () => ipcRenderer.invoke("cloudBackup:getStatus"),
     uploadLatest: () => ipcRenderer.invoke("cloudBackup:uploadLatest"),
+  }),
+  gmailBackup: Object.freeze({
+    getStatus: () => ipcRenderer.invoke("gmailBackup:getStatus"),
+    sendLatest: () => ipcRenderer.invoke("gmailBackup:sendLatest"),
   }),
   nasbk: Object.freeze({
     saveFile: (input: NasbkSaveInput) => ipcRenderer.invoke("nasbk:saveFile", input),
