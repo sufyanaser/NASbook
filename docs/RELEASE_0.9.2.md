@@ -13,4 +13,5 @@
 
 - Icon catalog count is regression-tested.
 - Both Adaptive and Colored asset files are checked during tests.
+- The release branch is assembled directly from `main` and contains no temporary workflow files.
 - Lint, typecheck, automated tests, production build, and Windows installer build are required before promotion to main.
