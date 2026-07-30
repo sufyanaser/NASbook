@@ -329,6 +329,8 @@ export function NotesListColumn({
           return (
             <div
               className="note-list-card"
+              data-note-id={note.id}
+              data-nas-locked={note.isLocked ? "true" : "false"}
               data-selected={note.id === selectedNoteId}
               data-move-open={isMoveOpen ? "true" : "false"}
               key={note.id}
@@ -374,7 +376,18 @@ export function NotesListColumn({
                     type="text"
                   />
                 ) : (
-                  <h2>{note.title}</h2>
+                  <>
+                    <h2>{note.title}</h2>
+                    {note.isLocked && (
+                      <span
+                        className="nas-note-lock-indicator"
+                        aria-label={isArabic ? "مقفلة" : "Locked"}
+                        data-tooltip={isArabic ? "مقفلة" : "Locked"}
+                      >
+                        🔒
+                      </span>
+                    )}
+                  </>
                 )}
                 {showNoteDates && !isRenaming && (
                   <time

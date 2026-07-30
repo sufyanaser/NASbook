@@ -80,6 +80,23 @@
   color: var(--app-accent) !important;
 }
 
+.editor-toolbar[data-note-locked="true"] button:not(.nas-lock-toggle),
+.editor-toolbar[data-note-locked="true"] [role="combobox"] {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.nas-lock-toggle[data-active="true"] {
+  border-color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 16%, transparent);
+  color: var(--app-accent);
+}
+
+.note-editor-content-wrapper[data-locked="true"] .ProseMirror {
+  cursor: text;
+  user-select: text;
+}
+
 .note-card-topline {
   min-width: 0;
 }

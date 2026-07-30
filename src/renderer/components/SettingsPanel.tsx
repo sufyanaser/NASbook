@@ -522,7 +522,7 @@ export function SettingsPanel({
               </button>
             ))}
             <div className="settings-center-nav-footer">
-              <span>{appInfo?.version ? `v${appInfo.version}` : "NASbook"}</span>
+              <span>{appInfo?.version ?? "NASbook"}</span>
               <small>{c.saved}</small>
             </div>
           </nav>

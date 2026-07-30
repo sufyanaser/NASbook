@@ -49,6 +49,7 @@ interface NoteRow {
   readonly content_html: string;
   readonly category_id: number | null;
   readonly is_rtl: 0 | 1;
+  readonly is_locked: 0 | 1;
   readonly created_at: string;
   readonly updated_at: string;
   readonly deleted_at: string | null;
@@ -67,6 +68,7 @@ export interface NotesbookDatabase {
   readonly getNoteById: (id: number) => NoteRecord | null;
   readonly createNote: (input?: CreateNoteInput) => NoteRecord;
   readonly updateNote: (input: UpdateNoteInput) => NoteRecord;
+  readonly setNoteLocked: (id: number, isLocked: boolean) => NoteRecord;
   readonly deleteNoteToTrash: (id: number) => void;
   readonly restoreNote: (id: number) => void;
   readonly deleteNotePermanent: (id: number) => void;
@@ -94,6 +96,7 @@ function toNoteListItem(row: NoteRow): NoteListItem {
     preview: row.content_markdown.slice(0, 120),
     categoryId: row.category_id,
     isRtl: row.is_rtl === 1,
+    isLocked: row.is_locked === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -162,7 +165,7 @@ function normalizeCategoryName(name: string): string {
 function requireNote(database: SqliteDatabase, id: number): NoteRecord {
   const row = database
     .prepare(
-      `SELECT id, title, content_markdown, content_html, category_id, is_rtl,
+      `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
               created_at, updated_at, deleted_at
        FROM notes
        WHERE id = ?`,
@@ -222,6 +225,13 @@ function ensureDatabaseReady(database: SqliteDatabase): void {
   }
 
   applyInitialMigration(database);
+
+  const noteColumns = database.pragma("table_info(notes)") as Array<{ name: string }>;
+  if (!noteColumns.some((column) => column.name === "is_locked")) {
+    database.prepare(
+      "ALTER TABLE notes ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0 CHECK (is_locked IN (0, 1))",
+    ).run();
+  }
 }
 
 function verifyDatabaseIntegrity(database: SqliteDatabase): void {
@@ -335,7 +345,7 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
     getNoteById: (id) => {
       const row = database
         .prepare(
-          `SELECT id, title, content_markdown, content_html, category_id, is_rtl,
+          `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
                   created_at, updated_at, deleted_at
            FROM notes
            WHERE id = ?`,
@@ -362,6 +372,10 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
     },
     updateNote: (input) => {
       const id = normalizeId(input.id);
+      const current = requireNote(database, id);
+      if (current.isLocked) {
+        throw new Error("Locked notes are read-only. Unlock the note before editing.");
+      }
       nasDebugLog("[TRACE] DB updateNote START", {
         reason: "db",
         noteId: id,
@@ -398,7 +412,23 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
       });
       return result;
     },
+    setNoteLocked: (id, isLocked) => {
+      const normalizedId = normalizeId(id);
+      database
+        .prepare(
+          `UPDATE notes
+           SET is_locked = ?,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+           WHERE id = ?`,
+        )
+        .run(isLocked ? 1 : 0, normalizedId);
+      return requireNote(database, normalizedId);
+    },
     deleteNoteToTrash: (id) => {
+      const note = requireNote(database, normalizeId(id));
+      if (note.isLocked) {
+        throw new Error("Locked notes cannot be moved to Trash.");
+      }
       database
         .prepare(
           `UPDATE notes
@@ -419,6 +449,10 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
         .run(normalizeId(id));
     },
     deleteNotePermanent: (id) => {
+      const note = requireNote(database, normalizeId(id));
+      if (note.isLocked) {
+        throw new Error("Locked notes cannot be permanently deleted.");
+      }
       database.prepare("DELETE FROM notes WHERE id = ?").run(normalizeId(id));
     },
     checkpoint: () => {
@@ -452,7 +486,7 @@ function createNoteListQuery(
   if (options.includeTrash) {
     const rows = database
       .prepare(
-        `SELECT id, title, content_markdown, content_html, category_id, is_rtl,
+        `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
                 created_at, updated_at, deleted_at
          FROM notes
          WHERE deleted_at IS NOT NULL
@@ -466,7 +500,7 @@ function createNoteListQuery(
   if (categoryId !== null) {
     const rows = database
       .prepare(
-        `SELECT id, title, content_markdown, content_html, category_id, is_rtl,
+        `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
                 created_at, updated_at, deleted_at
          FROM notes
          WHERE deleted_at IS NULL AND category_id = ?
@@ -479,7 +513,7 @@ function createNoteListQuery(
 
   const rows = database
     .prepare(
-      `SELECT id, title, content_markdown, content_html, category_id, is_rtl,
+      `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
               created_at, updated_at, deleted_at
        FROM notes
        WHERE deleted_at IS NULL

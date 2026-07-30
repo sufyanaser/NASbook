@@ -37,6 +37,7 @@ import type {
   AppLanguage,
 } from "../../shared/settings";
 import { t } from "../../shared/i18n";
+import "../styles/editor-productivity.css";
 
 interface NoteEditorAreaProps {
   readonly activeCategoryName: string;
@@ -57,10 +58,35 @@ interface NoteEditorAreaProps {
   readonly onDeleteToTrash: () => void;
   readonly onRestore: () => void;
   readonly onSave: () => void;
+  readonly onToggleLock: () => void;
   readonly onToggleTheme: () => void;
   readonly onThemeChange: (theme: AppTheme) => void;
   readonly onTitleChange: (title: string) => void;
   readonly onExportNote?: () => void;
+}
+
+const FILL_SWATCH_ADDITIONS = [
+  { name: "Slate", value: "#475569", hex: "#475569" },
+  { name: "Yellow", value: "#eab308", hex: "#eab308" },
+  { name: "Sky", value: "#0ea5e9", hex: "#0ea5e9" },
+] as const;
+
+function readableTextColor(background: string): "#ffffff" | "#111827" {
+  const hex = background.replace("#", "");
+  const normalized = hex.length === 3
+    ? hex.split("").map((character) => `${character}${character}`).join("")
+    : hex;
+  if (!/^[0-9a-f]{6}$/iu.test(normalized)) return "#111827";
+
+  const channels = [0, 2, 4].map((offset) => Number.parseInt(normalized.slice(offset, offset + 2), 16));
+  const linear = channels.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  const darkContrast = (luminance + 0.05) / 0.057;
+  return whiteContrast >= darkContrast ? "#ffffff" : "#111827";
 }
 
 type ToolbarIcon =
@@ -716,6 +742,7 @@ function ColorPicker({
     { name: "Indigo", value: "#6366f1", hex: "#6366f1" },
     { name: "Purple", value: "#8b5cf6", hex: "#8b5cf6" },
     { name: "Pink", value: "#ec4899", hex: "#ec4899" },
+    ...FILL_SWATCH_ADDITIONS,
   ];
 
   return (
@@ -772,6 +799,9 @@ function ColorPicker({
                     case "Indigo": return "نيلي";
                     case "Purple": return "أرجواني";
                     case "Pink": return "وردي";
+                    case "Slate": return "أردوازي";
+                    case "Yellow": return "أصفر";
+                    case "Sky": return "أزرق سماوي";
                     default: return name;
                   }
                 }
@@ -967,10 +997,13 @@ export function NoteEditorArea({
   onDeleteToTrash,
   onRestore,
   onSave,
+  onToggleLock,
   onTitleChange,
   onExportNote,
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
+  const isLocked = selectedNote?.isLocked === true;
+  const collapsedHeadingKeysRef = useRef(new Set<string>());
   const isSettingContentRef = useRef(false);
   const loadedNoteIdRef = useRef<number | null>(null);
   
@@ -1175,7 +1208,7 @@ export function NoteEditorArea({
     },
     editorProps: {
       handleKeyDown: (view, event) => {
-        if (!editor || isTrashView || !hasSelectedNote) {
+        if (!editor || isTrashView || !hasSelectedNote || selectedNote?.isLocked) {
           return false;
         }
 
@@ -1284,9 +1317,83 @@ export function NoteEditorArea({
   // Keep editor read-only status in sync
   useEffect(() => {
     if (editor) {
-      editor.setEditable(!isTrashView && hasSelectedNote);
+      editor.setEditable(!isTrashView && hasSelectedNote && !isLocked);
     }
-  }, [editor, isTrashView, hasSelectedNote]);
+  }, [editor, isTrashView, hasSelectedNote, isLocked]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const root = editor.view.dom;
+    collapsedHeadingKeysRef.current.clear();
+
+    const refresh = () => {
+      root.querySelectorAll<HTMLElement>("[data-nas-collapsed-hidden=\"true\"]").forEach((element) => {
+        element.removeAttribute("data-nas-collapsed-hidden");
+      });
+
+      const headings = [...root.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6")];
+      headings.forEach((heading, index) => {
+        const level = Number(heading.tagName.slice(1));
+        const key = `${level}:${index}:${(heading.textContent ?? "").trim()}`;
+        heading.dataset.nasCollapseKey = key;
+        const section: HTMLElement[] = [];
+        let sibling = heading.nextElementSibling;
+        while (sibling instanceof HTMLElement) {
+          const siblingLevel = /^H[1-6]$/u.test(sibling.tagName)
+            ? Number(sibling.tagName.slice(1))
+            : null;
+          if (sibling.tagName === "HR" || (siblingLevel !== null && siblingLevel <= level)) break;
+          section.push(sibling);
+          sibling = sibling.nextElementSibling;
+        }
+
+        if (section.length === 0) {
+          heading.removeAttribute("data-nas-collapsible");
+          heading.removeAttribute("data-nas-collapsed");
+          return;
+        }
+        heading.dataset.nasCollapsible = "true";
+        const collapsed = collapsedHeadingKeysRef.current.has(key);
+        heading.dataset.nasCollapsed = collapsed ? "true" : "false";
+        if (collapsed) {
+          section.forEach((element) => {
+            element.dataset.nasCollapsedHidden = "true";
+          });
+        }
+      });
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLElement>("h1, h2, h3, h4, h5, h6")
+        : null;
+      if (!target || target.dataset.nasCollapsible !== "true") return;
+      const rectangle = target.getBoundingClientRect();
+      const isRtl = getComputedStyle(target).direction === "rtl";
+      const hit = isRtl
+        ? event.clientX >= rectangle.right - 34
+        : event.clientX <= rectangle.left + 34;
+      if (!hit) return;
+
+      event.preventDefault();
+      const key = target.dataset.nasCollapseKey;
+      if (!key) return;
+      if (collapsedHeadingKeysRef.current.has(key)) {
+        collapsedHeadingKeysRef.current.delete(key);
+      } else {
+        collapsedHeadingKeysRef.current.add(key);
+      }
+      refresh();
+    };
+
+    refresh();
+    root.addEventListener("pointerdown", handlePointerDown, true);
+    editor.on("transaction", refresh);
+    return () => {
+      root.removeEventListener("pointerdown", handlePointerDown, true);
+      editor.off("transaction", refresh);
+    };
+  }, [editor, selectedNote?.id]);
 
   useEffect(() => {
     if (!editor) {
@@ -2042,7 +2149,7 @@ export function NoteEditorArea({
           <span className="editor-eyebrow">{activeCategoryName}</span>
           <input
             className="note-title-input"
-            disabled={!hasSelectedNote || isTrashView}
+            disabled={!hasSelectedNote || isTrashView || isLocked}
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder={t("noteTitlePlaceholder", language)}
             type="text"
@@ -2072,7 +2179,34 @@ export function NoteEditorArea({
         </div>
       )}
 
-      <div className="editor-toolbar" aria-label="Editor toolbar">
+      {isLocked && hasSelectedNote && !isTrashView && (
+        <div className="nas-editor-lock-banner" role="status">
+          <span aria-hidden="true">🔒</span>
+          <span>
+            {language === "ar"
+              ? "الملاحظة للقراءة والنسخ فقط — افتح القفل للسماح بالتعديل."
+              : "Read and copy only — unlock to edit."}
+          </span>
+        </div>
+      )}
+
+      <div
+        className="editor-toolbar"
+        aria-label="Editor toolbar"
+        data-note-locked={isLocked ? "true" : "false"}
+        onClickCapture={(event) => {
+          if (isLocked && !(event.target as Element).closest(".nas-lock-toggle")) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+        onMouseDownCapture={(event) => {
+          if (isLocked && !(event.target as Element).closest(".nas-lock-toggle")) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+      >
         {/* Group 1: Save + status */}
         <div className="toolbar-group note-actions">
           {!isTrashView ? (
@@ -2169,6 +2303,20 @@ export function NoteEditorArea({
                 </span>
               </div>
               
+              <div className="toolbar-divider" />
+
+              <button
+                aria-label={isLocked ? (language === "ar" ? "فتح التعديل" : "Unlock editing") : (language === "ar" ? "قفل التعديل" : "Lock editing")}
+                className="toolbar-action-button nas-lock-toggle"
+                data-active={isLocked ? "true" : "false"}
+                data-tooltip={isLocked ? (language === "ar" ? "فتح التعديل" : "Unlock editing") : (language === "ar" ? "قفل التعديل" : "Lock editing")}
+                disabled={!hasSelectedNote}
+                onClick={onToggleLock}
+                type="button"
+              >
+                <span aria-hidden="true">{isLocked ? "🔒" : "🔓"}</span>
+              </button>
+
               <div className="toolbar-divider" />
               
               {/* Group 2: Delete to Trash */}
@@ -2453,11 +2601,21 @@ export function NoteEditorArea({
                       onChange={(val) => {
                         const chain = editor.chain().focus();
                         if (isCellSelected) {
-                          chain.setCellAttribute("backgroundColor", val).run();
+                          if (val === null) {
+                            chain.setCellAttribute("backgroundColor", null).unsetColor().run();
+                          } else {
+                            chain
+                              .setCellAttribute("backgroundColor", val)
+                              .setColor(readableTextColor(val))
+                              .run();
+                          }
                         } else if (val === null) {
-                          chain.unsetBackgroundColor().run();
+                          chain.unsetBackgroundColor().unsetColor().run();
                         } else {
-                          chain.setBackgroundColor(val).run();
+                          chain
+                            .setBackgroundColor(val)
+                            .setColor(readableTextColor(val))
+                            .run();
                         }
                       }}
                     />
@@ -2985,8 +3143,9 @@ export function NoteEditorArea({
             isEditorEmpty ? " is-editor-empty" : ""
           }`}
           data-readonly={isTrashView ? "true" : "false"}
+          data-locked={isLocked ? "true" : "false"}
           dir={editorDirection}
-          onContextMenu={handleEditorContextMenu}
+          onContextMenu={isLocked ? undefined : handleEditorContextMenu}
         >
           <EditorContent editor={editor} />
         </div>

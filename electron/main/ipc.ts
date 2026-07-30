@@ -162,6 +162,10 @@ export function registerIpcHandlers({
     return database.updateNote(input);
   });
 
+  ipcMain.handle("notes:setLocked", (_event, id: number, isLocked: boolean) => {
+    return database.setNoteLocked(id, Boolean(isLocked));
+  });
+
   ipcMain.handle("notes:deleteToTrash", (_event, id: number) => {
     database.deleteNoteToTrash(id);
   });
