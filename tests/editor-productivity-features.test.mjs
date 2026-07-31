@@ -28,6 +28,8 @@ test("collapsible headings respect divider and heading boundaries", async () => 
   assert.match(editor, /siblingLevel <= level/);
   assert.match(editor, /data-nas-collapsed-hidden/);
   assert.match(editor, /collapsedHeadingKeysRef/);
+  assert.match(editor, /requestAnimationFrame\(\(\) => refreshCollapsibleHeadingsRef\.current\(\)\)/);
+  assert.match(editor, /nas-collapse-toggle/);
 });
 
 test("fill palette expands to sixteen colors with automatic contrast", async () => {
@@ -48,15 +50,24 @@ test("renderer avoids the former global observer and deprecated editing commands
   assert.doesNotMatch(editor, /execCommand\("(?:hiliteColor|backColor|foreColor)"/);
 });
 
-test("release V02 is consistent across app metadata and Windows installer naming", async () => {
+test("editor note actions cannot inherit the hidden note-card action styles", async () => {
+  const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+  const styles = await source("src/renderer/styles/index.css");
+
+  assert.match(editor, /className="toolbar-group editor-note-actions"/);
+  assert.doesNotMatch(editor, /className="toolbar-group note-actions"/);
+  assert.match(styles, /\.editor-note-actions\s*\{\s*gap: 10px;/);
+});
+
+test("release V03 is consistent across app metadata and Windows installer naming", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const main = await source("electron/main/index.ts");
   const workflow = await source(".github/workflows/windows-release.yml");
 
-  assert.equal(packageJson.version, "2.0.0");
-  assert.equal(packageJson.releaseLabel, "V02");
-  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V02.exe");
-  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V02.${ext}");
-  assert.match(main, /appVersion: "V02"/);
+  assert.equal(packageJson.version, "3.0.0");
+  assert.equal(packageJson.releaseLabel, "V03");
+  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V03.exe");
+  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V03.${ext}");
+  assert.match(main, /appVersion: "V03"/);
   assert.match(workflow, /NASbook Setup \$label\.exe/);
 });

@@ -58,6 +58,25 @@
   font-weight: 650;
 }
 
+.nas-editor-lock-banner .toolbar-button-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--app-accent);
+}
+
+.nas-collapse-toggle {
+  color: var(--app-accent) !important;
+}
+
+.nas-collapse-toggle .toolbar-button-icon {
+  transition: transform 0.14s ease;
+}
+
+.nas-collapse-toggle[data-active="true"] .toolbar-button-icon {
+  transform: rotate(-90deg);
+}
+
 .note-title-input[data-nas-locked="true"] {
   cursor: text;
   user-select: text;

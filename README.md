@@ -1,6 +1,6 @@
 # NAS Notesbook 📔
 
-Current release: **V02**
+Current release: **V03**
 
 NAS Notesbook is **SUFYAN's personal**, **RTL-first, local-first** desktop notebook for ChatGPT prompts, NAS APP project contexts, PowerShell commands, and development notes. Built on Windows using Electron, Vite, React, and SQLite, it runs fully offline as a fast, lightweight writing and reference tool.
 

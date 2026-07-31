@@ -1600,7 +1600,7 @@ body.is-resizing-notes-pane .notes-split-divider {
   border-color: var(--toolbar-button-hover-border);
 }
 
-.note-actions {
+.editor-note-actions {
   gap: 10px;
 }
 

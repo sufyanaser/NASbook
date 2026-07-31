@@ -116,6 +116,9 @@ type ToolbarIcon =
   | "tableColDelete"
   | "tableDelete"
   | "save"
+  | "lock"
+  | "unlock"
+  | "collapse"
   | "trash"
   | "restore"
   | "deletePermanent";
@@ -289,6 +292,19 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
           <path d="M8 4v6h8M8 17h8" {...strokeProps} />
           <path d="m9 13 2 2 4-4" {...strokeProps} />
         </>
+      )}
+      {(icon === "lock" || icon === "unlock") && (
+        <>
+          <rect x="5" y="10" width="14" height="10" rx="2" {...strokeProps} />
+          <path
+            d={icon === "lock" ? "M8 10V7a4 4 0 0 1 8 0v3" : "M8 10V7a4 4 0 0 1 7.5-2"}
+            {...strokeProps}
+          />
+          <circle cx="12" cy="15" r="1" fill="currentColor" />
+        </>
+      )}
+      {icon === "collapse" && (
+        <path d="m7 9 5 5 5-5" {...strokeProps} />
       )}
       {icon === "trash" && (
         <path d="M6 7h12M10 7V5h4v2M8 10v9h8v-9M10 12v5M14 12v5" {...strokeProps} />
@@ -1018,6 +1034,8 @@ export function NoteEditorArea({
   const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isTableCellSelected, setIsTableCellSelected] = useState(false);
   const [selectedDividerVariant, setSelectedDividerVariant] = useState<DividerVariant | null>(null);
+  const [activeCollapse, setActiveCollapse] = useState<{ key: string; collapsed: boolean } | null>(null);
+  const refreshCollapsibleHeadingsRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     setEditorMenuPos(null);
@@ -1326,6 +1344,16 @@ export function NoteEditorArea({
     const root = editor.view.dom;
     collapsedHeadingKeysRef.current.clear();
 
+    const getHeadingAtSelection = (): HTMLElement | null => {
+      const { $from } = editor.state.selection;
+      for (let depth = $from.depth; depth > 0; depth -= 1) {
+        if ($from.node(depth).type.name !== "heading") continue;
+        const element = editor.view.nodeDOM($from.before(depth));
+        return element instanceof HTMLElement ? element : null;
+      }
+      return null;
+    };
+
     const refresh = () => {
       root.querySelectorAll<HTMLElement>("[data-nas-collapsed-hidden=\"true\"]").forEach((element) => {
         element.removeAttribute("data-nas-collapsed-hidden");
@@ -1361,7 +1389,16 @@ export function NoteEditorArea({
           });
         }
       });
+
+      const activeHeading = getHeadingAtSelection();
+      const activeKey = activeHeading?.dataset.nasCollapseKey;
+      setActiveCollapse(
+        activeHeading?.dataset.nasCollapsible === "true" && activeKey
+          ? { key: activeKey, collapsed: collapsedHeadingKeysRef.current.has(activeKey) }
+          : null
+      );
     };
+    refreshCollapsibleHeadingsRef.current = refresh;
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element
@@ -1386,14 +1423,26 @@ export function NoteEditorArea({
       refresh();
     };
 
-    refresh();
+    requestAnimationFrame(refresh);
     root.addEventListener("pointerdown", handlePointerDown, true);
     editor.on("transaction", refresh);
     return () => {
+      refreshCollapsibleHeadingsRef.current = () => undefined;
       root.removeEventListener("pointerdown", handlePointerDown, true);
       editor.off("transaction", refresh);
     };
   }, [editor, selectedNote?.id]);
+
+  const toggleActiveHeadingCollapse = () => {
+    if (!activeCollapse) return;
+    if (collapsedHeadingKeysRef.current.has(activeCollapse.key)) {
+      collapsedHeadingKeysRef.current.delete(activeCollapse.key);
+    } else {
+      collapsedHeadingKeysRef.current.add(activeCollapse.key);
+    }
+    refreshCollapsibleHeadingsRef.current();
+    editor?.commands.focus();
+  };
 
   useEffect(() => {
     if (!editor) {
@@ -1507,6 +1556,7 @@ export function NoteEditorArea({
           editor.commands.setContent(targetContent);
           loadedNoteIdRef.current = selectedNote.id;
           isSettingContentRef.current = false;
+          requestAnimationFrame(() => refreshCollapsibleHeadingsRef.current());
 
           nasDebugLog("[TRACE] NoteEditorArea setContent END (has note)", {
             reason: "setContent",
@@ -1532,6 +1582,7 @@ export function NoteEditorArea({
         editor.commands.setContent("");
         loadedNoteIdRef.current = null;
         isSettingContentRef.current = false;
+        requestAnimationFrame(() => refreshCollapsibleHeadingsRef.current());
 
         nasDebugLog("[TRACE] NoteEditorArea setContent END (no note)", {
           reason: "setContent",
@@ -2181,7 +2232,7 @@ export function NoteEditorArea({
 
       {isLocked && hasSelectedNote && !isTrashView && (
         <div className="nas-editor-lock-banner" role="status">
-          <span aria-hidden="true">🔒</span>
+          <ToolbarIconSvg icon="lock" />
           <span>
             {language === "ar"
               ? "الملاحظة للقراءة والنسخ فقط — افتح القفل للسماح بالتعديل."
@@ -2208,7 +2259,7 @@ export function NoteEditorArea({
         }}
       >
         {/* Group 1: Save + status */}
-        <div className="toolbar-group note-actions">
+        <div className="toolbar-group editor-note-actions">
           {!isTrashView ? (
             <>
               <div className="note-save-group">
@@ -2314,7 +2365,27 @@ export function NoteEditorArea({
                 onClick={onToggleLock}
                 type="button"
               >
-                <span aria-hidden="true">{isLocked ? "🔒" : "🔓"}</span>
+                <ToolbarIconSvg icon={isLocked ? "lock" : "unlock"} />
+              </button>
+
+              <div className="toolbar-divider" />
+
+              <button
+                aria-label={language === "ar" ? "طي أو توسيع العنوان الحالي" : "Collapse or expand current heading"}
+                className="toolbar-action-button nas-collapse-toggle"
+                data-active={activeCollapse?.collapsed ? "true" : "false"}
+                data-tooltip={
+                  activeCollapse
+                    ? activeCollapse.collapsed
+                      ? (language === "ar" ? "توسيع العنوان" : "Expand heading")
+                      : (language === "ar" ? "طي العنوان" : "Collapse heading")
+                    : (language === "ar" ? "ضع المؤشر داخل عنوان قابل للطي" : "Place the cursor in a collapsible heading")
+                }
+                disabled={!hasSelectedNote || !activeCollapse}
+                onClick={toggleActiveHeadingCollapse}
+                type="button"
+              >
+                <ToolbarIconSvg icon="collapse" />
               </button>
 
               <div className="toolbar-divider" />
