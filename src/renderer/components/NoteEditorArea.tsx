@@ -1020,6 +1020,7 @@ export function NoteEditorArea({
   const hasSelectedNote = selectedNote !== null;
   const isLocked = selectedNote?.isLocked === true;
   const collapsedHeadingKeysRef = useRef(new Set<string>());
+  const manualSectionKeysRef = useRef(new Set<string>());
   const isSettingContentRef = useRef(false);
   const loadedNoteIdRef = useRef<number | null>(null);
   
@@ -1343,11 +1344,13 @@ export function NoteEditorArea({
     if (!editor) return;
     const root = editor.view.dom;
     collapsedHeadingKeysRef.current.clear();
+    manualSectionKeysRef.current.clear();
 
-    const getHeadingAtSelection = (): HTMLElement | null => {
+    const getBlockAtSelection = (): HTMLElement | null => {
       const { $from } = editor.state.selection;
       for (let depth = $from.depth; depth > 0; depth -= 1) {
-        if ($from.node(depth).type.name !== "heading") continue;
+        const nodeName = $from.node(depth).type.name;
+        if (nodeName !== "heading" && nodeName !== "paragraph") continue;
         const element = editor.view.nodeDOM($from.before(depth));
         return element instanceof HTMLElement ? element : null;
       }
@@ -1359,25 +1362,62 @@ export function NoteEditorArea({
         element.removeAttribute("data-nas-collapsed-hidden");
       });
 
-      const headings = [...root.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6")];
-      headings.forEach((heading, index) => {
-        const level = Number(heading.tagName.slice(1));
-        const key = `${level}:${index}:${(heading.textContent ?? "").trim()}`;
-        heading.dataset.nasCollapseKey = key;
+      const blocks = [...root.children].filter(
+        (element): element is HTMLElement => element instanceof HTMLElement
+      );
+      blocks.forEach((block, index) => {
+        block.removeAttribute("data-nas-collapsible");
+        block.removeAttribute("data-nas-collapsed");
+        if (!/^(?:P|H[1-6])$/u.test(block.tagName)) {
+          block.removeAttribute("data-nas-collapse-key");
+          return;
+        }
+        block.dataset.nasCollapseKey =
+          `${block.tagName}:${index}:${(block.textContent ?? "").trim()}`;
+      });
+
+      const isVisualHeading = (block: HTMLElement): boolean => {
+        if (block.tagName !== "P" || !(block.textContent ?? "").trim()) return false;
+        const styledText = block.querySelector<HTMLElement>("span, strong, b") ?? block;
+        const style = getComputedStyle(styledText);
+        const fontSize = Number.parseFloat(style.fontSize);
+        const fontWeight = Number.parseInt(style.fontWeight, 10);
+        return fontSize >= 18 && (fontWeight >= 600 || style.fontWeight === "bold");
+      };
+
+      const isSectionHeading = (block: HTMLElement): boolean => {
+        const key = block.dataset.nasCollapseKey;
+        return /^H[1-6]$/u.test(block.tagName)
+          || Boolean(key && manualSectionKeysRef.current.has(key))
+          || isVisualHeading(block);
+      };
+
+      const sectionFor = (heading: HTMLElement): HTMLElement[] => {
+        const structuralLevel = /^H[1-6]$/u.test(heading.tagName)
+          ? Number(heading.tagName.slice(1))
+          : null;
         const section: HTMLElement[] = [];
         let sibling = heading.nextElementSibling;
         while (sibling instanceof HTMLElement) {
           const siblingLevel = /^H[1-6]$/u.test(sibling.tagName)
             ? Number(sibling.tagName.slice(1))
             : null;
-          if (sibling.tagName === "HR" || (siblingLevel !== null && siblingLevel <= level)) break;
+          const reachesNextSection = isSectionHeading(sibling)
+            && (structuralLevel === null
+              || siblingLevel === null
+              || siblingLevel <= structuralLevel);
+          if (sibling.tagName === "HR" || reachesNextSection) break;
           section.push(sibling);
           sibling = sibling.nextElementSibling;
         }
+        return section;
+      };
 
+      blocks.filter(isSectionHeading).forEach((heading) => {
+        const key = heading.dataset.nasCollapseKey;
+        if (!key) return;
+        const section = sectionFor(heading);
         if (section.length === 0) {
-          heading.removeAttribute("data-nas-collapsible");
-          heading.removeAttribute("data-nas-collapsed");
           return;
         }
         heading.dataset.nasCollapsible = "true";
@@ -1390,10 +1430,11 @@ export function NoteEditorArea({
         }
       });
 
-      const activeHeading = getHeadingAtSelection();
+      const activeHeading = getBlockAtSelection();
       const activeKey = activeHeading?.dataset.nasCollapseKey;
+      const hasSection = activeHeading ? sectionFor(activeHeading).length > 0 : false;
       setActiveCollapse(
-        activeHeading?.dataset.nasCollapsible === "true" && activeKey
+        activeKey && hasSection && (activeHeading?.textContent ?? "").trim()
           ? { key: activeKey, collapsed: collapsedHeadingKeysRef.current.has(activeKey) }
           : null
       );
@@ -1402,7 +1443,7 @@ export function NoteEditorArea({
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element
-        ? event.target.closest<HTMLElement>("h1, h2, h3, h4, h5, h6")
+        ? event.target.closest<HTMLElement>("[data-nas-collapsible=\"true\"]")
         : null;
       if (!target || target.dataset.nasCollapsible !== "true") return;
       const rectangle = target.getBoundingClientRect();
@@ -1435,6 +1476,7 @@ export function NoteEditorArea({
 
   const toggleActiveHeadingCollapse = () => {
     if (!activeCollapse) return;
+    manualSectionKeysRef.current.add(activeCollapse.key);
     if (collapsedHeadingKeysRef.current.has(activeCollapse.key)) {
       collapsedHeadingKeysRef.current.delete(activeCollapse.key);
     } else {
