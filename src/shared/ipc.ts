@@ -16,6 +16,7 @@ export interface NoteListItem {
   readonly preview: string;
   readonly categoryId: number | null;
   readonly isRtl: boolean;
+  readonly isLocked: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly deletedAt: string | null;
@@ -192,6 +193,7 @@ export interface NasNotesbookApi {
     readonly getById: (id: number) => Promise<NoteRecord | null>;
     readonly create: (input?: CreateNoteInput) => Promise<NoteRecord>;
     readonly update: (input: UpdateNoteInput) => Promise<NoteRecord>;
+    readonly setLocked: (id: number, isLocked: boolean) => Promise<NoteRecord>;
     readonly deleteToTrash: (id: number) => Promise<void>;
     readonly restore: (id: number) => Promise<void>;
     readonly deletePermanent: (id: number) => Promise<void>;

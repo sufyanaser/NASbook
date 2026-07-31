@@ -28,6 +28,7 @@ export const schemaStatements = [
     content_html TEXT NOT NULL DEFAULT '',
     category_id INTEGER,
     is_rtl INTEGER NOT NULL DEFAULT 1 CHECK (is_rtl IN (0, 1)),
+    is_locked INTEGER NOT NULL DEFAULT 0 CHECK (is_locked IN (0, 1)),
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     deleted_at TEXT DEFAULT NULL,

@@ -11,7 +11,6 @@ import { createBackupService } from "./backupService";
 import { createGoogleAuthService } from "./googleAuthService";
 import { createGoogleDriveBackupService } from "./googleDriveBackupService";
 import { createGmailBackupService } from "./gmailBackupService";
-import { installEditorProductivityService } from "./editorProductivityService";
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -168,7 +167,7 @@ if (!gotTheLock) {
 
     registerIpcHandlers({
       appName: app.getName(),
-      appVersion: app.getVersion(),
+    appVersion: "V03",
       database: notesbookDatabase,
       settingsStore,
       backupService,
@@ -177,7 +176,6 @@ if (!gotTheLock) {
       gmailBackupService,
     });
 
-    installEditorProductivityService(userDataPath, notesbookDatabase);
     createMainWindow();
 
     app.on("activate", () => {

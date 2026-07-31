@@ -53,7 +53,7 @@ export function StatusFooter({
         </span>
         {appVersion && (
           <span className="status-item status-app-version">
-            {appName ?? "NASbook"} v{appVersion}
+            {appName ?? "NASbook"} {appVersion}
           </span>
         )}
       </div>

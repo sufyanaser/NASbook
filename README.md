@@ -1,5 +1,7 @@
 # NAS Notesbook 📔
 
+Current release: **V03**
+
 NAS Notesbook is **SUFYAN's personal**, **RTL-first, local-first** desktop notebook for ChatGPT prompts, NAS APP project contexts, PowerShell commands, and development notes. Built on Windows using Electron, Vite, React, and SQLite, it runs fully offline as a fast, lightweight writing and reference tool.
 
 v1 is intentionally minimal and personal—not a generic note app for IT admins or general users.
@@ -16,6 +18,9 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 | FTS5 search | ✓ |
 | RTL/LTR handling (RTL-first) | ✓ |
 | Rich text editor (Tiptap) | ✓ |
+| Collapsible heading sections | ✓ |
+| Read-only edit lock | ✓ |
+| 16 fill colors with automatic contrast | ✓ |
 | Code blocks (always LTR) | ✓ |
 | Copy note content | ✓ |
 | Copy as ChatGPT context | ✓ |

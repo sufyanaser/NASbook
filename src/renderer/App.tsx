@@ -895,6 +895,23 @@ export function App(): JSX.Element {
     await flushSave(true);
   };
 
+  const handleToggleLock = async (): Promise<void> => {
+    const api = window.nasNotesbook;
+    const note = selectedNoteRef.current;
+    if (!api || !note) return;
+
+    if (!note.isLocked) {
+      const saved = await flushSave(true);
+      if (!saved) return;
+    }
+
+    const updated = await api.notes.setLocked(note.id, !note.isLocked);
+    setSelectedNote(updated);
+    selectedNoteRef.current = updated;
+    await refreshNotes();
+    setSaveStatus("Saved");
+  };
+
   // Cancel a queued autosave for a note before a list action mutates it, so a
   // stale debounced write cannot race the delete/rename/move.
   const cancelAutosaveFor = (id: number): void => {
@@ -1432,6 +1449,9 @@ export function App(): JSX.Element {
         onSave={() => {
           void handleSaveNote();
         }}
+        onToggleLock={() => {
+          void handleToggleLock();
+        }}
         onToggleTheme={() => {
           handleUpdateSettings({
             theme: getToggledLightDarkTheme(settings.theme),
@@ -1527,5 +1547,4 @@ function eventMatchesShortcut(event: KeyboardEvent, shortcut: string): boolean {
     isKeyMatch
   );
 }
-
 

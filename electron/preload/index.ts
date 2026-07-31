@@ -11,14 +11,7 @@ import type {
 } from "../../src/shared/ipc";
 import type { AppSettings } from "../../src/shared/settings";
 
-interface EditorProductivityApi {
-  readonly getLockedNoteIds: () => Promise<readonly number[]>;
-  readonly setLocked: (noteId: number, isLocked: boolean) => Promise<boolean>;
-}
-
-const api: NasNotesbookApi & {
-  readonly editorProductivity: EditorProductivityApi;
-} = Object.freeze({
+const api: NasNotesbookApi = Object.freeze({
   app: Object.freeze({
     getInfo: () => ipcRenderer.invoke("app:getInfo"),
     openDataFolder: () => ipcRenderer.invoke("app:openDataFolder"),
@@ -41,6 +34,8 @@ const api: NasNotesbookApi & {
       ipcRenderer.invoke("notes:create", input),
     update: (input: UpdateNoteInput) =>
       ipcRenderer.invoke("notes:update", input),
+    setLocked: (id: number, isLocked: boolean) =>
+      ipcRenderer.invoke("notes:setLocked", id, isLocked),
     deleteToTrash: (id: number) =>
       ipcRenderer.invoke("notes:deleteToTrash", id),
     restore: (id: number) => ipcRenderer.invoke("notes:restore", id),
@@ -71,12 +66,6 @@ const api: NasNotesbookApi & {
   gmailBackup: Object.freeze({
     getStatus: () => ipcRenderer.invoke("gmailBackup:getStatus"),
     sendLatest: () => ipcRenderer.invoke("gmailBackup:sendLatest"),
-  }),
-  editorProductivity: Object.freeze({
-    getLockedNoteIds: () =>
-      ipcRenderer.invoke("editorProductivity:getLockedNoteIds"),
-    setLocked: (noteId: number, isLocked: boolean) =>
-      ipcRenderer.invoke("editorProductivity:setLocked", noteId, isLocked),
   }),
   nasbk: Object.freeze({
     saveFile: (input: NasbkSaveInput) => ipcRenderer.invoke("nasbk:saveFile", input),

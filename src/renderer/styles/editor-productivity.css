@@ -58,6 +58,25 @@
   font-weight: 650;
 }
 
+.nas-editor-lock-banner .toolbar-button-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--app-accent);
+}
+
+.nas-collapse-toggle {
+  color: var(--app-accent) !important;
+}
+
+.nas-collapse-toggle .toolbar-button-icon {
+  transition: transform 0.14s ease;
+}
+
+.nas-collapse-toggle[data-active="true"] .toolbar-button-icon {
+  transform: rotate(-90deg);
+}
+
 .note-title-input[data-nas-locked="true"] {
   cursor: text;
   user-select: text;
@@ -78,6 +97,23 @@
   border-color: var(--app-accent) !important;
   background: color-mix(in srgb, var(--app-accent) 16%, var(--toolbar-button-bg)) !important;
   color: var(--app-accent) !important;
+}
+
+.editor-toolbar[data-note-locked="true"] button:not(.nas-lock-toggle),
+.editor-toolbar[data-note-locked="true"] [role="combobox"] {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.nas-lock-toggle[data-active="true"] {
+  border-color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 16%, transparent);
+  color: var(--app-accent);
+}
+
+.note-editor-content-wrapper[data-locked="true"] .ProseMirror {
+  cursor: text;
+  user-select: text;
 }
 
 .note-card-topline {
