@@ -103,7 +103,7 @@ export function registerIpcHandlers({
     return {
       name: appName,
       version: appVersion,
-      phase: "phase-2-data-layer",
+      phase: "v05-foundation-stable",
       databasePath: database.databasePath,
       dataDirectory,
       settingsPath: settingsStore.settingsPath,

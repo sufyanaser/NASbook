@@ -63,7 +63,7 @@ export function TitleBar({ language }: TitleBarProps): JSX.Element {
           className="titlebar-button titlebar-button-minimize"
           onClick={handleMinimize}
           title={isRtl ? "تصغير" : "Minimize"}
-          aria-label="Minimize"
+          aria-label={isRtl ? "تصغير" : "Minimize"}
         >
           <svg width="10" height="10" viewBox="0 0 10 10">
             <rect y="4.5" width="10" height="1" fill="currentColor" />
@@ -81,7 +81,7 @@ export function TitleBar({ language }: TitleBarProps): JSX.Element {
               ? "تكبير"
               : "Maximize"
           }
-          aria-label={isMaximized ? "Restore" : "Maximize"}
+          aria-label={isRtl ? (isMaximized ? "استعادة" : "تكبير") : (isMaximized ? "Restore" : "Maximize")}
         >
           {isMaximized ? (
             <svg width="10" height="10" viewBox="0 0 10 10">
@@ -98,7 +98,7 @@ export function TitleBar({ language }: TitleBarProps): JSX.Element {
           className="titlebar-button titlebar-button-close"
           onClick={handleClose}
           title={isRtl ? "إغلاق" : "Close"}
-          aria-label="Close"
+          aria-label={isRtl ? "إغلاق" : "Close"}
         >
           <svg width="10" height="10" viewBox="0 0 10 10">
             <path d="M1,1 L9,9 M9,1 L1,9" stroke="currentColor" strokeWidth="1" />

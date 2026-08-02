@@ -64,6 +64,17 @@ test("renderer avoids the former global observer and deprecated editing commands
   assert.doesNotMatch(editor, /execCommand\("(?:hiliteColor|backColor|foreColor)"/);
 });
 
+test("fresh installs expose a focused core toolbar while advanced tools remain customizable", async () => {
+  const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+  assert.match(editor, /fontFamily: false/);
+  assert.match(editor, /codeBlock: false/);
+  assert.match(editor, /horizontalRule: false/);
+  assert.match(editor, /table: false/);
+  assert.match(editor, /bold: true/);
+  assert.match(editor, /numbered: true/);
+  assert.match(editor, /nas-notesbook\.editor\.visibleTools/);
+});
+
 test("editor note actions cannot inherit the hidden note-card action styles", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
   const styles = await source("src/renderer/styles/index.css");

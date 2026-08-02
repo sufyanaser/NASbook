@@ -4,7 +4,7 @@ import type { AppSettings } from "./settings";
 export interface AppInfo {
   readonly name: string;
   readonly version: string;
-  readonly phase: "phase-2-data-layer";
+  readonly phase: "v05-foundation-stable";
   readonly databasePath: string;
   readonly dataDirectory: string;
   readonly settingsPath: string;
@@ -30,11 +30,13 @@ export interface NoteRecord extends NoteListItem {
 export interface NoteListOptions {
   readonly categoryId?: number | null;
   readonly includeTrash?: boolean;
+  readonly searchQuery?: string;
 }
 
 export interface CreateNoteInput {
   readonly title?: string;
   readonly contentMarkdown?: string;
+  readonly contentHtml?: string;
   readonly categoryId?: number | null;
   readonly isRtl?: boolean;
 }
@@ -43,6 +45,7 @@ export interface UpdateNoteInput {
   readonly id: number;
   readonly title: string;
   readonly contentMarkdown: string;
+  readonly contentHtml: string;
   readonly categoryId: number | null;
   readonly isRtl: boolean;
 }

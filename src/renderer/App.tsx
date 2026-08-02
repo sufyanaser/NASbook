@@ -35,7 +35,11 @@ import {
   type ContextMenuState,
 } from "./components/AppContextMenu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { OperationErrorDialog } from "./components/OperationErrorDialog";
 import { TitleBar } from "./components/TitleBar";
+import { useNotesSearch } from "./hooks/useNotesSearch";
+import { useOperationError } from "./hooks/useOperationError";
+import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { t, getCategoryDisplayName } from "../shared/i18n";
 import {
   extractMarkdownTitle,
@@ -99,6 +103,9 @@ export function App(): JSX.Element {
   const [draftContent, setDraftContent] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("Idle");
   const [notesCount, setNotesCount] = useState(0);
+  const notesSearch = useNotesSearch();
+  const operationErrors = useOperationError();
+  const workspaceLayout = useWorkspaceLayout();
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [settings, setSettings] =
     useState<AppSettings>(defaultAppSettings);
@@ -140,84 +147,11 @@ export function App(): JSX.Element {
   const refreshNotesRef = useRef<() => Promise<readonly NoteListItem[]>>(async () => []);
   const confirmUnsavedSwitchRef = useRef(true);
 
-  const [notesListWidth, setNotesListWidth] = useState<number>(() => {
-    const saved = localStorage.getItem("nas-notesbook.layout.notesListWidth");
-    const parsed = saved !== null ? parseInt(saved, 10) : Number.NaN;
-    if (Number.isNaN(parsed)) {
-      return 320;
-    }
-    return Math.min(480, Math.max(240, parsed));
-  });
-
-  const [navRailExpanded, setNavRailExpanded] = useState<boolean>(() => {
-    const saved = localStorage.getItem("nas-notesbook.layout.navRailExpanded");
-    return saved === "true";
-  });
-
-  const [notesListCollapsed, setNotesListCollapsed] = useState<boolean>(() => {
-    const saved = localStorage.getItem("nas-notesbook.layout.notesListCollapsed");
-    return saved === "true";
-  });
-
-  const handleToggleNotesList = useCallback(() => {
-    setNotesListCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("nas-notesbook.layout.notesListCollapsed", String(next));
-      return next;
-    });
-  }, []);
-
   const isFocusMode = useMemo(() => {
     const saved = sessionStorage.getItem("nas-notesbook.focusMode");
     return saved === "true";
   }, []);
 
-
-  const handleToggleNavRail = useCallback(() => {
-    setNavRailExpanded((prev) => {
-      const next = !prev;
-      localStorage.setItem("nas-notesbook.layout.navRailExpanded", String(next));
-      return next;
-    });
-  }, []);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = notesListWidth;
-
-    document.body.classList.add("is-resizing-notes-pane");
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      let newWidth = startWidth + deltaX;
-      if (newWidth < 240) newWidth = 240;
-      if (newWidth > 480) newWidth = 480;
-      setNotesListWidth(newWidth);
-      localStorage.setItem("nas-notesbook.layout.notesListWidth", String(newWidth));
-    };
-
-    const handlePointerUp = () => {
-      document.body.classList.remove("is-resizing-notes-pane");
-      document.removeEventListener("pointermove", handlePointerMove);
-      document.removeEventListener("pointerup", handlePointerUp);
-    };
-
-    document.addEventListener("pointermove", handlePointerMove);
-    document.addEventListener("pointerup", handlePointerUp);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-      e.preventDefault();
-      const delta = e.key === "ArrowLeft" ? -16 : 16;
-      let newWidth = notesListWidth + delta;
-      if (newWidth < 240) newWidth = 240;
-      if (newWidth > 480) newWidth = 480;
-      setNotesListWidth(newWidth);
-      localStorage.setItem("nas-notesbook.layout.notesListWidth", String(newWidth));
-    }
-  };
 
   const activeCategoryRecord = useMemo(() => {
     return categories.find((category) => category.slug === activeCategory);
@@ -241,7 +175,15 @@ export function App(): JSX.Element {
     api: NonNullable<typeof window.nasNotesbook>,
     category: CategorySlug,
     categoryId: number | null,
+    searchQuery = "",
   ): Promise<readonly NoteListItem[]> => {
+    if (searchQuery !== "") {
+      return api.notes.list({
+        includeTrash: category === "trash",
+        searchQuery,
+      });
+    }
+
     if (category === "trash") {
       return api.notes.list({ includeTrash: true });
     }
@@ -262,7 +204,12 @@ export function App(): JSX.Element {
     }
 
     const categoryId = activeCategoryRecord?.id ?? null;
-    const nextNotes = await loadNotes(api, activeCategory, categoryId);
+    const nextNotes = await loadNotes(
+      api,
+      activeCategory,
+      categoryId,
+      notesSearch.debouncedQuery,
+    );
     setNotes(nextNotes);
     setNotesCount(nextNotes.length);
     return nextNotes;
@@ -306,7 +253,7 @@ export function App(): JSX.Element {
       if (
         !shouldUpdateLinkedFile &&
         content === "" &&
-        note.contentMarkdown !== "" &&
+        note.contentHtml !== "" &&
         !document.activeElement?.classList.contains("ProseMirror")
       ) {
         return true;
@@ -321,7 +268,7 @@ export function App(): JSX.Element {
             try {
               const result = await api.nasbk.saveFile({
                 title: note.title,
-                contentHtml: note.contentMarkdown,
+                contentHtml: note.contentHtml,
                 contentText,
                 metadata: {
                   isRtl: note.isRtl,
@@ -353,7 +300,8 @@ export function App(): JSX.Element {
         const updated = await api.notes.update({
           id: savingId,
           title,
-          contentMarkdown: content,
+          contentMarkdown: htmlToMarkdown(content),
+          contentHtml: content,
           categoryId: note.categoryId,
           isRtl: note.isRtl,
         });
@@ -365,7 +313,7 @@ export function App(): JSX.Element {
             draftRef.current.content === content
           ) {
             setDraftTitle(updated.title);
-            setDraftContent(updated.contentMarkdown);
+            setDraftContent(updated.contentHtml);
           }
           setSaveStatus("Saved");
         }
@@ -378,7 +326,7 @@ export function App(): JSX.Element {
           if (linkedPath) {
             const result = await api.nasbk.saveFile({
               title: updated.title,
-              contentHtml: updated.contentMarkdown,
+              contentHtml: updated.contentHtml,
               contentText,
               metadata: {
                 isRtl: updated.isRtl,
@@ -514,7 +462,8 @@ export function App(): JSX.Element {
     // Create the new note in database
     const note = await api.notes.create({
       title,
-      contentMarkdown: contentHtml,
+      contentMarkdown: htmlToMarkdown(contentHtml),
+      contentHtml,
       categoryId,
       isRtl,
     });
@@ -540,7 +489,7 @@ export function App(): JSX.Element {
     selectionRequestRef.current += 1;
     setSelectedNote(note);
     setDraftTitle(note.title);
-    setDraftContent(note.contentMarkdown);
+    setDraftContent(note.contentHtml);
     draftTextRef.current = result.contentText || getPlainTextFromHtml(contentHtml);
     setSaveStatus("Saved");
   }, [categories, refreshNotes]);
@@ -608,8 +557,8 @@ export function App(): JSX.Element {
               }
               setSelectedNote(note);
               setDraftTitle(note.title);
-              setDraftContent(note.contentMarkdown);
-              draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+              setDraftContent(note.contentHtml);
+              draftTextRef.current = getPlainTextFromHtml(note.contentHtml);
               setSaveStatus("Idle");
             })
             .catch(() => {
@@ -661,6 +610,14 @@ export function App(): JSX.Element {
     });
     clearSelectedNote();
   }, [activeCategory, activeCategoryRecord?.id]);
+
+  useEffect(() => {
+    void refreshNotes().catch(() => {
+      setDatabaseStatus("unavailable");
+      setNotes([]);
+      setNotesCount(0);
+    });
+  }, [notesSearch.debouncedQuery]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -777,7 +734,7 @@ export function App(): JSX.Element {
       activeCategory,
       hasUnsavedChanges,
       draftContentLength: draftContent.length,
-      noteContentLength: selectedNote?.contentMarkdown?.length,
+      noteContentLength: selectedNote?.contentHtml?.length,
     });
 
     if (!selectedNote || activeCategory === "trash" || !hasUnsavedChanges) {
@@ -859,8 +816,8 @@ export function App(): JSX.Element {
 
     setSelectedNote(note);
     setDraftTitle(note.title);
-    setDraftContent(note.contentMarkdown);
-    draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+    setDraftContent(note.contentHtml);
+    draftTextRef.current = getPlainTextFromHtml(note.contentHtml);
     setSaveStatus("Idle");
   };
 
@@ -868,7 +825,9 @@ export function App(): JSX.Element {
     if (id === selectedNote?.id) {
       return;
     }
-    void requestNavigation(() => doSelectNote(id));
+    void requestNavigation(async () => {
+      await operationErrors.execute("open note", () => doSelectNote(id));
+    });
   };
 
   const doCreateNote = async (): Promise<void> => {
@@ -890,8 +849,8 @@ export function App(): JSX.Element {
       await refreshNotes();
       setSelectedNote(note);
       setDraftTitle(note.title);
-      setDraftContent(note.contentMarkdown);
-      draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+      setDraftContent(note.contentHtml);
+      draftTextRef.current = getPlainTextFromHtml(note.contentHtml);
       setSaveStatus("Saved");
     } finally {
       createInProgressRef.current = false;
@@ -902,14 +861,19 @@ export function App(): JSX.Element {
     if (!window.nasNotesbook || !isEditableCategory(activeCategory)) {
       return;
     }
-    void requestNavigation(doCreateNote);
+    void requestNavigation(async () => {
+      await operationErrors.execute("create note", doCreateNote);
+    });
   };
 
   const handleSelectCategory = (category: CategorySlug): void => {
     if (category === activeCategory) {
       return;
     }
-    void requestNavigation(() => setActiveCategory(category));
+    void requestNavigation(() => {
+      notesSearch.clear();
+      setActiveCategory(category);
+    });
   };
 
   // Manual save / Ctrl+S: flush any pending autosave and persist immediately.
@@ -918,20 +882,22 @@ export function App(): JSX.Element {
   };
 
   const handleToggleLock = async (): Promise<void> => {
-    const api = window.nasNotesbook;
-    const note = selectedNoteRef.current;
-    if (!api || !note) return;
+    await operationErrors.execute("change note lock", async () => {
+      const api = window.nasNotesbook;
+      const note = selectedNoteRef.current;
+      if (!api || !note) return;
 
-    if (!note.isLocked) {
-      const saved = await flushSave(true);
-      if (!saved) return;
-    }
+      if (!note.isLocked) {
+        const saved = await flushSave(true);
+        if (!saved) return;
+      }
 
-    const updated = await api.notes.setLocked(note.id, !note.isLocked);
-    setSelectedNote(updated);
-    selectedNoteRef.current = updated;
-    await refreshNotes();
-    setSaveStatus("Saved");
+      const updated = await api.notes.setLocked(note.id, !note.isLocked);
+      setSelectedNote(updated);
+      selectedNoteRef.current = updated;
+      await refreshNotes();
+      setSaveStatus("Saved");
+    });
   };
 
   // Cancel a queued autosave for a note before a list action mutates it, so a
@@ -969,11 +935,13 @@ export function App(): JSX.Element {
   };
 
   const handleDeleteNoteById = async (id: number): Promise<void> => {
-    if (selectedNoteRef.current?.id === id) {
-      await requestNavigation(() => deleteNoteById(id));
-      return;
-    }
-    await deleteNoteById(id);
+    await operationErrors.execute("move note to trash", async () => {
+      if (selectedNoteRef.current?.id === id) {
+        await requestNavigation(() => deleteNoteById(id));
+        return;
+      }
+      await deleteNoteById(id);
+    });
   };
 
   const renameNote = async (id: number, title: string): Promise<void> => {
@@ -992,11 +960,12 @@ export function App(): JSX.Element {
       return;
     }
 
-    const content = isSelected ? draftRef.current.content : base.contentMarkdown;
+    const content = isSelected ? draftRef.current.content : base.contentHtml;
     const updated = await api.notes.update({
       id,
       title,
-      contentMarkdown: content,
+      contentMarkdown: htmlToMarkdown(content),
+      contentHtml: content,
       categoryId: base.categoryId,
       isRtl: base.isRtl,
     });
@@ -1005,17 +974,19 @@ export function App(): JSX.Element {
     if (selectedNoteRef.current?.id === id) {
       setSelectedNote(updated);
       setDraftTitle(updated.title);
-      setDraftContent(updated.contentMarkdown);
+      setDraftContent(updated.contentHtml);
       setSaveStatus("Saved");
     }
   };
 
   const handleRenameNote = async (id: number, title: string): Promise<void> => {
-    if (selectedNoteRef.current?.id === id) {
-      await requestNavigation(() => renameNote(id, title));
-      return;
-    }
-    await renameNote(id, title);
+    await operationErrors.execute("rename note", async () => {
+      if (selectedNoteRef.current?.id === id) {
+        await requestNavigation(() => renameNote(id, title));
+        return;
+      }
+      await renameNote(id, title);
+    });
   };
 
   const moveNote = async (
@@ -1036,11 +1007,12 @@ export function App(): JSX.Element {
     }
 
     const title = isSelected ? draftRef.current.title : base.title;
-    const content = isSelected ? draftRef.current.content : base.contentMarkdown;
+    const content = isSelected ? draftRef.current.content : base.contentHtml;
     const updated = await api.notes.update({
       id,
       title,
-      contentMarkdown: content,
+      contentMarkdown: htmlToMarkdown(content),
+      contentHtml: content,
       categoryId,
       isRtl: base.isRtl,
     });
@@ -1061,7 +1033,7 @@ export function App(): JSX.Element {
       } else {
         setSelectedNote(updated);
         setDraftTitle(updated.title);
-        setDraftContent(updated.contentMarkdown);
+        setDraftContent(updated.contentHtml);
         setSaveStatus("Saved");
       }
     }
@@ -1071,11 +1043,13 @@ export function App(): JSX.Element {
     id: number,
     categoryId: number | null,
   ): Promise<void> => {
-    if (selectedNoteRef.current?.id === id) {
-      await requestNavigation(() => moveNote(id, categoryId));
-      return;
-    }
-    await moveNote(id, categoryId);
+    await operationErrors.execute("move note", async () => {
+      if (selectedNoteRef.current?.id === id) {
+        await requestNavigation(() => moveNote(id, categoryId));
+        return;
+      }
+      await moveNote(id, categoryId);
+    });
   };
 
   // Import a single .md file as a new note in the current category. Conversion
@@ -1090,6 +1064,7 @@ export function App(): JSX.Element {
     if (!result.ok) {
       if (result.error) {
         setSaveStatus("Error");
+        throw new Error(result.error);
       }
       return;
     }
@@ -1105,7 +1080,8 @@ export function App(): JSX.Element {
 
     const note = await api.notes.create({
       title,
-      contentMarkdown: html,
+      contentMarkdown: markdown,
+      contentHtml: html,
       categoryId,
       isRtl: true,
     });
@@ -1113,13 +1089,15 @@ export function App(): JSX.Element {
     selectionRequestRef.current += 1;
     setSelectedNote(note);
     setDraftTitle(note.title);
-    setDraftContent(note.contentMarkdown);
-    draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+    setDraftContent(note.contentHtml);
+    draftTextRef.current = getPlainTextFromHtml(note.contentHtml);
     setSaveStatus("Saved");
   };
 
   const handleImportMarkdown = async (): Promise<void> => {
-    await requestNavigation(importMarkdown);
+    await operationErrors.execute("import Markdown", () =>
+      requestNavigation(importMarkdown),
+    );
   };
 
   const handleSaveNasbk = async (): Promise<void> => {
@@ -1170,7 +1148,7 @@ export function App(): JSX.Element {
     if (!result.ok) {
       if (result.error) {
         setSaveStatus("Error");
-        console.error("Import NASBK failed:", result.error);
+        throw new Error(result.error);
       }
       return;
     }
@@ -1179,72 +1157,80 @@ export function App(): JSX.Element {
   };
 
   const handleImportNasbk = async (): Promise<void> => {
-    await requestNavigation(importNasbk);
+    await operationErrors.execute("import NASBK", () =>
+      requestNavigation(importNasbk),
+    );
   };
 
   const handleExportNote = async (): Promise<void> => {
-    const api = window.nasNotesbook;
-    if (!api || !selectedNoteRef.current) {
-      return;
-    }
+    await operationErrors.execute("export note", async () => {
+      const api = window.nasNotesbook;
+      if (!api || !selectedNoteRef.current) {
+        return;
+      }
 
-    if (!(await flushSave())) {
-      return;
-    }
-    const html =
-      draftRef.current.content || selectedNoteRef.current.contentMarkdown || "";
-    const title =
-      draftRef.current.title || selectedNoteRef.current.title || "note";
-    const markdown = htmlToMarkdown(html);
+      if (!(await flushSave())) {
+        return;
+      }
+      const html =
+        draftRef.current.content || selectedNoteRef.current.contentHtml || "";
+      const title =
+        draftRef.current.title || selectedNoteRef.current.title || "note";
+      const markdown = htmlToMarkdown(html);
 
-    const res = await api.markdown.exportFile({
-      defaultFilename: `${toSafeFilename(title)}.md`,
-      markdown,
+      const res = await api.markdown.exportFile({
+        defaultFilename: `${toSafeFilename(title)}.md`,
+        markdown,
+      });
+      if (res.ok) {
+        setSaveStatus("Saved");
+      } else if (res.error) {
+        setSaveStatus("Error");
+        throw new Error(res.error);
+      }
     });
-    if (res.ok) {
-      setSaveStatus("Saved");
-    } else if (res.error) {
-      setSaveStatus("Error");
-    }
   };
 
   // Combine every note in the active category into a single .md file, each note
   // introduced by its "# Title" and separated by a thematic break.
   const handleExportCategory = async (): Promise<void> => {
-    const api = window.nasNotesbook;
-    if (!api) {
-      return;
-    }
-
-    if (!(await flushSave())) {
-      return;
-    }
-    const categoryId = activeCategoryRecord?.id ?? null;
-    const list = await loadNotes(api, activeCategory, categoryId);
-    if (list.length === 0) {
-      return;
-    }
-
-    const sections: string[] = [];
-    for (const item of list) {
-      const full = await api.notes.getById(item.id);
-      if (!full) {
-        continue;
+    await operationErrors.execute("export category", async () => {
+      const api = window.nasNotesbook;
+      if (!api) {
+        return;
       }
-      const body = htmlToMarkdown(full.contentMarkdown || "").trim();
-      sections.push(`# ${full.title}\n\n${body}`.trim());
-    }
 
-    const combined = `${sections.join("\n\n---\n\n")}\n`;
-    const res = await api.markdown.exportFile({
-      defaultFilename: `${toSafeFilename(activeCategoryName)}.md`,
-      markdown: combined,
+      if (!(await flushSave())) {
+        return;
+      }
+      const categoryId = activeCategoryRecord?.id ?? null;
+      const list = await loadNotes(api, activeCategory, categoryId);
+      if (list.length === 0) {
+        return;
+      }
+
+      const sections: string[] = [];
+      for (const item of list) {
+        const full = await api.notes.getById(item.id);
+        if (!full) {
+          continue;
+        }
+        const body = full.contentMarkdown.trim();
+        sections.push(`# ${full.title}\n\n${body}`.trim());
+      }
+
+      const combined = `${sections.join("\n\n---\n\n")}\n`;
+      const res = await api.markdown.exportFile({
+        defaultFilename: `${toSafeFilename(activeCategoryName)}.md`,
+        markdown: combined,
+      });
+      if (res.ok) {
+        setSaveStatus("Saved");
+      } else if (res.error) {
+        setSaveStatus("Error");
+        throw new Error(res.error);
+      }
     });
-    if (res.ok) {
-      setSaveStatus("Saved");
-    } else if (res.error) {
-      setSaveStatus("Error");
-    }
   };
 
   const handleUpdateSettings = (updates: Partial<AppSettings>): void => {
@@ -1254,11 +1240,15 @@ export function App(): JSX.Element {
     };
     setSettings(nextSettings);
 
-    void window.nasNotesbook?.settings
-      .update(updates)
-      .then(setSettings)
-      .catch(() => {
-        setSettings(settings);
+    void operationErrors
+      .execute("update settings", async () => {
+        const api = window.nasNotesbook;
+        if (!api) throw new Error("Application API is unavailable.");
+        const persisted = await api.settings.update(updates);
+        setSettings(persisted);
+      })
+      .then((result) => {
+        if (result === null) setSettings(settings);
       });
   };
 
@@ -1269,18 +1259,24 @@ export function App(): JSX.Element {
         return;
       }
 
-      const updated = await api.categories.update(input);
+      const updated = await operationErrors.execute(
+        "update category",
+        () => api.categories.update(input),
+      );
+      if (!updated) return;
       setCategories((current) =>
         current.map((category) =>
           category.id === updated.id ? updated : category,
         ),
       );
     },
-    [],
+    [operationErrors.execute],
   );
 
   const handleOpenDataFolder = (): void => {
-    void window.nasNotesbook?.app.openDataFolder();
+    void operationErrors.execute("open data folder", async () => {
+      await window.nasNotesbook?.app.openDataFolder();
+    });
   };
 
   const handleDeleteToTrash = async (): Promise<void> => {
@@ -1292,36 +1288,40 @@ export function App(): JSX.Element {
   };
 
   const handleRestore = async (): Promise<void> => {
-    const note = selectedNoteRef.current;
-    if (!note || !window.nasNotesbook) {
-      return;
-    }
+    await operationErrors.execute("restore note", async () => {
+      const note = selectedNoteRef.current;
+      if (!note || !window.nasNotesbook) {
+        return;
+      }
 
-    await window.nasNotesbook.notes.restore(note.id);
-    const nextNotes = await refreshNotes();
-    const next = nextNotes[0];
-    if (next) {
-      await doSelectNote(next.id);
-    } else {
-      clearSelectedNote();
-    }
+      await window.nasNotesbook.notes.restore(note.id);
+      const nextNotes = await refreshNotes();
+      const next = nextNotes[0];
+      if (next) {
+        await doSelectNote(next.id);
+      } else {
+        clearSelectedNote();
+      }
+    });
   };
 
   const performDeletePermanent = async (): Promise<void> => {
-    const note = selectedNoteRef.current;
-    if (!note || !window.nasNotesbook) {
-      return;
-    }
+    await operationErrors.execute("delete note permanently", async () => {
+      const note = selectedNoteRef.current;
+      if (!note || !window.nasNotesbook) {
+        return;
+      }
 
-    await window.nasNotesbook.notes.deletePermanent(note.id);
-    localStorage.removeItem(`nasbook.nasbk.link.${note.id}`);
-    const nextNotes = await refreshNotes();
-    const next = nextNotes[0];
-    if (next) {
-      await doSelectNote(next.id);
-    } else {
-      clearSelectedNote();
-    }
+      await window.nasNotesbook.notes.deletePermanent(note.id);
+      localStorage.removeItem(`nasbook.nasbk.link.${note.id}`);
+      const nextNotes = await refreshNotes();
+      const next = nextNotes[0];
+      if (next) {
+        await doSelectNote(next.id);
+      } else {
+        clearSelectedNote();
+      }
+    });
   };
 
   const handleDeletePermanent = (): void => {
@@ -1403,10 +1403,10 @@ export function App(): JSX.Element {
       aria-label="NASbook workspace"
       onContextMenu={handleOpenContextMenu}
       data-focus-mode={isFocusMode ? "true" : "false"}
-      data-notes-collapsed={notesListCollapsed ? "true" : "false"}
+      data-notes-collapsed={workspaceLayout.notesListCollapsed ? "true" : "false"}
       style={{
-        "--nav-rail-width": `${navRailExpanded ? 196 : 60}px`,
-        "--notes-list-width": `${notesListWidth}px`,
+        "--nav-rail-width": `${workspaceLayout.navRailExpanded ? 196 : 60}px`,
+        "--notes-list-width": `${workspaceLayout.notesListWidth}px`,
       } as React.CSSProperties}
     >
       <TitleBar language={settings.language} />
@@ -1418,8 +1418,8 @@ export function App(): JSX.Element {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSelectCategory={handleSelectCategory}
         onUpdateCategory={handleUpdateCategory}
-        expanded={navRailExpanded}
-        onToggleExpanded={handleToggleNavRail}
+        expanded={workspaceLayout.navRailExpanded}
+        onToggleExpanded={workspaceLayout.toggleNavRail}
         theme={settings.theme}
         onThemeChange={(theme) => handleUpdateSettings({ theme })}
       />
@@ -1434,6 +1434,8 @@ export function App(): JSX.Element {
         language={settings.language}
         categories={categories}
         canExportNote={selectedNote !== null}
+        searchQuery={notesSearch.query}
+        isSearchPending={notesSearch.isPending}
         renamingNoteId={renamingNoteId}
         setRenamingNoteId={setRenamingNoteId}
         renameValue={renameValue}
@@ -1452,6 +1454,8 @@ export function App(): JSX.Element {
         onExportCategory={() => {
           void handleExportCategory();
         }}
+        onSearchQueryChange={notesSearch.setQuery}
+        onClearSearch={notesSearch.clear}
         onCreateNote={() => {
           void handleCreateNote();
         }}
@@ -1474,24 +1478,24 @@ export function App(): JSX.Element {
         aria-orientation="vertical"
         aria-label="Resize notes list"
         tabIndex={0}
-        onPointerDown={handlePointerDown}
-        onKeyDown={handleKeyDown}
+        onPointerDown={workspaceLayout.handleDividerPointerDown}
+        onKeyDown={workspaceLayout.handleDividerKeyDown}
       />
       <button
         type="button"
         className="notes-pane-toggle"
-        data-collapsed={notesListCollapsed ? "true" : "false"}
+        data-collapsed={workspaceLayout.notesListCollapsed ? "true" : "false"}
         aria-label={
-          notesListCollapsed
+          workspaceLayout.notesListCollapsed
             ? settings.language === "ar" ? "إظهار قائمة الملاحظات" : "Show notes list"
             : settings.language === "ar" ? "إخفاء قائمة الملاحظات" : "Hide notes list"
         }
         data-tooltip={
-          notesListCollapsed
+          workspaceLayout.notesListCollapsed
             ? settings.language === "ar" ? "إظهار قائمة الملاحظات" : "Show notes list"
             : settings.language === "ar" ? "إخفاء قائمة الملاحظات" : "Hide notes list"
         }
-        onClick={handleToggleNotesList}
+        onClick={workspaceLayout.toggleNotesList}
       >
         <PanelToggleIcon />
       </button>
@@ -1554,6 +1558,11 @@ export function App(): JSX.Element {
           setIsPermanentDeleteDialogOpen(false);
           void performDeletePermanent();
         }}
+      />
+      <OperationErrorDialog
+        error={operationErrors.error}
+        language={settings.language}
+        onDismiss={operationErrors.dismiss}
       />
       <ConfirmDialog
         confirmLabel={t("saveFailedDialogConfirm", settings.language)}

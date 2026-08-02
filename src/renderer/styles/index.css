@@ -1070,6 +1070,21 @@ body.is-resizing-notes-pane .notes-split-divider {
   text-align: start;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+}
+
+.note-search-category {
+  max-width: 96px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+  color: var(--app-text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-list-card:hover {
@@ -3683,6 +3698,63 @@ textarea,
   color: var(--app-text-strong, #f4f1ed);
 }
 
+.notes-search-field {
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  padding: 5px 7px 5px 10px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 10px;
+  background: var(--app-card-bg);
+  color: var(--app-text-muted);
+}
+
+.notes-search-field:focus-within {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.notes-search-field[data-pending="true"] {
+  opacity: 0.78;
+}
+
+.notes-search-field svg {
+  width: 16px;
+  height: 16px;
+}
+
+.notes-search-field input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--app-text-strong);
+  font: inherit;
+}
+
+.notes-search-field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.notes-search-field button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.notes-search-field button:hover {
+  background: var(--app-card-hover-bg);
+  color: var(--app-text-strong);
+}
+
 .app-failure-card {
   width: min(440px, 100%);
   display: grid;
@@ -3707,4 +3779,14 @@ textarea,
   cursor: pointer;
   font: inherit;
   font-weight: 600;
+}
+.operation-error-detail {
+  max-width: 520px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-danger) 10%, transparent);
+  color: var(--app-text-muted);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }

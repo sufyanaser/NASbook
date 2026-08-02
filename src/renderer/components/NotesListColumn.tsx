@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { NoteListItem } from "../../shared/ipc";
 import type { CategoryRecord } from "../../shared/categories";
 import { stripHtmlForPreview } from "../../shared/dirtyState";
@@ -16,6 +16,8 @@ interface NotesListColumnProps {
   readonly language: AppLanguage;
   readonly categories: readonly CategoryRecord[];
   readonly canExportNote: boolean;
+  readonly searchQuery: string;
+  readonly isSearchPending: boolean;
   readonly renamingNoteId: number | null;
   readonly setRenamingNoteId: (id: number | null) => void;
   readonly renameValue: string;
@@ -31,6 +33,8 @@ interface NotesListColumnProps {
   readonly onImportNasbk: () => void;
   readonly onExportNote: () => void;
   readonly onExportCategory: () => void;
+  readonly onSearchQueryChange: (query: string) => void;
+  readonly onClearSearch: () => void;
 }
 
 function formatShortDate(value: string): string {
@@ -116,6 +120,8 @@ export function NotesListColumn({
   language,
   categories,
   canExportNote,
+  searchQuery,
+  isSearchPending,
   renamingNoteId,
   setRenamingNoteId,
   renameValue,
@@ -131,6 +137,8 @@ export function NotesListColumn({
   onImportNasbk,
   onExportNote,
   onExportCategory,
+  onSearchQueryChange,
+  onClearSearch,
 }: NotesListColumnProps): JSX.Element {
   const createTooltip = canCreate ? t("newNote", language) : t("cannotCreateInTrash", language);
   const isArabic = language === "ar";
@@ -139,6 +147,21 @@ export function NotesListColumn({
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handleSearchShortcut = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "f") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (event.key === "Escape" && document.activeElement === searchInputRef.current) {
+        onClearSearch();
+      }
+    };
+    window.addEventListener("keydown", handleSearchShortcut);
+    return () => window.removeEventListener("keydown", handleSearchShortcut);
+  }, [onClearSearch]);
 
   // Focus + select the rename field once, when rename mode opens for a note.
   // Keyed only on the note id so normal typing never re-selects the text.
@@ -195,8 +218,15 @@ export function NotesListColumn({
     };
   }, [isExportMenuOpen]);
 
-  const moveTargets = categories.filter(
-    (category) => category.slug !== "all-notes" && category.slug !== "trash",
+  const moveTargets = useMemo(
+    () => categories.filter(
+      (category) => category.slug !== "all-notes" && category.slug !== "trash",
+    ),
+    [categories],
+  );
+  const categoryById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
   );
 
   const labelDelete = isArabic ? "حذف الملاحظة" : "Delete note";
@@ -222,7 +252,7 @@ export function NotesListColumn({
     <section
       className="notes-list-column"
       data-trash-view={isTrashView ? "true" : "false"}
-      aria-label="Notes list"
+      aria-label={isArabic ? "قائمة الملاحظات" : "Notes list"}
     >
       <header className="notes-list-header">
         <span className="notes-list-title">{t("notesListTitle", language)}</span>
@@ -308,10 +338,40 @@ export function NotesListColumn({
         <strong>{activeCategoryName}</strong>
       </div>
 
+      <label className="notes-search-field" data-pending={isSearchPending ? "true" : "false"}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input
+          ref={searchInputRef}
+          aria-label={isArabic ? "البحث في جميع الملاحظات" : "Search all notes"}
+          dir={isArabic ? "rtl" : "ltr"}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          placeholder={isArabic ? "ابحث في جميع الملاحظات..." : "Search all notes..."}
+          type="search"
+          value={searchQuery}
+        />
+        {searchQuery !== "" ? (
+          <button
+            aria-label={isArabic ? "مسح البحث" : "Clear search"}
+            onClick={onClearSearch}
+            type="button"
+          >
+            ×
+          </button>
+        ) : null}
+      </label>
+
       <div className="notes-stack">
         {notes.length === 0 ? (
           <div className="notes-empty-state">
-            {isTrashView ? (
+            {searchQuery.trim() !== "" ? (
+              <>
+                <strong>{isArabic ? "لا توجد نتائج." : "No results."}</strong>
+                <span>{isArabic ? "جرّب كلمات بحث مختلفة." : "Try different search terms."}</span>
+              </>
+            ) : isTrashView ? (
               <strong>{t("trashIsEmpty", language)}</strong>
             ) : (
               <>
@@ -325,6 +385,9 @@ export function NotesListColumn({
         {notes.map((note) => {
           const isRenaming = renamingNoteId === note.id;
           const isMoveOpen = movePopoverNoteId === note.id;
+          const noteCategory = note.categoryId === null
+            ? undefined
+            : categoryById.get(note.categoryId);
 
           return (
             <div
@@ -387,6 +450,15 @@ export function NotesListColumn({
                         🔒
                       </span>
                     )}
+                    {searchQuery.trim() !== "" && noteCategory ? (
+                      <span className="note-search-category">
+                        {getCategoryDisplayName(
+                          noteCategory.slug,
+                          noteCategory.name,
+                          language,
+                        )}
+                      </span>
+                    ) : null}
                   </>
                 )}
                 {showNoteDates && !isRenaming && (

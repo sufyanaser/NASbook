@@ -26,6 +26,7 @@ import { TextDirection } from "../extensions/TextDirection";
 import { Indent } from "../extensions/Indent";
 import { LinkDialog } from "./LinkDialog";
 import { EditorContextMenu } from "./EditorContextMenu";
+import { EditorNoteHeader } from "./EditorNoteHeader";
 import type { MenuNode } from "./EditorContextMenu";
 import { htmlToMarkdown } from "../markdown";
 import type { NoteRecord } from "../../shared/ipc";
@@ -325,29 +326,29 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
 const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   undo: true,
   redo: true,
-  fontFamily: true,
+  fontFamily: false,
   fontSize: true,
   heading: true,
-  lineHeight: true,
+  lineHeight: false,
   bold: true,
   italic: true,
   underline: true,
-  textColor: true,
-  fillColor: true,
+  textColor: false,
+  fillColor: false,
   link: true,
-  codeBlock: true,
+  codeBlock: false,
   bullets: true,
   numbered: true,
   alignLeft: true,
   alignCenter: true,
   alignRight: true,
-  dirRtl: true,
-  dirLtr: true,
-  outdent: true,
-  indent: true,
+  dirRtl: false,
+  dirLtr: false,
+  outdent: false,
+  indent: false,
   clear: true,
-  horizontalRule: true,
-  table: true,
+  horizontalRule: false,
+  table: false,
 };
 
 
@@ -588,22 +589,6 @@ const CustomTable = Table.extend({
     ];
   },
 });
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
-}
 
 function FontFamilyIcon(): JSX.Element {
   return (
@@ -2277,40 +2262,23 @@ export function NoteEditorArea({
   return (
     <section
       className="editor-area"
-      aria-label="Editor placeholder"
+      aria-label={language === "ar" ? "مساحة المحرر" : "Editor placeholder"}
       data-editor-density={editorDensity}
       data-editor-font-size={fontSize}
       dir={language === "ar" ? "rtl" : "ltr"}
     >
 
-      <header className="editor-header">
-        <div style={{ flex: 1 }}>
-          <span className="editor-eyebrow">{activeCategoryName}</span>
-          <input
-            className="note-title-input"
-            disabled={!hasSelectedNote || isTrashView || isLocked}
-            onChange={(event) => onTitleChange(event.target.value)}
-            placeholder={t("noteTitlePlaceholder", language)}
-            type="text"
-            value={draftTitle}
-            dir={editorDirection}
-          />
-          {hasSelectedNote && showMetadata && (
-            <div className="note-metadata-row">
-              {selectedNote.createdAt && (
-                <span className="metadata-item">
-                  {t("createdAt", language)} {formatDateTime(selectedNote.createdAt)}
-                </span>
-              )}
-              {selectedNote.updatedAt && (
-                <span className="metadata-item">
-                  {t("updatedAt", language)} {formatDateTime(selectedNote.updatedAt)}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
+      <EditorNoteHeader
+        activeCategoryName={activeCategoryName}
+        draftTitle={draftTitle}
+        editorDirection={editorDirection}
+        isLocked={isLocked}
+        isTrashView={isTrashView}
+        language={language}
+        selectedNote={selectedNote}
+        showMetadata={showMetadata}
+        onTitleChange={onTitleChange}
+      />
 
       {isTrashView && hasSelectedNote && (
         <div className="editor-trash-banner">
@@ -2331,7 +2299,7 @@ export function NoteEditorArea({
 
       <div
         className="editor-toolbar"
-        aria-label="Editor toolbar"
+        aria-label={language === "ar" ? "شريط أدوات المحرر" : "Editor toolbar"}
         data-note-locked={isLocked ? "true" : "false"}
         onClickCapture={(event) => {
           if (isLocked && !(event.target as Element).closest(".nas-lock-toggle")) {
@@ -2517,7 +2485,7 @@ export function NoteEditorArea({
                 className="save-status-pill"
                 data-status="saved"
                 data-tooltip={t("saved", language)}
-                aria-label="Saved"
+                aria-label={t("saved", language)}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -2543,7 +2511,7 @@ export function NoteEditorArea({
                 <div className="toolbar-group history-actions">
                   {visibleTools.undo !== false && (
                     <button
-                      aria-label="Undo"
+                      aria-label={toolLabel("undo", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView || !editor.can().undo()}
@@ -2559,7 +2527,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.redo !== false && (
                     <button
-                      aria-label="Redo"
+                      aria-label={toolLabel("redo", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView || !editor.can().redo()}
@@ -2686,7 +2654,7 @@ export function NoteEditorArea({
                 <div className="toolbar-group formatting-actions">
                   {visibleTools.bold !== false && (
                     <button
-                      aria-label="Bold"
+                      aria-label={toolLabel("bold", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2703,7 +2671,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.italic !== false && (
                     <button
-                      aria-label="Italic"
+                      aria-label={toolLabel("italic", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2720,7 +2688,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.underline !== false && (
                     <button
-                      aria-label="Underline"
+                      aria-label={toolLabel("underline", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2781,7 +2749,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.link !== false && (
                     <button
-                      aria-label="Link"
+                      aria-label={toolLabel("link", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2849,7 +2817,7 @@ export function NoteEditorArea({
                 <div className="toolbar-group layout-actions">
                   {visibleTools.bullets !== false && (
                     <button
-                      aria-label="Bullets"
+                      aria-label={toolLabel("bullets", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2866,7 +2834,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.numbered !== false && (
                     <button
-                      aria-label="Numbered"
+                      aria-label={toolLabel("numbered", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2883,7 +2851,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.alignLeft !== false && (
                     <button
-                      aria-label="Align Left"
+                      aria-label={toolLabel("alignLeft", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2900,7 +2868,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.alignCenter !== false && (
                     <button
-                      aria-label="Align Center"
+                      aria-label={toolLabel("alignCenter", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2917,7 +2885,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.alignRight !== false && (
                     <button
-                      aria-label="Align Right"
+                      aria-label={toolLabel("alignRight", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2942,7 +2910,7 @@ export function NoteEditorArea({
                 <div className="toolbar-group direction-actions">
                   {visibleTools.dirRtl !== false && (
                     <button
-                      aria-label="Right to left"
+                      aria-label={toolLabel("dirRtl", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2959,7 +2927,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.dirLtr !== false && (
                     <button
-                      aria-label="Left to right"
+                      aria-label={toolLabel("dirLtr", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2976,7 +2944,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.outdent !== false && (
                     <button
-                      aria-label="Decrease indent"
+                      aria-label={toolLabel("outdent", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -2992,7 +2960,7 @@ export function NoteEditorArea({
                   )}
                   {visibleTools.indent !== false && (
                     <button
-                      aria-label="Increase indent"
+                      aria-label={toolLabel("indent", language)}
                       className="toolbar-icon-button"
                       type="button"
                       disabled={!hasSelectedNote || isTrashView}
@@ -3017,7 +2985,7 @@ export function NoteEditorArea({
                   {visibleTools.horizontalRule !== false && (
                     <div className="divider-control" ref={dividerControlRef}>
                       <button
-                        aria-label="Horizontal rule"
+                        aria-label={toolLabel("horizontalRule", language)}
                         className="toolbar-icon-button divider-main-button"
                         type="button"
                         disabled={!hasSelectedNote || isTrashView}
@@ -3090,7 +3058,7 @@ export function NoteEditorArea({
                   {visibleTools.table !== false && (
                     <>
                       <button
-                        aria-label="Insert table"
+                        aria-label={language === "ar" ? "إدراج جدول" : "Insert table"}
                         className="toolbar-icon-button"
                         type="button"
                         disabled={!hasSelectedNote || isTrashView}
@@ -3111,7 +3079,7 @@ export function NoteEditorArea({
                       {isCellSelected && (
                         <>
                           <button
-                            aria-label="Add row"
+                            aria-label={language === "ar" ? "إضافة صف" : "Add row"}
                             className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
@@ -3125,7 +3093,7 @@ export function NoteEditorArea({
                             <ToolbarIconSvg icon="tableRowAdd" />
                           </button>
                           <button
-                            aria-label="Add column"
+                            aria-label={language === "ar" ? "إضافة عمود" : "Add column"}
                             className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
@@ -3141,7 +3109,7 @@ export function NoteEditorArea({
                             <ToolbarIconSvg icon="tableColAdd" />
                           </button>
                           <button
-                            aria-label="Delete row"
+                            aria-label={language === "ar" ? "حذف صف" : "Delete row"}
                             className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
@@ -3155,7 +3123,7 @@ export function NoteEditorArea({
                             <ToolbarIconSvg icon="tableRowDelete" />
                           </button>
                           <button
-                            aria-label="Delete column"
+                            aria-label={language === "ar" ? "حذف عمود" : "Delete column"}
                             className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
@@ -3171,7 +3139,7 @@ export function NoteEditorArea({
                             <ToolbarIconSvg icon="tableColDelete" />
                           </button>
                           <button
-                            aria-label="Delete table"
+                            aria-label={language === "ar" ? "حذف الجدول" : "Delete table"}
                             className="toolbar-icon-button"
                             type="button"
                             disabled={isTrashView}
@@ -3197,7 +3165,7 @@ export function NoteEditorArea({
                 <div className="toolbar-divider" />
                 <div className="toolbar-group clear-actions">
                   <button
-                    aria-label="Clear formatting"
+                    aria-label={toolLabel("clear", language)}
                     className="toolbar-icon-button"
                     type="button"
                     disabled={!hasSelectedNote || isTrashView}
