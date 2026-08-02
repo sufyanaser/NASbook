@@ -70,6 +70,9 @@ jobs:
         run: |
           Remove-Item scripts/prepare-v05-release.mjs -Force
           Remove-Item .github/workflows/prepare-v05.yml -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/workflows/prepare-v05-pr.yml -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/workflows/apply-v05-develop.yml -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/V05_APPLY_TRIGGER -Force -ErrorAction SilentlyContinue
 
       - name: Install dependencies
         run: npm ci
@@ -86,6 +89,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build Windows installer
+        run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify V05 installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release -Filter "NASbook Setup V05.exe" -File -ErrorAction Stop
+          if ($installer.Count -ne 1) { throw "Expected exactly one NASbook Setup V05.exe installer." }
+
       - name: Commit validated V05 state
         shell: pwsh
         run: |
@@ -94,3 +108,11 @@ jobs:
           git add -A
           git commit -m "release: prepare NASbook V05 with complete color palettes"
           git push origin HEAD:release/v05-code-block-palette
+
+      - name: Upload V05 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NASbook-Setup-V05-Windows
+          path: release/NASbook Setup V05.exe
+          if-no-files-found: error
+          retention-days: 30
