@@ -37,6 +37,7 @@ test("collapsible headings respect divider and heading boundaries", async () => 
 test("collapsible headings remain stable while the editor is unlocked", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
   const collapse = await source("src/renderer/extensions/CollapsibleSections.ts");
+  const styles = await source("src/renderer/styles/editor-productivity.css");
 
   assert.match(editor, /CollapsibleSections/);
   assert.doesNotMatch(editor, /dataset\.nasCollapsible\s*=/);
@@ -45,6 +46,10 @@ test("collapsible headings remain stable while the editor is unlocked", async ()
   assert.match(collapse, /event\.stopPropagation\(\)/);
   assert.match(collapse, /handleDOMEvents/);
   assert.match(collapse, /window\.requestAnimationFrame\(\(\) => restoreHeadingAnchor/);
+  assert.match(styles, /width:\s*10px;[\s\S]*height:\s*10px;/);
+  assert.match(styles, /rotate\(45deg\)/);
+  assert.match(styles, /:dir\(ltr\)\[data-nas-collapsed="true"\][\s\S]*rotate\(-45deg\)/);
+  assert.match(styles, /:dir\(rtl\)\[data-nas-collapsed="true"\][\s\S]*rotate\(135deg\)/);
 });
 
 test("visually formatted paragraphs can become collapsible sections", async () => {
@@ -99,15 +104,15 @@ test("editor note actions cannot inherit the hidden note-card action styles", as
   assert.match(styles, /\.editor-note-actions\s*\{\s*gap: 10px;/);
 });
 
-test("release V06 is consistent across app metadata and Windows installer naming", async () => {
+test("release V07 is consistent across app metadata and Windows installer naming", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const main = await source("electron/main/index.ts");
   const workflow = await source(".github/workflows/windows-release.yml");
 
-  assert.equal(packageJson.version, "6.0.0");
-  assert.equal(packageJson.releaseLabel, "V06");
-  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V06.exe");
-  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V06.${ext}");
-  assert.match(main, /appVersion: "V06"/);
-  assert.match(workflow, /NASbook Setup \$label\.exe/);
+  assert.equal(packageJson.version, "7.0.0");
+  assert.equal(packageJson.releaseLabel, "V07");
+  assert.equal(packageJson.build.win.artifactName, "NASbook-Setup-V07.exe");
+  assert.equal(packageJson.build.nsis.artifactName, "NASbook-Setup-V07.${ext}");
+  assert.match(main, /appVersion: "V07"/);
+  assert.match(workflow, /NASbook-Setup-\$label\.exe/);
 });

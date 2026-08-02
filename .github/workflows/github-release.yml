@@ -93,9 +93,17 @@ jobs:
         shell: pwsh
         run: |
           $label = "${{ steps.meta.outputs.label }}"
-          $installer = Get-ChildItem -Path release -Filter "NASbook Setup $label.exe" -File -ErrorAction Stop
+          $installer = Get-ChildItem -Path release -Filter "NASbook-Setup-$label.exe" -File -ErrorAction Stop
           if ($installer.Count -ne 1) { throw "Expected exactly one NASbook $label installer." }
           "path=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $metadata = Get-ChildItem -Path release -Filter "latest.yml" -File -ErrorAction Stop
+          if ($metadata.Count -ne 1) { throw "Expected exactly one latest.yml update manifest." }
+          "metadata=$($metadata.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $blockmap = Get-ChildItem -Path release -Filter "NASbook-Setup-$label.exe.blockmap" -File -ErrorAction Stop
+          if ($blockmap.Count -ne 1) { throw "Expected exactly one NSIS blockmap." }
+          "blockmap=$($blockmap.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Write release notes
         if: steps.release-check.outputs.publish == 'true'
@@ -104,12 +112,13 @@ jobs:
           @"
           ## NASbook ${{ steps.meta.outputs.label }}
 
-          - Adds fast global search across visible note titles and content, including Arabic text.
-          - Guarantees queued autosaves finish before note navigation or application close.
-          - Separates editor HTML from Markdown through a transactional SQLite migration.
-          - Adds visible recovery for CRUD failures and renderer crashes.
-          - Reduces the default toolbar to core writing controls while preserving advanced customization.
-          - Upgrades Electron and resolves all reported npm audit vulnerabilities.
+          - Fixes section collapse while a note is unlocked and prevents viewport jumping.
+          - Adds automatic background update checks for installed Windows copies.
+          - Downloads future releases automatically and installs them on a normal safe exit.
+          - Preserves the existing application identity and local notes database.
+
+          V07 is the first update-enabled release. Install V07 once over V06; future
+          releases will then arrive through the application automatically.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub Release
@@ -120,6 +129,8 @@ jobs:
         run: |
           gh release create "${{ steps.meta.outputs.tag }}" `
             "${{ steps.installer.outputs.path }}" `
+            "${{ steps.installer.outputs.metadata }}" `
+            "${{ steps.installer.outputs.blockmap }}" `
             --title "NASbook ${{ steps.meta.outputs.label }}" `
             --notes-file release-notes.md `
             --target "${{ github.sha }}"
@@ -129,6 +140,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NASbook-Setup-${{ steps.meta.outputs.label }}-Windows
-          path: release/NASbook Setup ${{ steps.meta.outputs.label }}.exe
+          path: |
+            release/NASbook-Setup-${{ steps.meta.outputs.label }}.exe
+            release/NASbook-Setup-${{ steps.meta.outputs.label }}.exe.blockmap
+            release/latest.yml
           if-no-files-found: error
           retention-days: 30
