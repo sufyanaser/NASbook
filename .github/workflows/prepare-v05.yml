@@ -1,0 +1,209 @@
+name: Build and Publish NASbook V05
+
+on:
+  push:
+    branches:
+      - release/v05-code-block-palette
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/v05-code-block-palette
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Normalize source line endings
+        shell: pwsh
+        run: |
+          $paths = @(
+            "src/renderer/components/NoteEditorArea.tsx",
+            "src/renderer/styles/index.css",
+            "tests/editor-productivity-features.test.mjs",
+            "electron/main/index.ts",
+            "README.md"
+          )
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          foreach ($path in $paths) {
+            $content = [System.IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            [System.IO.File]::WriteAllText($path, $content, $utf8)
+          }
+
+      - name: Apply V05 source and metadata updates
+        run: node scripts/prepare-v05-release.mjs
+
+      - name: Write stable palette regression tests
+        shell: pwsh
+        run: |
+          $codeBlockTest = @'
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+          import { join } from "node:path";
+          import test from "node:test";
+
+          const root = process.cwd();
+          const source = (relativePath) => readFile(join(root, relativePath), "utf8");
+          const colors = [
+            "light-gray", "light-blue", "light-green", "light-amber", "light-rose",
+            "slate", "red", "orange", "yellow", "lime", "teal", "cyan", "sky",
+            "indigo", "purple", "pink",
+          ];
+
+          test("code block picker exposes sixteen colors plus Default", async () => {
+            const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+            const start = editor.indexOf("function CodeBlockColorPicker");
+            const end = editor.indexOf("interface QuickCopyState", start);
+            const picker = editor.slice(start, end);
+
+            assert.ok(picker.includes('value: "default"'));
+            for (const color of colors) {
+              assert.ok(picker.includes(`value: "${color}"`), `Missing Code Block color: ${color}`);
+            }
+          });
+
+          test("code block colors persist and have readable styles", async () => {
+            const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+            const styles = await source("src/renderer/styles/index.css");
+
+            for (const color of colors) {
+              assert.ok(editor.includes(`"${color}"`), `Missing color enum value: ${color}`);
+              assert.ok(styles.includes(`data-box-color="${color}"`), `Missing color style: ${color}`);
+            }
+
+            assert.ok(styles.includes("grid-template-columns: repeat(4, 1fr)"));
+            assert.ok(styles.includes('pre[data-box-color] code'));
+            assert.ok(styles.includes("color: inherit"));
+          });
+          '@
+          [System.IO.File]::WriteAllText(
+            "tests/code-block-palette.test.mjs",
+            $codeBlockTest,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+          $productivityPath = "tests/editor-productivity-features.test.mjs"
+          $productivity = [System.IO.File]::ReadAllText($productivityPath)
+          $old = @'
+            const extraSwatches = editor.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
+
+            assert.equal(extraSwatches.length, 3);
+          '@
+          $new = @'
+            const additionsStart = editor.indexOf("const FILL_SWATCH_ADDITIONS");
+            const additionsEnd = editor.indexOf("] as const;", additionsStart);
+            const additions = editor.slice(additionsStart, additionsEnd);
+            const extraSwatches = additions.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
+
+            assert.equal(extraSwatches.length, 3);
+          '@
+          if (-not $productivity.Contains($old)) {
+            throw "Could not locate the text fill palette assertion."
+          }
+          $productivity = $productivity.Replace($old, $new)
+          [System.IO.File]::WriteAllText(
+            $productivityPath,
+            $productivity,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Remove one-shot release files
+        shell: pwsh
+        run: |
+          Remove-Item scripts/prepare-v05-release.mjs -Force
+          Remove-Item .github/workflows/prepare-v05.yml -Force
+          Remove-Item .github/workflows/prepare-v05-pr.yml -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/workflows/apply-v05-develop.yml -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/V05_APPLY_TRIGGER -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/V05_PR_TRIGGER -Force -ErrorAction SilentlyContinue
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build application
+        run: npm run build
+
+      - name: Build Windows installer
+        run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release -Filter "NASbook Setup V05.exe" -File -ErrorAction Stop
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one NASbook Setup V05.exe installer."
+          }
+          "installer=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        id: installer
+
+      - name: Commit validated V05 source
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: NASbook V05 complete editor color update"
+          git push origin HEAD:release/v05-code-block-palette
+          "sha=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        id: source
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          @"
+          ## NASbook V05
+
+          - Fixed cursor jumping after applying text colors.
+          - Added a complete 16-color text fill library with automatic readable contrast.
+          - Stabilized collapsible section indicators in editable and locked notes.
+          - Expanded Code Block backgrounds to 16 colors plus Default.
+          - Added readable foreground contrast for every Code Block color.
+          - Preserved existing notes, SQLite data, and stored HTML compatibility.
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+      - name: Publish or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v5.0.0"
+          $installer = "${{ steps.installer.outputs.installer }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $installer --clobber
+            gh release edit $tag --title "NASbook V05" --notes-file release-notes.md --target "${{ steps.source.outputs.sha }}"
+          } else {
+            gh release create $tag $installer --title "NASbook V05" --notes-file release-notes.md --target "${{ steps.source.outputs.sha }}"
+          }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NASbook-Setup-V05-Windows
+          path: release/NASbook Setup V05.exe
+          if-no-files-found: error
+          retention-days: 30
