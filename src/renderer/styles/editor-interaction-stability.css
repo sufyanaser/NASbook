@@ -1,0 +1,94 @@
+/* V04 editor stability layer: fixed 16-color layout, automatic contrast,
+   and a consistent collapse chevron without changing stored note HTML. */
+
+.color-picker-menu:not(.code-block-color-menu) {
+  min-width: 136px;
+}
+
+.color-picker-menu:not(.code-block-color-menu) .color-picker-grid {
+  grid-template-columns: repeat(4, 24px);
+  justify-content: center;
+}
+
+/* Reset is a separate control; the remaining cells are the 16-color library. */
+.color-picker-menu:not(.code-block-color-menu) .color-picker-grid > .color-swatch-button:first-child {
+  grid-column: 1 / -1;
+  width: 114px !important;
+  height: 20px !important;
+  justify-self: center;
+}
+
+/* Replace the border triangle with one consistent chevron in editable and locked modes. */
+.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]::before {
+  width: 7px;
+  height: 7px;
+  border: 0;
+  border-inline-end: 2px solid var(--app-accent);
+  border-bottom: 2px solid var(--app-accent);
+  transform: translateY(-58%) rotate(45deg);
+  opacity: 0.95;
+}
+
+.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"][data-nas-collapsed="true"]::before {
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+/* Dark fills: use white foreground. Manual inline text color still has priority. */
+.note-editor-content-wrapper .ProseMirror :is(
+  [style*="background-color: #71717a"],
+  [style*="background-color: rgb(113, 113, 122)"],
+  [data-bg="#71717a"],
+  [style*="background-color: #6366f1"],
+  [style*="background-color: rgb(99, 102, 241)"],
+  [data-bg="#6366f1"],
+  [style*="background-color: #475569"],
+  [style*="background-color: rgb(71, 85, 105)"],
+  [data-bg="#475569"]
+) {
+  color: #ffffff;
+}
+
+/* Light and mid fills: use near-black foreground for the stronger WCAG contrast. */
+.note-editor-content-wrapper .ProseMirror :is(
+  [style*="background-color: #f4f4f5"],
+  [style*="background-color: rgb(244, 244, 245)"],
+  [data-bg="#f4f4f5"],
+  [style*="background-color: #ef4444"],
+  [style*="background-color: rgb(239, 68, 68)"],
+  [data-bg="#ef4444"],
+  [style*="background-color: #f97316"],
+  [style*="background-color: rgb(249, 115, 22)"],
+  [data-bg="#f97316"],
+  [style*="background-color: #f59e0b"],
+  [style*="background-color: rgb(245, 158, 11)"],
+  [data-bg="#f59e0b"],
+  [style*="background-color: #84cc16"],
+  [style*="background-color: rgb(132, 204, 22)"],
+  [data-bg="#84cc16"],
+  [style*="background-color: #10b981"],
+  [style*="background-color: rgb(16, 185, 129)"],
+  [data-bg="#10b981"],
+  [style*="background-color: #14b8a6"],
+  [style*="background-color: rgb(20, 184, 166)"],
+  [data-bg="#14b8a6"],
+  [style*="background-color: #06b6d4"],
+  [style*="background-color: rgb(6, 182, 212)"],
+  [data-bg="#06b6d4"],
+  [style*="background-color: #3b82f6"],
+  [style*="background-color: rgb(59, 130, 246)"],
+  [data-bg="#3b82f6"],
+  [style*="background-color: #8b5cf6"],
+  [style*="background-color: rgb(139, 92, 246)"],
+  [data-bg="#8b5cf6"],
+  [style*="background-color: #ec4899"],
+  [style*="background-color: rgb(236, 72, 153)"],
+  [data-bg="#ec4899"],
+  [style*="background-color: #eab308"],
+  [style*="background-color: rgb(234, 179, 8)"],
+  [data-bg="#eab308"],
+  [style*="background-color: #0ea5e9"],
+  [style*="background-color: rgb(14, 165, 233)"],
+  [data-bg="#0ea5e9"]
+) {
+  color: #111827;
+}
