@@ -73,6 +73,7 @@ jobs:
           Remove-Item .github/workflows/prepare-v05-pr.yml -Force -ErrorAction SilentlyContinue
           Remove-Item .github/workflows/apply-v05-develop.yml -Force -ErrorAction SilentlyContinue
           Remove-Item .github/V05_APPLY_TRIGGER -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/V05_PR_TRIGGER -Force -ErrorAction SilentlyContinue
 
       - name: Install dependencies
         run: npm ci
