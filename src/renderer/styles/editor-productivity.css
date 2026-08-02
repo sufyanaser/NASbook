@@ -1,40 +1,55 @@
 .note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"] {
   position: relative;
-  padding-inline-start: 30px;
+  padding-inline-start: 38px;
 }
 
 .note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]::before {
   content: "";
   position: absolute;
-  inset-inline-start: 8px;
+  z-index: 2;
+  inset-inline-start: 11px;
   top: 50%;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-inline-start: 8px solid var(--app-accent);
-  transform: translateY(-50%) rotate(90deg);
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-right: 2.5px solid var(--app-accent);
+  border-bottom: 2.5px solid var(--app-accent);
+  transform: translateY(-62%) rotate(45deg);
   transform-origin: center;
-  transition: transform 0.14s ease, opacity 0.14s ease;
-  opacity: 0.9;
+  transition: transform 0.14s ease, filter 0.14s ease;
+  opacity: 1;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--app-accent) 42%, transparent));
   pointer-events: none;
 }
 
-.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"][data-nas-collapsed="true"]::before {
-  transform: translateY(-50%) rotate(0deg);
+.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: 1px;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-accent) 7%, transparent);
+  transform: translateY(-50%);
+  transition: border-color 0.14s ease, background 0.14s ease;
+  pointer-events: none;
 }
 
 .note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]:hover::after {
-  content: "";
-  position: absolute;
-  inset-inline-start: 2px;
-  top: 50%;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
-  transform: translateY(-50%);
-  pointer-events: none;
+  border-color: color-mix(in srgb, var(--app-accent) 34%, transparent);
+  background: color-mix(in srgb, var(--app-accent) 15%, transparent);
+}
+
+/* Open sections point down. Closed sections point from the control toward text. */
+.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]:dir(ltr)[data-nas-collapsed="true"]::before {
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]:dir(rtl)[data-nas-collapsed="true"]::before {
+  transform: translateY(-50%) rotate(135deg);
 }
 
 .note-editor-content-wrapper .ProseMirror [data-nas-collapsed-hidden="true"] {

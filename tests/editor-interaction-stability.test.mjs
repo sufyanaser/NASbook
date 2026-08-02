@@ -16,13 +16,12 @@ test("color palette keeps the ProseMirror selection before React swatch clicks",
   assert.match(stability, /root\.contains\(range\.commonAncestorContainer\)/);
 });
 
-test("collapse fallback refreshes headings independent of edit lock state", async () => {
+test("stability layer does not mutate ProseMirror-owned collapse DOM", async () => {
   const stability = await source("src/renderer/editorInteractionStability.ts");
 
-  assert.match(stability, /MutationObserver\(scheduleReconcile\)/);
-  assert.match(stability, /attributeFilter: \["class", "style", "contenteditable", "data-selected"\]/);
-  assert.match(stability, /sibling\.tagName === "HR"/);
-  assert.match(stability, /heading\.dataset\.nasCollapsible = "true"/);
+  assert.doesNotMatch(stability, /MutationObserver/);
+  assert.doesNotMatch(stability, /nasCollapsible/);
+  assert.doesNotMatch(stability, /nasCollapsed/);
 });
 
 test("palette layout exposes sixteen colors after a separate reset control and maps contrast", async () => {
