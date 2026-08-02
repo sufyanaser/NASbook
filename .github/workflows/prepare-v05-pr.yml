@@ -16,7 +16,7 @@ jobs:
   prepare-v05:
     if: github.head_ref == 'release/v05-code-block-palette' && github.actor != 'github-actions[bot]'
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     steps:
       - name: Checkout release branch
@@ -146,7 +146,7 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build
+      - name: Build application
         run: npm run build
 
       - name: Build Windows installer
@@ -155,21 +155,56 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - name: Verify V05 installer
+        id: installer
         shell: pwsh
         run: |
           $installer = Get-ChildItem -Path release -Filter "NASbook Setup V05.exe" -File -ErrorAction Stop
           if ($installer.Count -ne 1) { throw "Expected exactly one NASbook Setup V05.exe installer." }
+          "path=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Commit validated V05 state
+      - name: Commit validated V05 source to develop
+        id: source
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "release: prepare NASbook V05 with complete color palettes"
-          git push origin HEAD:release/v05-code-block-palette
+          git commit -m "release: NASbook V05 complete editor color update"
+          git fetch origin develop
+          git merge --strategy=ours --no-edit origin/develop
+          git push origin HEAD:develop
+          "sha=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Upload V05 installer
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          @"
+          ## NASbook V05
+
+          - Fixed cursor jumping after applying text colors.
+          - Added a complete 16-color text fill library with automatic readable contrast.
+          - Stabilized collapsible section indicators in editable and locked notes.
+          - Expanded Code Block backgrounds to 16 colors plus Default.
+          - Added readable foreground contrast for every Code Block color.
+          - Preserved existing notes, SQLite data, and stored HTML compatibility.
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+      - name: Publish or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v5.0.0"
+          $installer = "${{ steps.installer.outputs.path }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $installer --clobber
+            gh release edit $tag --title "NASbook V05" --notes-file release-notes.md --target "${{ steps.source.outputs.sha }}"
+          } else {
+            gh release create $tag $installer --title "NASbook V05" --notes-file release-notes.md --target "${{ steps.source.outputs.sha }}"
+          }
+
+      - name: Upload V05 installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: NASbook-Setup-V05-Windows
