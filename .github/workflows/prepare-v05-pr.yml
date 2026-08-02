@@ -1,0 +1,65 @@
+name: Prepare NASbook V05 PR
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-v05:
+    if: github.head_ref == 'release/v05-code-block-palette' && github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/v05-code-block-palette
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply V05 updates
+        run: node scripts/prepare-v05-release.mjs
+
+      - name: Remove one-shot files
+        shell: pwsh
+        run: |
+          Remove-Item scripts/prepare-v05-release.mjs -Force
+          Remove-Item .github/workflows/prepare-v05.yml -Force -ErrorAction SilentlyContinue
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit validated V05 state
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: prepare NASbook V05 with complete color palettes"
+          git push origin HEAD:release/v05-code-block-palette
