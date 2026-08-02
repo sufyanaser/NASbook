@@ -101,12 +101,18 @@ jobs:
 
           $productivityPath = "tests/editor-productivity-features.test.mjs"
           $productivity = [System.IO.File]::ReadAllText($productivityPath)
-          $old = @'
-            const extraSwatches = editor.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
-
-            assert.equal(extraSwatches.length, 3);
-          '@
-          $new = @'
+          $startText = '  const extraSwatches = editor.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];'
+          $endText = '  assert.equal(extraSwatches.length, 3);'
+          $startIndex = $productivity.IndexOf($startText, [System.StringComparison]::Ordinal)
+          if ($startIndex -lt 0) {
+            throw "Could not locate the text fill palette declaration."
+          }
+          $endIndex = $productivity.IndexOf($endText, $startIndex, [System.StringComparison]::Ordinal)
+          if ($endIndex -lt 0) {
+            throw "Could not locate the text fill palette assertion."
+          }
+          $endIndex += $endText.Length
+          $replacement = @'
             const additionsStart = editor.indexOf("const FILL_SWATCH_ADDITIONS");
             const additionsEnd = editor.indexOf("] as const;", additionsStart);
             const additions = editor.slice(additionsStart, additionsEnd);
@@ -114,10 +120,7 @@ jobs:
 
             assert.equal(extraSwatches.length, 3);
           '@
-          if (-not $productivity.Contains($old)) {
-            throw "Could not locate the text fill palette assertion."
-          }
-          $productivity = $productivity.Replace($old, $new)
+          $productivity = $productivity.Substring(0, $startIndex) + $replacement + $productivity.Substring($endIndex)
           [System.IO.File]::WriteAllText(
             $productivityPath,
             $productivity,
