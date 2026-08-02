@@ -159,15 +159,15 @@ test("code block picker exposes sixteen colors plus Default", async () => {
   const end = editor.indexOf("interface QuickCopyState", start);
   const picker = editor.slice(start, end);
   assert.match(picker, /value: "default"/);
-  for (const color of colors) assert.match(picker, new RegExp(`value: "${color}"`));
+  for (const color of colors) assert.match(picker, new RegExp('value: "' + color + '"'));
 });
 
 test("code block colors persist and have readable styles", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
   const styles = await source("src/renderer/styles/index.css");
   for (const color of colors) {
-    assert.match(editor, new RegExp(`"${color}"`));
-    assert.match(styles, new RegExp(`data-box-color="${color}"`));
+    assert.match(editor, new RegExp('"' + color + '"'));
+    assert.match(styles, new RegExp('data-box-color="' + color + '"'));
   }
   assert.match(styles, /code-block-color-grid\s*\{\s*grid-template-columns: repeat\(4, 1fr\)/);
   assert.match(styles, /pre\[data-box-color\] code\s*\{\s*color: inherit/);
