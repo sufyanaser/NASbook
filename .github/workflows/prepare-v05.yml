@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - release/v05-code-block-palette
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
