@@ -12,6 +12,7 @@ import { createGoogleAuthService } from "./googleAuthService";
 import { createGoogleDriveBackupService } from "./googleDriveBackupService";
 import { createGmailBackupService } from "./gmailBackupService";
 import { isSafeExternalUrl } from "../../src/shared/externalUrl";
+import { disposeUpdateService, initializeUpdateService } from "./updateService";
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -172,7 +173,7 @@ if (!gotTheLock) {
 
     registerIpcHandlers({
       appName: app.getName(),
-      appVersion: "V06",
+      appVersion: "V07",
       database: notesbookDatabase,
       settingsStore,
       backupService,
@@ -182,6 +183,7 @@ if (!gotTheLock) {
     });
 
     createMainWindow();
+    initializeUpdateService();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -197,6 +199,7 @@ if (!gotTheLock) {
   });
 
   app.on("before-quit", () => {
+    disposeUpdateService();
     notesbookDatabase?.close();
     notesbookDatabase = null;
   });

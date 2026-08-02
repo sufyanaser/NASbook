@@ -18,21 +18,6 @@
   justify-self: center;
 }
 
-/* Replace the border triangle with one consistent chevron in editable and locked modes. */
-.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"]::before {
-  width: 7px;
-  height: 7px;
-  border: 0;
-  border-inline-end: 2px solid var(--app-accent);
-  border-bottom: 2px solid var(--app-accent);
-  transform: translateY(-58%) rotate(45deg);
-  opacity: 0.95;
-}
-
-.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"][data-nas-collapsed="true"]::before {
-  transform: translateY(-50%) rotate(-45deg);
-}
-
 /* Dark fills: use white foreground. Manual inline text color still has priority. */
 .note-editor-content-wrapper .ProseMirror :is(
   [style*="background-color: #71717a"],
