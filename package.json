@@ -1,7 +1,7 @@
 {
   "name": "nas-notesbook",
-  "version": "3.0.0",
-  "releaseLabel": "V03",
+  "version": "4.0.0",
+  "releaseLabel": "V04",
   "private": true,
   "description": "RTL-first local desktop notebook for NASbook.",
   "main": "dist/electron/main/index.js",
@@ -86,7 +86,7 @@
         "nsis"
       ],
       "icon": "assets/icon.ico",
-      "artifactName": "NASbook Setup V03.exe"
+      "artifactName": "NASbook Setup V04.exe"
     },
     "nsis": {
       "oneClick": false,
@@ -96,7 +96,7 @@
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico",
-      "artifactName": "NASbook Setup V03.${ext}"
+      "artifactName": "NASbook Setup V04.${ext}"
     }
   },
   "author": "Sufyan Nasser Ali"

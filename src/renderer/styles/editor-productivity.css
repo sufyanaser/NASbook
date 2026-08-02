@@ -1,9 +1,4 @@
-.note-editor-content-wrapper .ProseMirror h1[data-nas-collapsible="true"],
-.note-editor-content-wrapper .ProseMirror h2[data-nas-collapsible="true"],
-.note-editor-content-wrapper .ProseMirror h3[data-nas-collapsible="true"],
-.note-editor-content-wrapper .ProseMirror h4[data-nas-collapsible="true"],
-.note-editor-content-wrapper .ProseMirror h5[data-nas-collapsible="true"],
-.note-editor-content-wrapper .ProseMirror h6[data-nas-collapsible="true"] {
+.note-editor-content-wrapper .ProseMirror [data-nas-collapsible="true"] {
   position: relative;
   padding-inline-start: 30px;
 }
@@ -67,6 +62,10 @@
 
 .nas-collapse-toggle {
   color: var(--app-accent) !important;
+}
+
+.nas-collapse-toggle:disabled {
+  color: var(--toolbar-button-text) !important;
 }
 
 .nas-collapse-toggle .toolbar-button-icon {
