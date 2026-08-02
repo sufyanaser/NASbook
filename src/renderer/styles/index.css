@@ -3675,7 +3675,7 @@ textarea,
 }
 
 
-/* NASbook V05 16-color code block palette */
+/* NASbook 16-color code block palette */
 .note-editor-content-wrapper .ProseMirror pre[data-box-color="slate"] { border-color: #334155; background: #475569; color: #ffffff; }
 .note-editor-content-wrapper .ProseMirror pre[data-box-color="red"] { border-color: #dc2626; background: #ef4444; color: #111827; }
 .note-editor-content-wrapper .ProseMirror pre[data-box-color="orange"] { border-color: #ea580c; background: #f97316; color: #111827; }

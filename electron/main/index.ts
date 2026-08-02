@@ -172,7 +172,7 @@ if (!gotTheLock) {
 
     registerIpcHandlers({
       appName: app.getName(),
-    appVersion: "V05",
+      appVersion: "V06",
       database: notesbookDatabase,
       settingsStore,
       backupService,
