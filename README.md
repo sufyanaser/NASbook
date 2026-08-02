@@ -1,6 +1,6 @@
 # NAS Notesbook 📔
 
-Current release: **V05**
+Current release: **V06**
 
 NAS Notesbook is **SUFYAN's personal**, **RTL-first, local-first** desktop notebook for ChatGPT prompts, NAS APP project contexts, PowerShell commands, and development notes. Built on Windows using Electron, Vite, React, and SQLite, it runs fully offline as a fast, lightweight writing and reference tool.
 
@@ -14,8 +14,8 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 | :--- | :---: |
 | Create / edit notes | ✓ |
 | Delete to Trash / restore | ✓ |
-| Categories & tags | ✓ |
-| FTS5 search | ✓ |
+| Categories | ✓ |
+| Global note search | ✓ |
 | RTL/LTR handling (RTL-first) | ✓ |
 | Rich text editor (Tiptap) | ✓ |
 | Collapsible heading sections | ✓ |
@@ -38,7 +38,7 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 
 *   **RTL-First Editing:** Arabic-first rendering with auto bi-directional block alignment and manual direction overrides. Code blocks and scripts always stay strict LTR.
 *   **Workflow Categories:** Prompts, ChatGPT Instructions, NAS Projects, PowerShell Commands, Development Notes, Errors & Fixes, and Templates.
-*   **Local-First:** Notes and tags live in a local SQLite database. No accounts, telemetry, or network dependencies.
+*   **Local-First:** Notes live in a local SQLite database. No telemetry or mandatory network dependencies.
 *   **ChatGPT Copy Commands:**
     *   **Copy Note Content** — clean text or markdown.
     *   **Copy as ChatGPT Context** — wraps notes in an XML block for model prompts:
@@ -60,7 +60,7 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 *   **User Interface Library:** [React 18](https://react.dev/) + [Tailwind CSS](https://tailwindcss.com/)
 *   **Core WYSIWYG Text Editor:** [Tiptap Editor](https://tiptap.dev/)
 *   **Database Engine:** [SQLite](https://sqlite.org/) via [Better-SQLite3](https://github.com/WiseLibs/better-sqlite3) (WAL mode)
-*   **FTS Search Engine:** SQLite FTS5
+*   **Search Engine:** Bounded, case-insensitive SQLite title/content queries
 *   **Build Assembly:** [Electron-builder](https://www.electronjs.org/docs/latest/tutorial/automated-distribution)
 
 ---

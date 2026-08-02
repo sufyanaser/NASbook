@@ -104,11 +104,12 @@ jobs:
           @"
           ## NASbook ${{ steps.meta.outputs.label }}
 
-          - Stabilizes text fill selection so the cursor no longer jumps to the end of the note.
-          - Provides a complete 16-color text fill palette with automatic readable contrast.
-          - Stabilizes collapsible section indicators in editable and locked notes.
-          - Expands Code Block backgrounds to 16 colors plus Default with readable foreground contrast.
-          - Preserves existing note data and stored HTML structure.
+          - Adds fast global search across visible note titles and content, including Arabic text.
+          - Guarantees queued autosaves finish before note navigation or application close.
+          - Separates editor HTML from Markdown through a transactional SQLite migration.
+          - Adds visible recovery for CRUD failures and renderer crashes.
+          - Reduces the default toolbar to core writing controls while preserving advanced customization.
+          - Upgrades Electron and resolves all reported npm audit vulnerabilities.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub Release
