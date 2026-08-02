@@ -11,6 +11,7 @@ import { createBackupService } from "./backupService";
 import { createGoogleAuthService } from "./googleAuthService";
 import { createGoogleDriveBackupService } from "./googleDriveBackupService";
 import { createGmailBackupService } from "./gmailBackupService";
+import { isSafeExternalUrl } from "../../src/shared/externalUrl";
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -104,7 +105,11 @@ if (!gotTheLock) {
     });
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      void shell.openExternal(url);
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url);
+      } else {
+        console.warn("Blocked an unsafe external URL.");
+      }
       return { action: "deny" };
     });
 
@@ -167,7 +172,7 @@ if (!gotTheLock) {
 
     registerIpcHandlers({
       appName: app.getName(),
-    appVersion: "V05",
+      appVersion: "V06",
       database: notesbookDatabase,
       settingsStore,
       backupService,

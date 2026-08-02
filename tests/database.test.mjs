@@ -75,7 +75,7 @@ test("database module contains basic notes CRUD operations", async () => {
 test("dirty-state utility detects changed title or content", () => {
   const note = {
     title: "Original",
-    contentMarkdown: "Body",
+    contentHtml: "Body",
   };
 
   assert.equal(hasUnsavedNoteChanges(null, "Any", "Any"), false);
@@ -89,7 +89,7 @@ test("dirty-state utility detects changed title or content", () => {
   // 2. Semantic spacing and line breaks
   const multilineNote = {
     title: "Multiline",
-    contentMarkdown: "Line 1\nLine 2",
+    contentHtml: "Line 1\nLine 2",
   };
   assert.equal(hasUnsavedNoteChanges(multilineNote, "Multiline", "<p>Line 1</p><p>Line 2</p>"), false);
   assert.equal(hasUnsavedNoteChanges(multilineNote, "Multiline", "Line 1<br>Line 2"), false);
@@ -97,10 +97,20 @@ test("dirty-state utility detects changed title or content", () => {
   // 3. Whitespace collapse and non-breaking space
   const spacesNote = {
     title: "Spaces",
-    contentMarkdown: "Hello World",
+    contentHtml: "Hello World",
   };
   assert.equal(hasUnsavedNoteChanges(spacesNote, "Spaces", "Hello&nbsp;World"), false);
   assert.equal(hasUnsavedNoteChanges(spacesNote, "Spaces", "Hello  World"), false);
+});
+
+test("note contract separates editor HTML from Markdown and supports database search", async () => {
+  const source = await readFile(join(process.cwd(), "electron/main/db.ts"), "utf8");
+  assert.match(source, /contentMarkdown: row\.content_markdown/);
+  assert.match(source, /contentHtml: row\.content_html/);
+  assert.match(source, /separate-html-and-markdown-content/);
+  assert.match(source, /lower\(title\) LIKE \? ESCAPE/);
+  assert.match(source, /lower\(content_markdown\) LIKE \? ESCAPE/);
+  assert.match(source, /lower\(content_html\) LIKE \? ESCAPE/);
 });
 
 test("stripHtmlForPreview strips tags, decodes entities, and normalizes whitespace", () => {

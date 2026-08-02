@@ -1,6 +1,6 @@
 import { ipcMain, shell, dialog, BrowserWindow } from "electron";
 import path from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import type {
   AppInfo,
   CreateNoteInput,
@@ -22,6 +22,10 @@ import type { BackupService } from "./backupService";
 import type { GoogleAuthService } from "./googleAuthService";
 import { GoogleDriveBackupService } from "./googleDriveBackupService";
 import type { GmailBackupService } from "./gmailBackupService";
+import {
+  MAX_IMPORT_FILE_BYTES,
+  validateNasbkDocument,
+} from "../../src/shared/nasbk";
 
 const nasDebugLog = (message: string, ...args: unknown[]) => {
   if (process.env.NAS_DEBUG_STORAGE === "1") {
@@ -31,46 +35,37 @@ const nasDebugLog = (message: string, ...args: unknown[]) => {
 
 const approvedWindowCloses = new WeakSet<BrowserWindow>();
 
+async function readImportFile(filePath: string): Promise<string> {
+  const file = await stat(filePath);
+  if (!file.isFile()) {
+    throw new Error("The selected import path is not a file.");
+  }
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error("The selected file exceeds the 10 MB import limit.");
+  }
+  return readFile(filePath, "utf8");
+}
+
 export function isWindowCloseApproved(window: BrowserWindow): boolean {
   return approvedWindowCloses.has(window);
 }
 
 export async function parseAndValidateNasbk(filePath: string): Promise<NasbkImportResult> {
   try {
-    const contentStr = await readFile(filePath, "utf8");
+    const contentStr = await readImportFile(filePath);
     if (!contentStr || contentStr.trim() === "") {
       throw new Error("File is empty.");
     }
     
-    const data = JSON.parse(contentStr);
-
-    if (!data || typeof data !== "object") {
-      throw new Error("Invalid file content. Must be a valid JSON object.");
-    }
-
-    if (data.format !== "NASBK") {
-      throw new Error("Invalid format. File is not a NASBK document.");
-    }
-
-    if (data.formatVersion === undefined || data.formatVersion === null) {
-      throw new Error("Invalid document. Missing formatVersion.");
-    }
-
-    if (typeof data.title !== "string" || typeof data.contentHtml !== "string") {
-      throw new Error("Invalid NASBK document content. title and contentHtml must be strings.");
-    }
+    const data = validateNasbkDocument(JSON.parse(contentStr));
 
     return {
       ok: true,
       filePath,
       title: data.title,
       contentHtml: data.contentHtml,
-      contentText: data.contentText || "",
-      metadata: data.metadata || {
-        isRtl: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      contentText: data.contentText,
+      metadata: data.metadata,
       formatVersion: data.formatVersion,
     };
   } catch (error) {
@@ -108,7 +103,7 @@ export function registerIpcHandlers({
     return {
       name: appName,
       version: appVersion,
-      phase: "phase-2-data-layer",
+      phase: "v05-foundation-stable",
       databasePath: database.databasePath,
       dataDirectory,
       settingsPath: settingsStore.settingsPath,
@@ -195,7 +190,7 @@ export function registerIpcHandlers({
         }
 
         const filePath = result.filePaths[0];
-        const markdown = await readFile(filePath, "utf8");
+        const markdown = await readImportFile(filePath);
         return { ok: true, filename: path.basename(filePath), markdown };
       } catch (error) {
         return {

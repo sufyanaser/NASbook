@@ -1,6 +1,6 @@
 export interface DirtyStateSource {
   readonly title: string;
-  readonly contentMarkdown: string;
+  readonly contentHtml: string;
 }
 
 function normalizeContent(content: string): string {
@@ -33,7 +33,7 @@ export function hasUnsavedNoteChanges(
   }
 
   const normalizedDraft = normalizeContent(draftContent);
-  const normalizedSource = normalizeContent(source.contentMarkdown);
+  const normalizedSource = normalizeContent(source.contentHtml);
 
   return (
     draftTitle !== source.title || normalizedDraft !== normalizedSource

@@ -64,6 +64,17 @@ test("renderer avoids the former global observer and deprecated editing commands
   assert.doesNotMatch(editor, /execCommand\("(?:hiliteColor|backColor|foreColor)"/);
 });
 
+test("fresh installs expose a focused core toolbar while advanced tools remain customizable", async () => {
+  const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+  assert.match(editor, /fontFamily: false/);
+  assert.match(editor, /codeBlock: false/);
+  assert.match(editor, /horizontalRule: false/);
+  assert.match(editor, /table: false/);
+  assert.match(editor, /bold: true/);
+  assert.match(editor, /numbered: true/);
+  assert.match(editor, /nas-notesbook\.editor\.visibleTools/);
+});
+
 test("editor note actions cannot inherit the hidden note-card action styles", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
   const styles = await source("src/renderer/styles/index.css");
@@ -73,15 +84,15 @@ test("editor note actions cannot inherit the hidden note-card action styles", as
   assert.match(styles, /\.editor-note-actions\s*\{\s*gap: 10px;/);
 });
 
-test("release V05 is consistent across app metadata and Windows installer naming", async () => {
+test("release V06 is consistent across app metadata and Windows installer naming", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const main = await source("electron/main/index.ts");
   const workflow = await source(".github/workflows/windows-release.yml");
 
-  assert.equal(packageJson.version, "5.0.0");
-  assert.equal(packageJson.releaseLabel, "V05");
-  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V05.exe");
-  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V05.${ext}");
-  assert.match(main, /appVersion: "V05"/);
+  assert.equal(packageJson.version, "6.0.0");
+  assert.equal(packageJson.releaseLabel, "V06");
+  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V06.exe");
+  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V06.${ext}");
+  assert.match(main, /appVersion: "V06"/);
   assert.match(workflow, /NASbook Setup \$label\.exe/);
 });

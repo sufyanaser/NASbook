@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import TurndownService from "turndown";
 import {
   copyFileSync,
   existsSync,
@@ -27,6 +28,14 @@ import {
 import { schemaStatements, seedCategories } from "./schema";
 
 const DATABASE_BACKUP_LIMIT = 7;
+const MAX_SEARCH_QUERY_LENGTH = 200;
+const LEGACY_HTML_PATTERN = /<\/?[a-z][\s\S]*>/iu;
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
+  bulletListMarker: "-",
+  emDelimiter: "*",
+});
 
 const nasDebugLog = (message: string, ...args: unknown[]) => {
   if (process.env.NAS_DEBUG_STORAGE === "1") {
@@ -93,7 +102,7 @@ function toNoteListItem(row: NoteRow): NoteListItem {
   return {
     id: row.id,
     title: row.title,
-    preview: row.content_markdown.slice(0, 120),
+    preview: row.content_html.slice(0, 120),
     categoryId: row.category_id,
     isRtl: row.is_rtl === 1,
     isLocked: row.is_locked === 1,
@@ -136,6 +145,15 @@ function normalizeCategoryId(categoryId: number | null | undefined): number | nu
   }
 
   return categoryId;
+}
+
+function normalizeSearchQuery(query: string | undefined): string {
+  return (query ?? "").trim().slice(0, MAX_SEARCH_QUERY_LENGTH);
+}
+
+function toLikePattern(query: string): string {
+  const escaped = query.toLocaleLowerCase().replace(/[\\%_]/gu, "\\$&");
+  return `%${escaped}%`;
 }
 
 function requireCategory(database: SqliteDatabase, id: number): CategoryRecord {
@@ -232,6 +250,39 @@ function ensureDatabaseReady(database: SqliteDatabase): void {
       "ALTER TABLE notes ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0 CHECK (is_locked IN (0, 1))",
     ).run();
   }
+
+  migrateLegacyHtmlContent(database);
+}
+
+function migrateLegacyHtmlContent(database: SqliteDatabase): void {
+  const migrationExists = database
+    .prepare("SELECT 1 FROM schema_migrations WHERE id = ?")
+    .get(2);
+  if (migrationExists) {
+    return;
+  }
+
+  const migrate = database.transaction(() => {
+    const rows = database
+      .prepare("SELECT id, content_markdown, content_html FROM notes")
+      .all() as Pick<NoteRow, "id" | "content_markdown" | "content_html">[];
+    const update = database.prepare(
+      "UPDATE notes SET content_markdown = ?, content_html = ? WHERE id = ?",
+    );
+
+    for (const row of rows) {
+      const html = row.content_html || row.content_markdown;
+      const markdown = LEGACY_HTML_PATTERN.test(row.content_markdown)
+        ? turndown.turndown(html)
+        : row.content_markdown;
+      update.run(markdown, html, row.id);
+    }
+
+    database
+      .prepare("INSERT INTO schema_migrations (id, name) VALUES (?, ?)")
+      .run(2, "separate-html-and-markdown-content");
+  });
+  migrate();
 }
 
 function verifyDatabaseIntegrity(database: SqliteDatabase): void {
@@ -357,6 +408,7 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
     createNote: (input) => {
       const title = normalizeTitle(input?.title);
       const contentMarkdown = input?.contentMarkdown ?? "";
+      const contentHtml = input?.contentHtml ?? contentMarkdown;
       const categoryId = normalizeCategoryId(input?.categoryId);
       const isRtl = input?.isRtl ?? true;
       const result = database
@@ -366,7 +418,7 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
            )
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(title, contentMarkdown, contentMarkdown, categoryId, isRtl ? 1 : 0);
+        .run(title, contentMarkdown, contentHtml, categoryId, isRtl ? 1 : 0);
 
       return requireNote(database, Number(result.lastInsertRowid));
     },
@@ -397,7 +449,7 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
         .run(
           normalizeTitle(input.title),
           input.contentMarkdown,
-          input.contentMarkdown,
+          input.contentHtml,
           normalizeCategoryId(input.categoryId),
           input.isRtl ? 1 : 0,
           id,
@@ -482,6 +534,29 @@ function createNoteListQuery(
   options: NoteListOptions,
 ): readonly NoteListItem[] {
   const categoryId = normalizeCategoryId(options.categoryId);
+  const searchQuery = normalizeSearchQuery(options.searchQuery);
+  const searchPattern = toLikePattern(searchQuery);
+
+  if (searchQuery !== "") {
+    const deletedPredicate = options.includeTrash
+      ? "deleted_at IS NOT NULL"
+      : "deleted_at IS NULL";
+    const rows = database
+      .prepare(
+        `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
+                created_at, updated_at, deleted_at
+         FROM notes
+         WHERE ${deletedPredicate}
+           AND (
+             lower(title) LIKE ? ESCAPE '\\'
+             OR lower(content_markdown) LIKE ? ESCAPE '\\'
+             OR lower(content_html) LIKE ? ESCAPE '\\'
+           )
+         ORDER BY updated_at DESC, id DESC`,
+      )
+      .all(searchPattern, searchPattern, searchPattern) as NoteRow[];
+    return rows.map(toNoteListItem);
+  }
 
   if (options.includeTrash) {
     const rows = database

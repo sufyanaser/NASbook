@@ -290,7 +290,7 @@ export function NavigationRail({
   };
 
   return (
-    <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label="Categories">
+    <aside className={`navigation-rail ${expanded ? "navigation-rail--expanded" : ""}`} aria-label={language === "ar" ? "التصنيفات" : "Categories"}>
       <div className="rail-brand" aria-label="NASbook">
         <span className="rail-brand-icon">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#ffffff" }}>
@@ -308,11 +308,11 @@ export function NavigationRail({
         )}
       </div>
 
-      <nav className="rail-section" aria-label="Primary categories">
+      <nav className="rail-section" aria-label={language === "ar" ? "التصنيفات الأساسية" : "Primary categories"}>
         {primaryCategories.map((category) => renderCategoryButton(category, true))}
       </nav>
 
-      <nav className="rail-section rail-section-bottom" aria-label="System">
+      <nav className="rail-section rail-section-bottom" aria-label={language === "ar" ? "النظام" : "System"}>
         {secondaryCategories.map((category) => renderCategoryButton(category, false))}
         <div className="rail-theme-control">
           <button
