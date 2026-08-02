@@ -410,6 +410,17 @@ const CODE_BLOCK_BOX_COLORS = [
   "light-green",
   "light-amber",
   "light-rose",
+  "slate",
+  "red",
+  "orange",
+  "yellow",
+  "lime",
+  "teal",
+  "cyan",
+  "sky",
+  "indigo",
+  "purple",
+  "pink",
 ] as const;
 
 type CodeBlockBoxColor = (typeof CODE_BLOCK_BOX_COLORS)[number];
@@ -897,6 +908,17 @@ function CodeBlockColorPicker({
     { name: "Light green", value: "light-green", hex: "#dcfce7" },
     { name: "Light amber", value: "light-amber", hex: "#fef3c7" },
     { name: "Light rose", value: "light-rose", hex: "#ffe4e6" },
+    { name: "Slate", value: "slate", hex: "#475569" },
+    { name: "Red", value: "red", hex: "#ef4444" },
+    { name: "Orange", value: "orange", hex: "#f97316" },
+    { name: "Yellow", value: "yellow", hex: "#eab308" },
+    { name: "Lime", value: "lime", hex: "#84cc16" },
+    { name: "Teal", value: "teal", hex: "#14b8a6" },
+    { name: "Cyan", value: "cyan", hex: "#06b6d4" },
+    { name: "Sky", value: "sky", hex: "#0ea5e9" },
+    { name: "Indigo", value: "indigo", hex: "#6366f1" },
+    { name: "Purple", value: "purple", hex: "#8b5cf6" },
+    { name: "Pink", value: "pink", hex: "#ec4899" },
   ];
 
   const getSwatchTooltip = (name: string) => {
@@ -908,6 +930,17 @@ function CodeBlockColorPicker({
       case "Light green": return "أخضر فاتح";
       case "Light amber": return "كهرماني فاتح";
       case "Light rose": return "وردي فاتح";
+      case "Slate": return "أردوازي";
+      case "Red": return "أحمر";
+      case "Orange": return "برتقالي";
+      case "Yellow": return "أصفر";
+      case "Lime": return "ليموني";
+      case "Teal": return "أزرق مخضر";
+      case "Cyan": return "سماوي";
+      case "Sky": return "أزرق سماوي";
+      case "Indigo": return "نيلي";
+      case "Purple": return "أرجواني";
+      case "Pink": return "وردي";
       default: return name;
     }
   };

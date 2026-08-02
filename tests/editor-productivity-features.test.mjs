@@ -45,7 +45,10 @@ test("visually formatted paragraphs can become collapsible sections", async () =
 
 test("fill palette expands to sixteen colors with automatic contrast", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
-  const extraSwatches = editor.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
+  const additionsStart = editor.indexOf("const FILL_SWATCH_ADDITIONS");
+  const additionsEnd = editor.indexOf("] as const;", additionsStart);
+  const additions = editor.slice(additionsStart, additionsEnd);
+  const extraSwatches = additions.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
 
   assert.equal(extraSwatches.length, 3);
   assert.match(editor, /function readableTextColor/);
@@ -70,15 +73,15 @@ test("editor note actions cannot inherit the hidden note-card action styles", as
   assert.match(styles, /\.editor-note-actions\s*\{\s*gap: 10px;/);
 });
 
-test("release V04 is consistent across app metadata and Windows installer naming", async () => {
+test("release V05 is consistent across app metadata and Windows installer naming", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const main = await source("electron/main/index.ts");
   const workflow = await source(".github/workflows/windows-release.yml");
 
-  assert.equal(packageJson.version, "4.0.0");
-  assert.equal(packageJson.releaseLabel, "V04");
-  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V04.exe");
-  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V04.${ext}");
-  assert.match(main, /appVersion: "V04"/);
+  assert.equal(packageJson.version, "5.0.0");
+  assert.equal(packageJson.releaseLabel, "V05");
+  assert.equal(packageJson.build.win.artifactName, "NASbook Setup V05.exe");
+  assert.equal(packageJson.build.nsis.artifactName, "NASbook Setup V05.${ext}");
+  assert.match(main, /appVersion: "V05"/);
   assert.match(workflow, /NASbook Setup \$label\.exe/);
 });
