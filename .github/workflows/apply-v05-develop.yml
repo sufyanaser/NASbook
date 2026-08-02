@@ -1,0 +1,111 @@
+name: Apply NASbook V05 to develop
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/V05_APPLY_TRIGGER"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-v05:
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Normalize source line endings
+        shell: pwsh
+        run: |
+          $paths = @(
+            "src/renderer/components/NoteEditorArea.tsx",
+            "src/renderer/styles/index.css",
+            "tests/editor-productivity-features.test.mjs",
+            "electron/main/index.ts",
+            "README.md"
+          )
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          foreach ($path in $paths) {
+            $content = [System.IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            [System.IO.File]::WriteAllText($path, $content, $utf8)
+          }
+
+      - name: Apply V05 source and release metadata
+        run: node scripts/prepare-v05-release.mjs
+
+      - name: Fix generated Node URL import
+        shell: pwsh
+        run: |
+          $path = "tests/code-block-palette.test.mjs"
+          $content = [System.IO.File]::ReadAllText($path)
+          $content = $content.Replace(
+            'import { fileURLToPath } from "node:url";',
+            'import { URL, fileURLToPath } from "node:url";'
+          )
+          [System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
+
+      - name: Remove one-shot release files
+        shell: pwsh
+        run: |
+          Remove-Item scripts/prepare-v05-release.mjs -Force
+          Remove-Item .github/workflows/prepare-v05-pr.yml -Force -ErrorAction SilentlyContinue
+          Remove-Item .github/workflows/apply-v05-develop.yml -Force
+          Remove-Item .github/V05_APPLY_TRIGGER -Force
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build application
+        run: npm run build
+
+      - name: Build Windows installer
+        run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify V05 installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release -Filter "NASbook Setup V05.exe" -File -ErrorAction Stop
+          if ($installer.Count -ne 1) { throw "Expected exactly one NASbook Setup V05.exe installer." }
+          Write-Host "Installer: $($installer.FullName)"
+
+      - name: Commit validated V05 state
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: NASbook V05 complete editor color update"
+          git push origin HEAD:develop
+
+      - name: Upload V05 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NASbook-Setup-V05-Windows
+          path: release/NASbook Setup V05.exe
+          if-no-files-found: error
+          retention-days: 30
