@@ -1,0 +1,133 @@
+name: NASbook GitHub Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "electron/**"
+      - "src/**"
+      - "tests/**"
+      - "assets/**"
+      - "package.json"
+      - "package-lock.json"
+      - "README.md"
+      - ".github/workflows/github-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    name: Publish NASbook Release
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Read release metadata
+        id: meta
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $label = $package.releaseLabel
+          $version = $package.version
+          if ($label -notmatch '^V\d{2}$') { throw "releaseLabel must use VNN format." }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "version must use semantic versioning." }
+          "label=$label" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Check release availability
+        id: release-check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "publish=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Release $tag already exists; skipping duplicate publication."
+          } else {
+            "publish=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+      - name: Install dependencies
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm run typecheck
+
+      - name: Test
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm test
+
+      - name: Build application
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm run build
+
+      - name: Build Windows installer
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm run pack:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify installer
+        if: steps.release-check.outputs.publish == 'true'
+        id: installer
+        shell: pwsh
+        run: |
+          $label = "${{ steps.meta.outputs.label }}"
+          $installer = Get-ChildItem -Path release -Filter "NASbook Setup $label.exe" -File -ErrorAction Stop
+          if ($installer.Count -ne 1) { throw "Expected exactly one NASbook $label installer." }
+          "path=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Write release notes
+        if: steps.release-check.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          @"
+          ## NASbook ${{ steps.meta.outputs.label }}
+
+          - Stabilizes text fill selection so the cursor no longer jumps to the end of the note.
+          - Provides a complete 16-color text fill palette with automatic readable contrast.
+          - Stabilizes collapsible section indicators in editable and locked notes.
+          - Expands Code Block backgrounds to 16 colors plus Default with readable foreground contrast.
+          - Preserves existing note data and stored HTML structure.
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+      - name: Publish GitHub Release
+        if: steps.release-check.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" `
+            "${{ steps.installer.outputs.path }}" `
+            --title "NASbook ${{ steps.meta.outputs.label }}" `
+            --notes-file release-notes.md `
+            --target "${{ github.sha }}"
+
+      - name: Upload installer artifact
+        if: steps.release-check.outputs.publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NASbook-Setup-${{ steps.meta.outputs.label }}-Windows
+          path: release/NASbook Setup ${{ steps.meta.outputs.label }}.exe
+          if-no-files-found: error
+          retention-days: 30
