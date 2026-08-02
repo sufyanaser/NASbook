@@ -85,12 +85,12 @@ export function TitleBar({ language }: TitleBarProps): JSX.Element {
         >
           {isMaximized ? (
             <svg width="10" height="10" viewBox="0 0 10 10">
-              <path d="M1.5,3.5 h5 v5 h-5 z" fill="none" stroke="currentColor" stroke-width="1" />
-              <path d="M3.5,3.5 v-2 h5 v5 h-2" fill="none" stroke="currentColor" stroke-width="1" />
+              <path d="M1.5,3.5 h5 v5 h-5 z" fill="none" stroke="currentColor" strokeWidth="1" />
+              <path d="M3.5,3.5 v-2 h5 v5 h-2" fill="none" stroke="currentColor" strokeWidth="1" />
             </svg>
           ) : (
             <svg width="10" height="10" viewBox="0 0 10 10">
-              <rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1" />
+              <rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1" />
             </svg>
           )}
         </button>
@@ -101,7 +101,7 @@ export function TitleBar({ language }: TitleBarProps): JSX.Element {
           aria-label="Close"
         >
           <svg width="10" height="10" viewBox="0 0 10 10">
-            <path d="M1,1 L9,9 M9,1 L1,9" stroke="currentColor" stroke-width="1" />
+            <path d="M1,1 L9,9 M9,1 L1,9" stroke="currentColor" strokeWidth="1" />
           </svg>
         </button>
       </div>

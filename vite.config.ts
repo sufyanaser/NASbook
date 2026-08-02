@@ -10,10 +10,20 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, "dist/renderer"),
     emptyOutDir: true,
-    // Raise the chunk size warning limit to 800 kB.
-    // Tiptap and ProseMirror are bundled in the renderer chunk and exceed the default 500 kB limit.
-    // Since this is a local desktop Electron application, network transit sizes are not a constraint.
     chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            id.includes("/node_modules/@tiptap/") ||
+            id.includes("/node_modules/prosemirror-")
+          ) {
+            return "editor-runtime";
+          }
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     host: "127.0.0.1",

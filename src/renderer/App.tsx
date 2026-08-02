@@ -1,10 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   defaultCategories,
   type CategoryRecord,
   type CategorySlug,
 } from "../shared/categories";
 import { hasUnsavedNoteChanges } from "../shared/dirtyState";
+import { createLatestSaveQueue } from "../shared/saveQueue";
 import type {
   AppInfo,
   NoteRecord,
@@ -20,7 +29,6 @@ import {
 import { NavigationRail } from "./components/NavigationRail";
 import { NoteEditorArea } from "./components/NoteEditorArea";
 import { NotesListColumn } from "./components/NotesListColumn";
-import { SettingsPanel } from "./components/SettingsPanel";
 import { StatusFooter } from "./components/StatusFooter";
 import {
   AppContextMenu,
@@ -40,6 +48,10 @@ type DatabaseStatus = "ready" | "unavailable";
 type SaveStatus = "Idle" | "Unsaved" | "Saving" | "Saved" | "Error";
 
 const AUTOSAVE_DELAY_MS = 800;
+const SettingsPanel = lazy(async () => {
+  const module = await import("./components/SettingsPanel");
+  return { default: module.SettingsPanel };
+});
 
 // Direction-neutral side-panel glyph, used to toggle the notes list.
 function PanelToggleIcon(): JSX.Element {
@@ -107,14 +119,17 @@ export function App(): JSX.Element {
 
 
   const [pendingNavigationAction, setPendingNavigationAction] = useState<
-    (() => void) | null
+    (() => void | Promise<void>) | null
   >(null);
   const [isSaveFailedDialogOpen, setIsSaveFailedDialogOpen] = useState(false);
 
   const autosaveTimerRef = useRef<number | null>(null);
-  const saveInProgressRef = useRef(false);
-  const pendingResaveRef = useRef(false);
+  const saveQueueRef = useRef(createLatestSaveQueue());
+  const pendingManualSaveRef = useRef(false);
   const closeRequestInProgressRef = useRef(false);
+  const navigationRequestRef = useRef(0);
+  const selectionRequestRef = useRef(0);
+  const createInProgressRef = useRef(false);
   const selectedNoteRef = useRef<NoteRecord | null>(null);
   const draftRef = useRef<{ title: string; content: string }>({
     title: "",
@@ -255,177 +270,141 @@ export function App(): JSX.Element {
 
   refreshNotesRef.current = refreshNotes;
 
-  // Core save used by both autosave and manual save. Reads the latest draft /
-  // selected note from refs so debounced timers never act on stale closures.
-  // Returns true when the note is persisted (or there was nothing to save).
-  const performSave = useCallback(async (isManualSave = false): Promise<boolean> => {
-    const api = window.nasNotesbook;
-    const note = selectedNoteRef.current;
-
-    nasDebugLog("[TRACE] App performSave START", {
-      reason: isManualSave ? "manualSave" : "autosave",
-      noteId: note?.id,
-      selectedNoteId: selectedNoteRef.current?.id,
-      hasApi: !!api,
-      activeCategory: activeCategoryRef.current,
-    });
-
-    // Nothing to save, or note not editable (e.g. trash) -> treat as success.
-    if (!api || !note || activeCategoryRef.current === "trash") {
-      nasDebugLog("[TRACE] App performSave early exit: no api/note or trash");
-      return true;
+  // Core save used by both autosave and manual save. The queue is a navigation
+  // barrier: callers cannot switch notes until the active write and the latest
+  // queued draft have both completed.
+  const performSave = useCallback((isManualSave = false): Promise<boolean> => {
+    if (isManualSave) {
+      pendingManualSaveRef.current = true;
     }
 
-    const { title, content } = draftRef.current;
+    return saveQueueRef.current.request(async () => {
+      const api = window.nasNotesbook;
+      const note = selectedNoteRef.current;
+      const shouldUpdateLinkedFile = pendingManualSaveRef.current;
+      pendingManualSaveRef.current = false;
 
-    // Guard: Prevent autosave from overwriting non-empty database content with empty content
-    // unless the deletion was intentional (detected by the editor having active focus).
-    if (!isManualSave && content === "" && note.contentMarkdown !== "") {
-      const isEditorFocused = document.activeElement?.classList.contains("ProseMirror");
-      if (!isEditorFocused) {
-        nasDebugLog("[TRACE] App performSave GUARD triggered: blocked empty autosave during transition (reason: transition empty-save guard active)", {
-          noteId: note.id,
-          savedContentLength: note.contentMarkdown.length,
-        });
-        return true; // Treat as success but skip writing to DB to protect existing content.
+      nasDebugLog("[TRACE] App performSave START", {
+        reason: shouldUpdateLinkedFile ? "manualSave" : "autosave",
+        noteId: note?.id,
+        selectedNoteId: selectedNoteRef.current?.id,
+        hasApi: !!api,
+        activeCategory: activeCategoryRef.current,
+      });
+
+      if (!api || !note || activeCategoryRef.current === "trash") {
+        return true;
       }
-    }
 
-    nasDebugLog("[TRACE] App performSave comparing draft", {
-      reason: isManualSave ? "manualSave" : "autosave",
-      noteId: note.id,
-      draftTitle: title,
-      draftContentLength: content.length,
-      noteTitle: note.title,
-      noteContentLength: note.contentMarkdown?.length,
-      hasChanges: hasUnsavedNoteChanges(note, title, content),
-    });
+      const { title, content } = draftRef.current;
+      const contentText =
+        draftTextRef.current || getPlainTextFromHtml(content);
 
-    // Skip if the draft already matches the last saved snapshot (selectedNote).
-    if (!hasUnsavedNoteChanges(note, title, content)) {
-      if (isManualSave) {
-        const linkedPath = localStorage.getItem(`nasbook.nasbk.link.${note.id}`);
-        if (linkedPath) {
-          try {
-            const res = await api.nasbk.saveFile({
-              title: note.title,
-              contentHtml: note.contentMarkdown,
-              contentText: draftTextRef.current || getPlainTextFromHtml(note.contentMarkdown),
-              metadata: {
-                isRtl: !!note.isRtl,
-                createdAt: note.createdAt,
-                updatedAt: note.updatedAt,
-              },
-              formatVersion: 1,
-              filePath: linkedPath,
-            });
-            if (!res.ok) {
-              console.error("Failed to update linked NASBK file on manual save:", res.error);
+      // Prevent a transient editor teardown from erasing persisted content.
+      // An intentional clear remains valid while the editor has focus, and a
+      // manual save always persists exactly what the operator requested.
+      if (
+        !shouldUpdateLinkedFile &&
+        content === "" &&
+        note.contentMarkdown !== "" &&
+        !document.activeElement?.classList.contains("ProseMirror")
+      ) {
+        return true;
+      }
+
+      if (!hasUnsavedNoteChanges(note, title, content)) {
+        if (shouldUpdateLinkedFile) {
+          const linkedPath = localStorage.getItem(
+            `nasbook.nasbk.link.${note.id}`,
+          );
+          if (linkedPath) {
+            try {
+              const result = await api.nasbk.saveFile({
+                title: note.title,
+                contentHtml: note.contentMarkdown,
+                contentText,
+                metadata: {
+                  isRtl: note.isRtl,
+                  createdAt: note.createdAt,
+                  updatedAt: note.updatedAt,
+                },
+                formatVersion: 1,
+                filePath: linkedPath,
+              });
+              if (result.ok) {
+                return true;
+              }
+            } catch {
+              // The normal error state below keeps navigation blocked.
             }
-          } catch (err) {
-            console.error("Error during manual save NASBK update:", err);
+            if (selectedNoteRef.current?.id === note.id) {
+              setSaveStatus("Error");
+            }
+            return false;
           }
         }
+        return true;
       }
-      nasDebugLog("[TRACE] App performSave skipped: no unsaved changes");
-      return true;
-    }
 
-    // A save is already running: queue exactly one follow-up and bail.
-    if (saveInProgressRef.current) {
-      nasDebugLog("[TRACE] App performSave queued resave: saveInProgress is true", {
-        noteId: note.id,
-      });
-      pendingResaveRef.current = true;
-      return true;
-    }
+      const savingId = note.id;
+      setSaveStatus("Saving");
 
-    saveInProgressRef.current = true;
-    const savingId = note.id;
-    setSaveStatus("Saving");
+      try {
+        const updated = await api.notes.update({
+          id: savingId,
+          title,
+          contentMarkdown: content,
+          categoryId: note.categoryId,
+          isRtl: note.isRtl,
+        });
 
-    nasDebugLog("[TRACE] App performSave calling notes.update", {
-      reason: isManualSave ? "manualSave" : "autosave",
-      savingId,
-      title,
-      contentLength: content.length,
-    });
-
-    try {
-      const updated = await api.notes.update({
-        id: savingId,
-        title,
-        contentMarkdown: content,
-        categoryId: note.categoryId,
-        isRtl: note.isRtl,
-      });
-
-      nasDebugLog("[TRACE] App performSave notes.update RESOLVED", {
-        reason: isManualSave ? "manualSave" : "autosave",
-        savingId,
-        updatedId: updated.id,
-        updatedContentLength: updated.contentMarkdown.length,
-      });
-
-      // Only reflect the result if the user is still on the same note.
-      if (selectedNoteRef.current?.id === savingId) {
-        setSelectedNote(updated);
-        // The backend normalizes some fields (e.g. an empty title becomes
-        // "Untitled Note"). Sync the draft to the persisted values so the note
-        // is not seen as perpetually dirty (which would loop autosave) — but
-        // only when the user has not typed more since this save was scheduled,
-        // to avoid clobbering input or moving the caret.
-        if (
-          draftRef.current.title === title &&
-          draftRef.current.content === content
-        ) {
-          setDraftTitle(updated.title);
-          setDraftContent(updated.contentMarkdown);
+        if (selectedNoteRef.current?.id === savingId) {
+          setSelectedNote(updated);
+          if (
+            draftRef.current.title === title &&
+            draftRef.current.content === content
+          ) {
+            setDraftTitle(updated.title);
+            setDraftContent(updated.contentMarkdown);
+          }
+          setSaveStatus("Saved");
         }
-        setSaveStatus("Saved");
-      }
-      await refreshNotesRef.current();
+        await refreshNotesRef.current();
 
-      // Silent NASBK Update
-      if (isManualSave) {
-        const linkedPath = localStorage.getItem(`nasbook.nasbk.link.${savingId}`);
-        if (linkedPath) {
-          try {
-            const res = await api.nasbk.saveFile({
+        if (shouldUpdateLinkedFile) {
+          const linkedPath = localStorage.getItem(
+            `nasbook.nasbk.link.${savingId}`,
+          );
+          if (linkedPath) {
+            const result = await api.nasbk.saveFile({
               title: updated.title,
               contentHtml: updated.contentMarkdown,
-              contentText: draftTextRef.current || getPlainTextFromHtml(updated.contentMarkdown),
+              contentText,
               metadata: {
-                isRtl: !!updated.isRtl,
+                isRtl: updated.isRtl,
                 createdAt: updated.createdAt,
                 updatedAt: updated.updatedAt,
               },
               formatVersion: 1,
               filePath: linkedPath,
             });
-            if (!res.ok) {
-              console.error("Failed to silently update linked NASBK file:", res.error);
+            if (!result.ok) {
+              if (selectedNoteRef.current?.id === savingId) {
+                setSaveStatus("Error");
+              }
+              return false;
             }
-          } catch (err) {
-            console.error("Error during silent NASBK update:", err);
           }
         }
-      }
 
-      saveInProgressRef.current = false;
-      if (pendingResaveRef.current) {
-        pendingResaveRef.current = false;
-        return performSave(isManualSave);
+        return true;
+      } catch {
+        if (selectedNoteRef.current?.id === savingId) {
+          setSaveStatus("Error");
+        }
+        return false;
       }
-      return true;
-    } catch {
-      saveInProgressRef.current = false;
-      pendingResaveRef.current = false;
-      if (selectedNoteRef.current?.id === savingId) {
-        setSaveStatus("Error");
-      }
-      return false;
-    }
+    });
   }, []);
 
   // Cancel any pending debounce and persist immediately.
@@ -441,19 +420,15 @@ export function App(): JSX.Element {
   // cannot provide that guarantee because Electron destroys the renderer
   // without awaiting its Promise.
   const flushSaveBeforeClose = useCallback(async (): Promise<boolean> => {
-    const firstResult = await flushSave(true);
-    if (!firstResult && !saveInProgressRef.current) {
-      return false;
-    }
-
-    const deadline = Date.now() + 15_000;
-    while (saveInProgressRef.current && Date.now() < deadline) {
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 25);
+    const savePromise = flushSave(true);
+    const firstResult = await new Promise<boolean>((resolve) => {
+      const timeout = window.setTimeout(() => resolve(false), 15_000);
+      void savePromise.then((result) => {
+        window.clearTimeout(timeout);
+        resolve(result);
       });
-    }
-
-    if (saveInProgressRef.current) {
+    });
+    if (!firstResult) {
       return false;
     }
 
@@ -470,7 +445,9 @@ export function App(): JSX.Element {
   // pending, navigate immediately. Otherwise flush; only surface the in-app
   // dialog when the save actually fails.
   const requestNavigation = useCallback(
-    (action: () => void): void => {
+    async (action: () => void | Promise<void>): Promise<void> => {
+      const navigationRequestId = navigationRequestRef.current + 1;
+      navigationRequestRef.current = navigationRequestId;
       const dirty = hasUnsavedNoteChanges(
         selectedNoteRef.current,
         draftRef.current.title,
@@ -479,28 +456,30 @@ export function App(): JSX.Element {
       const pending =
         dirty ||
         autosaveTimerRef.current !== null ||
-        saveInProgressRef.current;
+        saveQueueRef.current.isBusy();
 
       if (!pending) {
-        action();
+        await action();
         return;
       }
 
-      void flushSave().then((ok) => {
-        if (ok) {
-          action();
-        } else if (confirmUnsavedSwitchRef.current) {
-          setPendingNavigationAction(() => action);
-          setIsSaveFailedDialogOpen(true);
-        } else {
-          action();
-        }
-      });
+      const ok = await flushSave();
+      if (navigationRequestRef.current !== navigationRequestId) {
+        return;
+      }
+      if (ok || !confirmUnsavedSwitchRef.current) {
+        await action();
+        return;
+      }
+
+      setPendingNavigationAction(() => action);
+      setIsSaveFailedDialogOpen(true);
     },
     [flushSave],
   );
 
   const clearSelectedNote = (): void => {
+    selectionRequestRef.current += 1;
     setSelectedNote(null);
     setDraftTitle("");
     setDraftContent("");
@@ -542,19 +521,23 @@ export function App(): JSX.Element {
 
     if (result.filePath) {
       // Clear any other notes linked to this same file path to prevent conflicts
+      const duplicateLinkKeys: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith("nasbook.nasbk.link.")) {
-          if (localStorage.getItem(key) === result.filePath) {
-            localStorage.removeItem(key);
-          }
+        if (
+          key?.startsWith("nasbook.nasbk.link.") &&
+          localStorage.getItem(key) === result.filePath
+        ) {
+          duplicateLinkKeys.push(key);
         }
       }
+      duplicateLinkKeys.forEach((key) => localStorage.removeItem(key));
       localStorage.setItem(`nasbook.nasbk.link.${note.id}`, result.filePath);
     }
 
     // Update list and selection to show the newly imported note
     await refreshNotes();
+    selectionRequestRef.current += 1;
     setSelectedNote(note);
     setDraftTitle(note.title);
     setDraftContent(note.contentMarkdown);
@@ -581,7 +564,9 @@ export function App(): JSX.Element {
     // Register listener for runtime associated file opens
     const unsubscribeOpenFile = api.nasbk.onOpenFile((fileData) => {
       if (isMounted && fileData && fileData.ok) {
-        void loadImportedNasbkDataRef.current(fileData);
+        void requestNavigation(() =>
+          loadImportedNasbkDataRef.current(fileData),
+        );
       }
     });
 
@@ -607,10 +592,39 @@ export function App(): JSX.Element {
         setNotes(nextNotes);
         setNotesCount(nextNotes.length);
 
+        const firstNote = nextNotes[0];
+        if (firstNote) {
+          const requestId = selectionRequestRef.current + 1;
+          selectionRequestRef.current = requestId;
+          void api.notes
+            .getById(firstNote.id)
+            .then((note) => {
+              if (
+                !isMounted ||
+                !note ||
+                selectionRequestRef.current !== requestId
+              ) {
+                return;
+              }
+              setSelectedNote(note);
+              setDraftTitle(note.title);
+              setDraftContent(note.contentMarkdown);
+              draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+              setSaveStatus("Idle");
+            })
+            .catch(() => {
+              if (isMounted) {
+                setDatabaseStatus("unavailable");
+              }
+            });
+        }
+
         // Check for associated file opened on startup
         api.nasbk.getStartupFile().then((startupResult) => {
           if (isMounted && startupResult && startupResult.ok) {
-            void loadImportedNasbkDataRef.current(startupResult);
+            void requestNavigation(() =>
+              loadImportedNasbkDataRef.current(startupResult),
+            );
           }
         }).catch((err) => {
           console.error("Failed to load startup NASBK file:", err);
@@ -628,7 +642,7 @@ export function App(): JSX.Element {
       isMounted = false;
       unsubscribeOpenFile();
     };
-  }, []);
+  }, [requestNavigation]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -835,9 +849,11 @@ export function App(): JSX.Element {
   }, [flushSaveBeforeClose]);
 
   const doSelectNote = async (id: number): Promise<void> => {
+    const requestId = selectionRequestRef.current + 1;
+    selectionRequestRef.current = requestId;
     const note = await window.nasNotesbook?.notes.getById(id);
 
-    if (!note) {
+    if (!note || selectionRequestRef.current !== requestId) {
       return;
     }
 
@@ -852,42 +868,48 @@ export function App(): JSX.Element {
     if (id === selectedNote?.id) {
       return;
     }
-    requestNavigation(() => {
-      void doSelectNote(id);
-    });
+    void requestNavigation(() => doSelectNote(id));
   };
 
   const doCreateNote = async (): Promise<void> => {
     const api = window.nasNotesbook;
-    if (!api || !isEditableCategory(activeCategory)) {
+    if (
+      !api ||
+      !isEditableCategory(activeCategory) ||
+      createInProgressRef.current
+    ) {
       return;
     }
 
-    const categoryId =
-      activeCategory === "all-notes" ? null : activeCategoryRecord?.id ?? null;
-    const note = await api.notes.create({ categoryId, isRtl: true });
-    await refreshNotes();
-    setSelectedNote(note);
-    setDraftTitle(note.title);
-    setDraftContent(note.contentMarkdown);
-    draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
-    setSaveStatus("Saved");
+    createInProgressRef.current = true;
+    try {
+      const categoryId =
+        activeCategory === "all-notes" ? null : activeCategoryRecord?.id ?? null;
+      const note = await api.notes.create({ categoryId, isRtl: true });
+      selectionRequestRef.current += 1;
+      await refreshNotes();
+      setSelectedNote(note);
+      setDraftTitle(note.title);
+      setDraftContent(note.contentMarkdown);
+      draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
+      setSaveStatus("Saved");
+    } finally {
+      createInProgressRef.current = false;
+    }
   };
 
   const handleCreateNote = (): void => {
     if (!window.nasNotesbook || !isEditableCategory(activeCategory)) {
       return;
     }
-    requestNavigation(() => {
-      void doCreateNote();
-    });
+    void requestNavigation(doCreateNote);
   };
 
   const handleSelectCategory = (category: CategorySlug): void => {
     if (category === activeCategory) {
       return;
     }
-    requestNavigation(() => setActiveCategory(category));
+    void requestNavigation(() => setActiveCategory(category));
   };
 
   // Manual save / Ctrl+S: flush any pending autosave and persist immediately.
@@ -921,7 +943,7 @@ export function App(): JSX.Element {
     }
   };
 
-  const handleDeleteNoteById = async (id: number): Promise<void> => {
+  const deleteNoteById = async (id: number): Promise<void> => {
     const api = window.nasNotesbook;
     if (!api) {
       return;
@@ -946,7 +968,15 @@ export function App(): JSX.Element {
     }
   };
 
-  const handleRenameNote = async (id: number, title: string): Promise<void> => {
+  const handleDeleteNoteById = async (id: number): Promise<void> => {
+    if (selectedNoteRef.current?.id === id) {
+      await requestNavigation(() => deleteNoteById(id));
+      return;
+    }
+    await deleteNoteById(id);
+  };
+
+  const renameNote = async (id: number, title: string): Promise<void> => {
     const api = window.nasNotesbook;
     if (!api) {
       return;
@@ -980,7 +1010,15 @@ export function App(): JSX.Element {
     }
   };
 
-  const handleMoveNote = async (
+  const handleRenameNote = async (id: number, title: string): Promise<void> => {
+    if (selectedNoteRef.current?.id === id) {
+      await requestNavigation(() => renameNote(id, title));
+      return;
+    }
+    await renameNote(id, title);
+  };
+
+  const moveNote = async (
     id: number,
     categoryId: number | null,
   ): Promise<void> => {
@@ -1029,16 +1067,24 @@ export function App(): JSX.Element {
     }
   };
 
+  const handleMoveNote = async (
+    id: number,
+    categoryId: number | null,
+  ): Promise<void> => {
+    if (selectedNoteRef.current?.id === id) {
+      await requestNavigation(() => moveNote(id, categoryId));
+      return;
+    }
+    await moveNote(id, categoryId);
+  };
+
   // Import a single .md file as a new note in the current category. Conversion
   // and sanitization happen here in the renderer; main only reads the file.
-  const handleImportMarkdown = async (): Promise<void> => {
+  const importMarkdown = async (): Promise<void> => {
     const api = window.nasNotesbook;
     if (!api) {
       return;
     }
-
-    // Persist any pending edits on the open note before changing selection.
-    await flushSave();
 
     const result = await api.markdown.importFile();
     if (!result.ok) {
@@ -1064,11 +1110,16 @@ export function App(): JSX.Element {
       isRtl: true,
     });
     await refreshNotes();
+    selectionRequestRef.current += 1;
     setSelectedNote(note);
     setDraftTitle(note.title);
     setDraftContent(note.contentMarkdown);
     draftTextRef.current = getPlainTextFromHtml(note.contentMarkdown);
     setSaveStatus("Saved");
+  };
+
+  const handleImportMarkdown = async (): Promise<void> => {
+    await requestNavigation(importMarkdown);
   };
 
   const handleSaveNasbk = async (): Promise<void> => {
@@ -1078,6 +1129,9 @@ export function App(): JSX.Element {
       return;
     }
 
+    if (!(await flushSave())) {
+      return;
+    }
     setSaveStatus("Saving");
     const title = draftRef.current.title;
     const content = draftRef.current.content;
@@ -1105,7 +1159,7 @@ export function App(): JSX.Element {
     }
   };
 
-  const handleImportNasbk = async (): Promise<void> => {
+  const importNasbk = async (): Promise<void> => {
     const api = window.nasNotesbook;
     if (!api) {
       return;
@@ -1124,13 +1178,19 @@ export function App(): JSX.Element {
     await loadImportedNasbkData(result);
   };
 
+  const handleImportNasbk = async (): Promise<void> => {
+    await requestNavigation(importNasbk);
+  };
+
   const handleExportNote = async (): Promise<void> => {
     const api = window.nasNotesbook;
     if (!api || !selectedNoteRef.current) {
       return;
     }
 
-    await flushSave();
+    if (!(await flushSave())) {
+      return;
+    }
     const html =
       draftRef.current.content || selectedNoteRef.current.contentMarkdown || "";
     const title =
@@ -1156,7 +1216,9 @@ export function App(): JSX.Element {
       return;
     }
 
-    await flushSave();
+    if (!(await flushSave())) {
+      return;
+    }
     const categoryId = activeCategoryRecord?.id ?? null;
     const list = await loadNotes(api, activeCategory, categoryId);
     if (list.length === 0) {
@@ -1222,33 +1284,44 @@ export function App(): JSX.Element {
   };
 
   const handleDeleteToTrash = async (): Promise<void> => {
-    if (!selectedNote || !window.nasNotesbook) {
+    const note = selectedNoteRef.current;
+    if (!note || !window.nasNotesbook) {
       return;
     }
-
-    await window.nasNotesbook.notes.deleteToTrash(selectedNote.id);
-    await refreshNotes();
-    clearSelectedNote();
+    await handleDeleteNoteById(note.id);
   };
 
   const handleRestore = async (): Promise<void> => {
-    if (!selectedNote || !window.nasNotesbook) {
+    const note = selectedNoteRef.current;
+    if (!note || !window.nasNotesbook) {
       return;
     }
 
-    await window.nasNotesbook.notes.restore(selectedNote.id);
-    await refreshNotes();
-    clearSelectedNote();
+    await window.nasNotesbook.notes.restore(note.id);
+    const nextNotes = await refreshNotes();
+    const next = nextNotes[0];
+    if (next) {
+      await doSelectNote(next.id);
+    } else {
+      clearSelectedNote();
+    }
   };
 
   const performDeletePermanent = async (): Promise<void> => {
-    if (!selectedNote || !window.nasNotesbook) {
+    const note = selectedNoteRef.current;
+    if (!note || !window.nasNotesbook) {
       return;
     }
 
-    await window.nasNotesbook.notes.deletePermanent(selectedNote.id);
-    await refreshNotes();
-    clearSelectedNote();
+    await window.nasNotesbook.notes.deletePermanent(note.id);
+    localStorage.removeItem(`nasbook.nasbk.link.${note.id}`);
+    const nextNotes = await refreshNotes();
+    const next = nextNotes[0];
+    if (next) {
+      await doSelectNote(next.id);
+    } else {
+      clearSelectedNote();
+    }
   };
 
   const handleDeletePermanent = (): void => {
@@ -1501,14 +1574,18 @@ export function App(): JSX.Element {
           action?.();
         }}
       />
-      <SettingsPanel
-        appInfo={appInfo}
-        isOpen={isSettingsOpen}
-        settings={settings}
-        onClose={() => setIsSettingsOpen(false)}
-        onOpenDataFolder={handleOpenDataFolder}
-        onUpdateSettings={handleUpdateSettings}
-      />
+      {isSettingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsPanel
+            appInfo={appInfo}
+            isOpen
+            settings={settings}
+            onClose={() => setIsSettingsOpen(false)}
+            onOpenDataFolder={handleOpenDataFolder}
+            onUpdateSettings={handleUpdateSettings}
+          />
+        </Suspense>
+      )}
       <StatusFooter
         databaseStatus={databaseStatus}
         notesCount={notesCount}

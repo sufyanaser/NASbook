@@ -1473,6 +1473,16 @@ export function NoteEditorArea({
       );
     };
     refreshCollapsibleHeadingsRef.current = refresh;
+    let refreshTimeout: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimeout !== null) {
+        window.clearTimeout(refreshTimeout);
+      }
+      refreshTimeout = window.setTimeout(() => {
+        refreshTimeout = null;
+        refresh();
+      }, 80);
+    };
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element
@@ -1499,11 +1509,14 @@ export function NoteEditorArea({
 
     requestAnimationFrame(refresh);
     root.addEventListener("pointerdown", handlePointerDown, true);
-    editor.on("transaction", refresh);
+    editor.on("transaction", scheduleRefresh);
     return () => {
       refreshCollapsibleHeadingsRef.current = () => undefined;
+      if (refreshTimeout !== null) {
+        window.clearTimeout(refreshTimeout);
+      }
       root.removeEventListener("pointerdown", handlePointerDown, true);
-      editor.off("transaction", refresh);
+      editor.off("transaction", scheduleRefresh);
     };
   }, [editor, selectedNote?.id]);
 

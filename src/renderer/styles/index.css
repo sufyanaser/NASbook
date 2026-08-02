@@ -3673,3 +3673,38 @@ textarea,
 .note-editor-content-wrapper .ProseMirror pre[data-box-color="purple"] { border-color: #7c3aed; background: #8b5cf6; color: #111827; }
 .note-editor-content-wrapper .ProseMirror pre[data-box-color="pink"] { border-color: #db2777; background: #ec4899; color: #111827; }
 .note-editor-content-wrapper .ProseMirror pre[data-box-color] code { color: inherit; }
+
+.app-failure {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--app-bg, #0d0c0b);
+  color: var(--app-text-strong, #f4f1ed);
+}
+
+.app-failure-card {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 32px;
+  border: 1px solid var(--app-border, #34302d);
+  border-radius: 16px;
+  background: var(--app-surface, #191614);
+  text-align: center;
+}
+
+.app-failure-card span {
+  color: var(--app-text-muted, #aaa19a);
+}
+
+.app-failure-card button {
+  min-height: 40px;
+  border: 1px solid var(--app-focus, #7367f0);
+  border-radius: 8px;
+  background: var(--app-accent, #665cf0);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
