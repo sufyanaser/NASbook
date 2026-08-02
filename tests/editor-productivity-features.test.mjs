@@ -23,23 +23,38 @@ test("edit lock is persisted in SQLite and enforced by the data layer", async ()
 
 test("collapsible headings respect divider and heading boundaries", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+  const collapse = await source("src/renderer/extensions/CollapsibleSections.ts");
 
-  assert.match(editor, /sibling\.tagName === "HR"/);
-  assert.match(editor, /siblingLevel <= structuralLevel/);
-  assert.match(editor, /data-nas-collapsed-hidden/);
-  assert.match(editor, /collapsedHeadingKeysRef/);
-  assert.match(editor, /requestAnimationFrame\(\(\) => refreshCollapsibleHeadingsRef\.current\(\)\)/);
+  assert.match(collapse, /candidate\.node\.type\.name === "horizontalRule"/);
+  assert.match(collapse, /candidateLevel <= headingLevel/);
+  assert.match(collapse, /"data-nas-collapsed-hidden": "true"/);
+  assert.match(collapse, /collapsedPositions/);
+  assert.match(collapse, /Decoration\.node/);
+  assert.match(editor, /resetCollapsibleSections\(editor\)/);
   assert.match(editor, /nas-collapse-toggle/);
 });
 
-test("visually formatted paragraphs can become collapsible sections", async () => {
+test("collapsible headings remain stable while the editor is unlocked", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+  const collapse = await source("src/renderer/extensions/CollapsibleSections.ts");
+
+  assert.match(editor, /CollapsibleSections/);
+  assert.doesNotMatch(editor, /dataset\.nasCollapsible\s*=/);
+  assert.match(collapse, /transaction\.mapping\.mapResult\(position, 1\)/);
+  assert.match(collapse, /TextSelection\.near\(view\.state\.doc\.resolve\(position \+ 1\), 1\)/);
+  assert.match(collapse, /event\.stopPropagation\(\)/);
+  assert.match(collapse, /handleDOMEvents/);
+  assert.match(collapse, /window\.requestAnimationFrame\(\(\) => restoreHeadingAnchor/);
+});
+
+test("visually formatted paragraphs can become collapsible sections", async () => {
+  const collapse = await source("src/renderer/extensions/CollapsibleSections.ts");
   const styles = await source("src/renderer/styles/editor-productivity.css");
 
-  assert.match(editor, /nodeName !== "heading" && nodeName !== "paragraph"/);
-  assert.match(editor, /fontSize >= 18/);
-  assert.match(editor, /manualSectionKeysRef\.current\.add\(activeCollapse\.key\)/);
-  assert.match(editor, /closest<HTMLElement>\("\[data-nas-collapsible=\\"true\\"\]"\)/);
+  assert.match(collapse, /largeTextRatio >= 0\.8 && strongTextRatio >= 0\.8/);
+  assert.match(collapse, /manualHeadingPositions/);
+  assert.match(collapse, /manual: node\?\.type\.name === "paragraph"/);
+  assert.match(collapse, /closest<HTMLElement>\("\[data-nas-collapsible=\\"true\\"\]"\)/);
   assert.match(styles, /\[data-nas-collapsible="true"\]\s*\{\s*position: relative;/);
 });
 

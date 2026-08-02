@@ -24,6 +24,12 @@ import { customColumnResizing, normalizeSelectedTableColumnWidths } from "../ext
 import { tableEditing } from "@tiptap/pm/tables";
 import { TextDirection } from "../extensions/TextDirection";
 import { Indent } from "../extensions/Indent";
+import {
+  CollapsibleSections,
+  getActiveCollapsibleSection,
+  resetCollapsibleSections,
+  toggleActiveCollapsibleSection,
+} from "../extensions/CollapsibleSections";
 import { LinkDialog } from "./LinkDialog";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorNoteHeader } from "./EditorNoteHeader";
@@ -1037,8 +1043,6 @@ export function NoteEditorArea({
 }: NoteEditorAreaProps): JSX.Element {
   const hasSelectedNote = selectedNote !== null;
   const isLocked = selectedNote?.isLocked === true;
-  const collapsedHeadingKeysRef = useRef(new Set<string>());
-  const manualSectionKeysRef = useRef(new Set<string>());
   const isSettingContentRef = useRef(false);
   const loadedNoteIdRef = useRef<number | null>(null);
   
@@ -1053,8 +1057,7 @@ export function NoteEditorArea({
   const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isTableCellSelected, setIsTableCellSelected] = useState(false);
   const [selectedDividerVariant, setSelectedDividerVariant] = useState<DividerVariant | null>(null);
-  const [activeCollapse, setActiveCollapse] = useState<{ key: string; collapsed: boolean } | null>(null);
-  const refreshCollapsibleHeadingsRef = useRef<() => void>(() => undefined);
+  const [activeCollapse, setActiveCollapse] = useState<{ position: number; collapsed: boolean } | null>(null);
 
   useEffect(() => {
     setEditorMenuPos(null);
@@ -1187,6 +1190,7 @@ export function NoteEditorArea({
       LineHeight,
       TextDirection,
       Indent,
+      CollapsibleSections,
       CustomTable.configure({ resizable: true, cellMinWidth: 96, lastColumnResizable: false }),
       TableRow,
       TableHeaderWithBg,
@@ -1359,162 +1363,24 @@ export function NoteEditorArea({
   }, [editor, isTrashView, hasSelectedNote, isLocked]);
 
   useEffect(() => {
-    if (!editor) return;
-    const root = editor.view.dom;
-    collapsedHeadingKeysRef.current.clear();
-    manualSectionKeysRef.current.clear();
-
-    const getBlockAtSelection = (): HTMLElement | null => {
-      const { $from } = editor.state.selection;
-      for (let depth = $from.depth; depth > 0; depth -= 1) {
-        const nodeName = $from.node(depth).type.name;
-        if (nodeName !== "heading" && nodeName !== "paragraph") continue;
-        const element = editor.view.nodeDOM($from.before(depth));
-        return element instanceof HTMLElement ? element : null;
-      }
-      return null;
+    if (!editor) {
+      setActiveCollapse(null);
+      return;
+    }
+    const updateActiveCollapse = () => {
+      setActiveCollapse(getActiveCollapsibleSection(editor));
     };
-
-    const refresh = () => {
-      root.querySelectorAll<HTMLElement>("[data-nas-collapsed-hidden=\"true\"]").forEach((element) => {
-        element.removeAttribute("data-nas-collapsed-hidden");
-      });
-
-      const blocks = [...root.children].filter(
-        (element): element is HTMLElement => element instanceof HTMLElement
-      );
-      blocks.forEach((block, index) => {
-        block.removeAttribute("data-nas-collapsible");
-        block.removeAttribute("data-nas-collapsed");
-        if (!/^(?:P|H[1-6])$/u.test(block.tagName)) {
-          block.removeAttribute("data-nas-collapse-key");
-          return;
-        }
-        block.dataset.nasCollapseKey =
-          `${block.tagName}:${index}:${(block.textContent ?? "").trim()}`;
-      });
-
-      const isVisualHeading = (block: HTMLElement): boolean => {
-        if (block.tagName !== "P" || !(block.textContent ?? "").trim()) return false;
-        const styledText = block.querySelector<HTMLElement>("span, strong, b") ?? block;
-        const style = getComputedStyle(styledText);
-        const fontSize = Number.parseFloat(style.fontSize);
-        const fontWeight = Number.parseInt(style.fontWeight, 10);
-        return fontSize >= 18 && (fontWeight >= 600 || style.fontWeight === "bold");
-      };
-
-      const isSectionHeading = (block: HTMLElement): boolean => {
-        const key = block.dataset.nasCollapseKey;
-        return /^H[1-6]$/u.test(block.tagName)
-          || Boolean(key && manualSectionKeysRef.current.has(key))
-          || isVisualHeading(block);
-      };
-
-      const sectionFor = (heading: HTMLElement): HTMLElement[] => {
-        const structuralLevel = /^H[1-6]$/u.test(heading.tagName)
-          ? Number(heading.tagName.slice(1))
-          : null;
-        const section: HTMLElement[] = [];
-        let sibling = heading.nextElementSibling;
-        while (sibling instanceof HTMLElement) {
-          const siblingLevel = /^H[1-6]$/u.test(sibling.tagName)
-            ? Number(sibling.tagName.slice(1))
-            : null;
-          const reachesNextSection = isSectionHeading(sibling)
-            && (structuralLevel === null
-              || siblingLevel === null
-              || siblingLevel <= structuralLevel);
-          if (sibling.tagName === "HR" || reachesNextSection) break;
-          section.push(sibling);
-          sibling = sibling.nextElementSibling;
-        }
-        return section;
-      };
-
-      blocks.filter(isSectionHeading).forEach((heading) => {
-        const key = heading.dataset.nasCollapseKey;
-        if (!key) return;
-        const section = sectionFor(heading);
-        if (section.length === 0) {
-          return;
-        }
-        heading.dataset.nasCollapsible = "true";
-        const collapsed = collapsedHeadingKeysRef.current.has(key);
-        heading.dataset.nasCollapsed = collapsed ? "true" : "false";
-        if (collapsed) {
-          section.forEach((element) => {
-            element.dataset.nasCollapsedHidden = "true";
-          });
-        }
-      });
-
-      const activeHeading = getBlockAtSelection();
-      const activeKey = activeHeading?.dataset.nasCollapseKey;
-      const hasSection = activeHeading ? sectionFor(activeHeading).length > 0 : false;
-      setActiveCollapse(
-        activeKey && hasSection && (activeHeading?.textContent ?? "").trim()
-          ? { key: activeKey, collapsed: collapsedHeadingKeysRef.current.has(activeKey) }
-          : null
-      );
-    };
-    refreshCollapsibleHeadingsRef.current = refresh;
-    let refreshTimeout: number | null = null;
-    const scheduleRefresh = () => {
-      if (refreshTimeout !== null) {
-        window.clearTimeout(refreshTimeout);
-      }
-      refreshTimeout = window.setTimeout(() => {
-        refreshTimeout = null;
-        refresh();
-      }, 80);
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Element
-        ? event.target.closest<HTMLElement>("[data-nas-collapsible=\"true\"]")
-        : null;
-      if (!target || target.dataset.nasCollapsible !== "true") return;
-      const rectangle = target.getBoundingClientRect();
-      const isRtl = getComputedStyle(target).direction === "rtl";
-      const hit = isRtl
-        ? event.clientX >= rectangle.right - 34
-        : event.clientX <= rectangle.left + 34;
-      if (!hit) return;
-
-      event.preventDefault();
-      const key = target.dataset.nasCollapseKey;
-      if (!key) return;
-      if (collapsedHeadingKeysRef.current.has(key)) {
-        collapsedHeadingKeysRef.current.delete(key);
-      } else {
-        collapsedHeadingKeysRef.current.add(key);
-      }
-      refresh();
-    };
-
-    requestAnimationFrame(refresh);
-    root.addEventListener("pointerdown", handlePointerDown, true);
-    editor.on("transaction", scheduleRefresh);
+    updateActiveCollapse();
+    editor.on("selectionUpdate", updateActiveCollapse);
+    editor.on("transaction", updateActiveCollapse);
     return () => {
-      refreshCollapsibleHeadingsRef.current = () => undefined;
-      if (refreshTimeout !== null) {
-        window.clearTimeout(refreshTimeout);
-      }
-      root.removeEventListener("pointerdown", handlePointerDown, true);
-      editor.off("transaction", scheduleRefresh);
+      editor.off("selectionUpdate", updateActiveCollapse);
+      editor.off("transaction", updateActiveCollapse);
     };
   }, [editor, selectedNote?.id]);
 
   const toggleActiveHeadingCollapse = () => {
-    if (!activeCollapse) return;
-    manualSectionKeysRef.current.add(activeCollapse.key);
-    if (collapsedHeadingKeysRef.current.has(activeCollapse.key)) {
-      collapsedHeadingKeysRef.current.delete(activeCollapse.key);
-    } else {
-      collapsedHeadingKeysRef.current.add(activeCollapse.key);
-    }
-    refreshCollapsibleHeadingsRef.current();
-    editor?.commands.focus();
+    if (editor) toggleActiveCollapsibleSection(editor);
   };
 
   useEffect(() => {
@@ -1626,10 +1492,10 @@ export function NoteEditorArea({
           });
 
           isSettingContentRef.current = true;
+          resetCollapsibleSections(editor);
           editor.commands.setContent(targetContent);
           loadedNoteIdRef.current = selectedNote.id;
           isSettingContentRef.current = false;
-          requestAnimationFrame(() => refreshCollapsibleHeadingsRef.current());
 
           nasDebugLog("[TRACE] NoteEditorArea setContent END (has note)", {
             reason: "setContent",
@@ -1652,10 +1518,10 @@ export function NoteEditorArea({
         });
 
         isSettingContentRef.current = true;
+        resetCollapsibleSections(editor);
         editor.commands.setContent("");
         loadedNoteIdRef.current = null;
         isSettingContentRef.current = false;
-        requestAnimationFrame(() => refreshCollapsibleHeadingsRef.current());
 
         nasDebugLog("[TRACE] NoteEditorArea setContent END (no note)", {
           reason: "setContent",
@@ -2438,6 +2304,7 @@ export function NoteEditorArea({
                     : (language === "ar" ? "ضع المؤشر داخل عنوان قابل للطي" : "Place the cursor in a collapsible heading")
                 }
                 disabled={!hasSelectedNote || !activeCollapse}
+                onMouseDown={(event) => event.preventDefault()}
                 onClick={toggleActiveHeadingCollapse}
                 type="button"
               >
