@@ -50,6 +50,21 @@ jobs:
       - name: Apply V05 updates
         run: node scripts/prepare-v05-release.mjs
 
+      - name: Fix generated Node URL import
+        shell: pwsh
+        run: |
+          $path = "tests/code-block-palette.test.mjs"
+          $content = [System.IO.File]::ReadAllText($path)
+          $content = $content.Replace(
+            'import { fileURLToPath } from "node:url";',
+            'import { URL, fileURLToPath } from "node:url";'
+          )
+          [System.IO.File]::WriteAllText(
+            $path,
+            $content,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
       - name: Remove one-shot files
         shell: pwsh
         run: |
