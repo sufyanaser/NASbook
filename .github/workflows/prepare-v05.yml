@@ -1,5 +1,6 @@
 name: Prepare NASbook V05
 
+# Synchronization trigger; the trusted develop workflow applies and validates this release.
 on:
   push:
     branches:
