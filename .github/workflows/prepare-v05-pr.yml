@@ -50,18 +50,77 @@ jobs:
       - name: Apply V05 updates
         run: node scripts/prepare-v05-release.mjs
 
-      - name: Fix generated Node URL import
+      - name: Write stable V05 palette tests
         shell: pwsh
         run: |
-          $path = "tests/code-block-palette.test.mjs"
-          $content = [System.IO.File]::ReadAllText($path)
-          $content = $content.Replace(
-            'import { fileURLToPath } from "node:url";',
-            'import { URL, fileURLToPath } from "node:url";'
-          )
+          $codeBlockTest = @'
+          import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+          import { join } from "node:path";
+          import test from "node:test";
+
+          const root = process.cwd();
+          const source = (relativePath) => readFile(join(root, relativePath), "utf8");
+          const colors = [
+            "light-gray", "light-blue", "light-green", "light-amber", "light-rose",
+            "slate", "red", "orange", "yellow", "lime", "teal", "cyan", "sky",
+            "indigo", "purple", "pink",
+          ];
+
+          test("code block picker exposes sixteen colors plus Default", async () => {
+            const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+            const start = editor.indexOf("function CodeBlockColorPicker");
+            const end = editor.indexOf("interface QuickCopyState", start);
+            const picker = editor.slice(start, end);
+
+            assert.ok(picker.includes('value: "default"'));
+            for (const color of colors) {
+              assert.ok(picker.includes(`value: "${color}"`), `Missing Code Block color: ${color}`);
+            }
+          });
+
+          test("code block colors persist and have readable styles", async () => {
+            const editor = await source("src/renderer/components/NoteEditorArea.tsx");
+            const styles = await source("src/renderer/styles/index.css");
+
+            for (const color of colors) {
+              assert.ok(editor.includes(`"${color}"`), `Missing color enum value: ${color}`);
+              assert.ok(styles.includes(`data-box-color="${color}"`), `Missing color style: ${color}`);
+            }
+
+            assert.ok(styles.includes("grid-template-columns: repeat(4, 1fr)"));
+            assert.ok(styles.includes('pre[data-box-color] code'));
+            assert.ok(styles.includes("color: inherit"));
+          });
+          '@
           [System.IO.File]::WriteAllText(
-            $path,
-            $content,
+            "tests/code-block-palette.test.mjs",
+            $codeBlockTest,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+          $productivityPath = "tests/editor-productivity-features.test.mjs"
+          $productivity = [System.IO.File]::ReadAllText($productivityPath)
+          $old = @'
+            const extraSwatches = editor.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
+
+            assert.equal(extraSwatches.length, 3);
+          '@
+          $new = @'
+            const additionsStart = editor.indexOf("const FILL_SWATCH_ADDITIONS");
+            const additionsEnd = editor.indexOf("] as const;", additionsStart);
+            const additions = editor.slice(additionsStart, additionsEnd);
+            const extraSwatches = additions.match(/name: "(?:Slate|Yellow|Sky)"/g) ?? [];
+
+            assert.equal(extraSwatches.length, 3);
+          '@
+          if (-not $productivity.Contains($old)) {
+            throw "Could not locate the text fill palette assertion."
+          }
+          $productivity = $productivity.Replace($old, $new)
+          [System.IO.File]::WriteAllText(
+            $productivityPath,
+            $productivity,
             [System.Text.UTF8Encoding]::new($false)
           )
 
