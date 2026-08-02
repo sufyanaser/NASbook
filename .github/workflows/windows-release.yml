@@ -75,17 +75,30 @@ jobs:
         shell: pwsh
         run: |
           $label = "${{ steps.release-label.outputs.label }}"
-          $installer = Get-ChildItem -Path release -Filter "NASbook Setup $label.exe" -File -ErrorAction Stop
+          $installer = Get-ChildItem -Path release -Filter "NASbook-Setup-$label.exe" -File -ErrorAction Stop
           if ($installer.Count -ne 1) {
             throw "Expected exactly one NASbook $label installer."
           }
           Write-Host "Installer: $($installer.FullName)"
           Write-Host "Size: $([math]::Round($installer.Length / 1MB, 2)) MB"
 
+          $metadata = Get-ChildItem -Path release -Filter "latest.yml" -File -ErrorAction Stop
+          if ($metadata.Count -ne 1) {
+            throw "Expected exactly one latest.yml update manifest."
+          }
+
+          $blockmap = Get-ChildItem -Path release -Filter "NASbook-Setup-$label.exe.blockmap" -File -ErrorAction Stop
+          if ($blockmap.Count -ne 1) {
+            throw "Expected exactly one NSIS blockmap."
+          }
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: NASbook-Setup-${{ steps.release-label.outputs.label }}-Windows
-          path: release/NASbook Setup ${{ steps.release-label.outputs.label }}.exe
+          path: |
+            release/NASbook-Setup-${{ steps.release-label.outputs.label }}.exe
+            release/NASbook-Setup-${{ steps.release-label.outputs.label }}.exe.blockmap
+            release/latest.yml
           if-no-files-found: error
           retention-days: 30
