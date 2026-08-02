@@ -31,6 +31,22 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Normalize source line endings
+        shell: pwsh
+        run: |
+          $paths = @(
+            "src/renderer/components/NoteEditorArea.tsx",
+            "src/renderer/styles/index.css",
+            "tests/editor-productivity-features.test.mjs",
+            "electron/main/index.ts",
+            "README.md"
+          )
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          foreach ($path in $paths) {
+            $content = [System.IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            [System.IO.File]::WriteAllText($path, $content, $utf8)
+          }
+
       - name: Apply V05 updates
         run: node scripts/prepare-v05-release.mjs
 
