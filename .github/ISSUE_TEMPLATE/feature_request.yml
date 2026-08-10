@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a focused NASbook improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and workflow
+      description: Explain the writing, reference, or local knowledge workflow that is blocked.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data, privacy, and RTL impact
+      description: Describe effects on local storage, backup, credentials, and RTL/LTR behavior.
+    validations:
+      required: true
