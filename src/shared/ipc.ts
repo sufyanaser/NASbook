@@ -4,7 +4,7 @@ import type { AppSettings } from "./settings";
 export interface AppInfo {
   readonly name: string;
   readonly version: string;
-  readonly phase: "v05-foundation-stable";
+  readonly phase: "v08-security-editor";
   readonly databasePath: string;
   readonly dataDirectory: string;
   readonly settingsPath: string;
