@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import TurndownService from "turndown";
+import DOMPurify from "dompurify";
 
 // One shared Turndown instance for HTML -> Markdown conversion.
 const turndown = new TurndownService({
@@ -13,16 +14,17 @@ const turndown = new TurndownService({
 // The content is only ever rendered through Tiptap (ProseMirror parses to its
 // schema, dropping unknown nodes/attributes), so this is a belt-and-braces
 // pass that avoids any innerHTML usage in our own code.
-function stripUnsafeMarkup(html: string): string {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, "");
+export function sanitizeEditorHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["script", "style", "iframe", "object", "embed"],
+    FORBID_ATTR: ["srcdoc"],
+  });
 }
 
 export function markdownToHtml(markdown: string): string {
   const html = marked.parse(markdown ?? "", { gfm: true, async: false }) as string;
-  return stripUnsafeMarkup(html);
+  return sanitizeEditorHtml(html);
 }
 
 export function htmlToMarkdown(html: string): string {

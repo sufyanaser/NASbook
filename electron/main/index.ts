@@ -114,6 +114,22 @@ if (!gotTheLock) {
       return { action: "deny" };
     });
 
+    mainWindow.webContents.on("will-navigate", (event, url) => {
+      const currentUrl = mainWindow?.webContents.getURL();
+      if (url === currentUrl) return;
+
+      event.preventDefault();
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url);
+      } else {
+        console.warn("Blocked an unsafe main-window navigation.");
+      }
+    });
+
+    mainWindow.webContents.on("will-attach-webview", (event) => {
+      event.preventDefault();
+    });
+
     if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
       void mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     } else {
@@ -150,10 +166,20 @@ if (!gotTheLock) {
       void backupService
         .runStartupBackup()
         .then(async (result) => {
-          if (result?.success && settingsStore.getSettings().gmailBackupEnabled) {
-            const gmailResult = await gmailBackupService.sendLatest();
-            if (!gmailResult.ok) {
-              console.error("Automatic Gmail backup failed:", gmailResult.error);
+          if (result?.success) {
+            const settings = settingsStore.getSettings();
+            const uploads: Promise<unknown>[] = [];
+            if (settings.cloudBackupEnabled) {
+              uploads.push(googleDriveBackupService.uploadLatest());
+            }
+            if (settings.gmailBackupEnabled) {
+              uploads.push(gmailBackupService.sendLatest());
+            }
+            const outcomes = await Promise.allSettled(uploads);
+            for (const outcome of outcomes) {
+              if (outcome.status === "rejected") {
+                console.error("Automatic cloud backup failed:", outcome.reason);
+              }
             }
           }
         })
@@ -173,7 +199,7 @@ if (!gotTheLock) {
 
     registerIpcHandlers({
       appName: app.getName(),
-      appVersion: "V07",
+      appVersion: "V08",
       database: notesbookDatabase,
       settingsStore,
       backupService,

@@ -45,6 +45,7 @@ import {
   extractMarkdownTitle,
   htmlToMarkdown,
   markdownToHtml,
+  sanitizeEditorHtml,
   toSafeFilename,
 } from "./markdown";
 
@@ -451,7 +452,7 @@ export function App(): JSX.Element {
     }
 
     const title = result.title;
-    const contentHtml = result.contentHtml;
+    const contentHtml = sanitizeEditorHtml(result.contentHtml);
     const isRtl = result.metadata ? !!result.metadata.isRtl : true;
     const categoryId = isEditableCategory(activeCategoryRef.current)
       ? activeCategoryRef.current === "all-notes"

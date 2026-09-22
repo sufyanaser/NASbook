@@ -34,6 +34,15 @@ const nasDebugLog = (message: string, ...args: unknown[]) => {
 };
 
 const approvedWindowCloses = new WeakSet<BrowserWindow>();
+const approvedNasbkPaths = new Set<string>();
+
+function normalizeNasbkPath(filePath: string): string {
+  const normalized = path.resolve(filePath);
+  if (path.extname(normalized).toLowerCase() !== ".nasbk") {
+    throw new Error("NASBK files must use the .nasbk extension.");
+  }
+  return normalized;
+}
 
 async function readImportFile(filePath: string): Promise<string> {
   const file = await stat(filePath);
@@ -52,22 +61,25 @@ export function isWindowCloseApproved(window: BrowserWindow): boolean {
 
 export async function parseAndValidateNasbk(filePath: string): Promise<NasbkImportResult> {
   try {
-    const contentStr = await readImportFile(filePath);
+    const approvedPath = normalizeNasbkPath(filePath);
+    const contentStr = await readImportFile(approvedPath);
     if (!contentStr || contentStr.trim() === "") {
       throw new Error("File is empty.");
     }
     
     const data = validateNasbkDocument(JSON.parse(contentStr));
 
-    return {
+    const result: NasbkImportResult = {
       ok: true,
-      filePath,
+      filePath: approvedPath,
       title: data.title,
       contentHtml: data.contentHtml,
       contentText: data.contentText,
       metadata: data.metadata,
       formatVersion: data.formatVersion,
     };
+    approvedNasbkPaths.add(approvedPath);
+    return result;
   } catch (error) {
     return {
       ok: false,
@@ -103,7 +115,7 @@ export function registerIpcHandlers({
     return {
       name: appName,
       version: appVersion,
-      phase: "v05-foundation-stable",
+      phase: "v08-security-editor",
       databasePath: database.databasePath,
       dataDirectory,
       settingsPath: settingsStore.settingsPath,
@@ -236,7 +248,10 @@ export function registerIpcHandlers({
       input: NasbkSaveInput,
     ): Promise<NasbkSaveResult> => {
       try {
-        let filePath = input.filePath;
+        let filePath = input.filePath ? normalizeNasbkPath(input.filePath) : undefined;
+        if (filePath && !approvedNasbkPaths.has(filePath)) {
+          throw new Error("The target NASBK file was not approved by the user.");
+        }
         if (!filePath) {
           const result = await dialog.showSaveDialog({
             title: "Save as NASBK",
@@ -247,7 +262,8 @@ export function registerIpcHandlers({
           if (result.canceled || !result.filePath) {
             return { ok: false, canceled: true };
           }
-          filePath = result.filePath;
+          filePath = normalizeNasbkPath(result.filePath);
+          approvedNasbkPaths.add(filePath);
         }
 
         const payload = {
@@ -299,11 +315,12 @@ export function registerIpcHandlers({
 
   ipcMain.handle("backup:create", async () => {
     const result = await backupService.createBackup();
-    if (result.success && settingsStore.getSettings().gmailBackupEnabled) {
-      const gmailResult = await gmailBackupService.sendLatest();
-      if (!gmailResult.ok) {
-        console.error("Automatic Gmail backup failed:", gmailResult.error);
-      }
+    if (result.success) {
+      const settings = settingsStore.getSettings();
+      const uploads: Promise<unknown>[] = [];
+      if (settings.cloudBackupEnabled) uploads.push(googleDriveBackupService.uploadLatest());
+      if (settings.gmailBackupEnabled) uploads.push(gmailBackupService.sendLatest());
+      await Promise.allSettled(uploads);
     }
     return result;
   });

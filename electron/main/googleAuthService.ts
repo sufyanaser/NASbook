@@ -1,6 +1,7 @@
 import { writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { shell, safeStorage } from "electron";
 import type { AddressInfo } from "node:net";
 import { t } from "../../src/shared/i18n";
@@ -171,7 +172,8 @@ export function createGoogleAuthService(
   const exchangeCodeForTokens = async (
     code: string,
     redirectUri: string,
-    creds: Credentials
+    creds: Credentials,
+    codeVerifier: string,
   ): Promise<{ refresh_token: string; access_token: string; expires_in: number }> => {
     const params = new URLSearchParams({
       code,
@@ -179,6 +181,7 @@ export function createGoogleAuthService(
       client_secret: creds.client_secret,
       redirect_uri: redirectUri,
       grant_type: "authorization_code",
+      code_verifier: codeVerifier,
     });
 
     const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -446,6 +449,23 @@ export function createGoogleAuthService(
 
       // Create an ephemeral HTTP callback server
       const server = http.createServer();
+      const oauthState = randomBytes(32).toString("base64url");
+      const codeVerifier = randomBytes(64).toString("base64url");
+      const codeChallenge = createHash("sha256")
+        .update(codeVerifier)
+        .digest("base64url");
+      const timeout = setTimeout(() => {
+        server.close();
+        resolve({
+          configured: true,
+          linked: false,
+          status: "error",
+          email: null,
+          error: "Google sign-in timed out.",
+          message: t("googleSignInFailed", lang),
+        });
+      }, 120_000);
+      timeout.unref();
 
       server.on("request", async (req, res) => {
         const url = new URL(req.url || "", `http://${req.headers.host}`);
@@ -453,6 +473,29 @@ export function createGoogleAuthService(
         if (url.pathname !== "/callback") {
           res.writeHead(404);
           res.end();
+          return;
+        }
+
+        clearTimeout(timeout);
+
+        const receivedState = url.searchParams.get("state") ?? "";
+        const expectedState = Buffer.from(oauthState);
+        const actualState = Buffer.from(receivedState);
+        if (
+          actualState.length !== expectedState.length ||
+          !timingSafeEqual(actualState, expectedState)
+        ) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end("<h1>طلب غير صالح</h1><p>تعذر التحقق من جلسة تسجيل الدخول.</p>");
+          server.close();
+          resolve({
+            configured: true,
+            linked: false,
+            status: "error",
+            email: null,
+            error: "Invalid OAuth state.",
+            message: t("googleSignInFailed", lang),
+          });
           return;
         }
 
@@ -495,7 +538,7 @@ export function createGoogleAuthService(
           const redirectUri = `http://127.0.0.1:${address.port}/callback`;
 
           // Exchange code for tokens
-          const tokens = await exchangeCodeForTokens(code, redirectUri, creds);
+          const tokens = await exchangeCodeForTokens(code, redirectUri, creds, codeVerifier);
           
           // Fetch email
           const email = await fetchUserEmail(tokens.access_token);
@@ -560,11 +603,15 @@ export function createGoogleAuthService(
         oauthUrl.searchParams.set("scope", scopes.join(" "));
         oauthUrl.searchParams.set("access_type", "offline");
         oauthUrl.searchParams.set("prompt", "consent");
+        oauthUrl.searchParams.set("state", oauthState);
+        oauthUrl.searchParams.set("code_challenge", codeChallenge);
+        oauthUrl.searchParams.set("code_challenge_method", "S256");
 
         console.log(`Opening system browser for Google auth callback on port ${port}...`);
         try {
           await shell.openExternal(oauthUrl.toString());
         } catch (err: unknown) {
+          clearTimeout(timeout);
           server.close();
           const errStr = getErrorMessage(err);
           resolve({
@@ -576,6 +623,18 @@ export function createGoogleAuthService(
             message: redactSensitive(`${t("googleSignInFailed", lang)}: ${errStr}`),
           });
         }
+      });
+
+      server.on("error", (err) => {
+        clearTimeout(timeout);
+        resolve({
+          configured: true,
+          linked: false,
+          status: "error",
+          email: null,
+          error: redactSensitive(getErrorMessage(err)),
+          message: t("googleSignInFailed", lang),
+        });
       });
     });
   };
