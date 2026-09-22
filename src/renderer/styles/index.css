@@ -1600,6 +1600,32 @@ body.is-resizing-notes-pane .notes-split-divider {
   flex-shrink: 0;
 }
 
+.toolbar-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  border: 1px solid var(--toolbar-button-border);
+  border-radius: 9px;
+  padding: 2px;
+  background: var(--toolbar-button-bg);
+}
+
+.editor-toolbar .toolbar-stepper > button {
+  width: 28px;
+  min-width: 28px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.toolbar-stepper .custom-dropdown-trigger {
+  min-width: 54px;
+  height: 30px;
+  border: 0 !important;
+}
+
 .note-save-group {
   display: flex;
   align-items: center;
@@ -2367,6 +2393,32 @@ body.is-resizing-notes-pane .notes-split-divider {
   word-break: break-word;
   overflow-wrap: anywhere;
   max-width: 100%;
+}
+
+.note-editor-content-wrapper .ProseMirror pre::before {
+  content: attr(data-language);
+  display: block;
+  margin: -8px 0 10px;
+  color: currentColor;
+  opacity: 0.58;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-wrap="false"] {
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.note-editor-content-wrapper .ProseMirror pre[data-wrap="false"] code {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .note-editor-content-wrapper .ProseMirror pre code {

@@ -16,7 +16,7 @@ declare module "@tiptap/core" {
   }
 }
 
-const LINE_HEIGHT_VALUES = ["1.0", "1.25", "1.5", "1.75", "2.0"] as const;
+const LINE_HEIGHT_VALUES = ["1", "1.0", "1.25", "1.35", "1.5", "1.75", "2", "2.0", "2.5", "3", "3.0"] as const;
 
 export const LineHeight = Extension.create({
   name: "lineHeight",
