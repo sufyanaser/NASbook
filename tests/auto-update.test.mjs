@@ -25,12 +25,12 @@ test("packaged Windows builds check, download, and install updates on safe exit"
   assert.match(mainSource, /disposeUpdateService\(\)/);
 });
 
-test("release configuration publishes GitHub updater metadata with V07", async () => {
+test("release configuration publishes GitHub updater metadata with V08", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const workflowSource = await source(".github/workflows/github-release.yml");
 
-  assert.equal(packageJson.version, "7.0.0");
-  assert.equal(packageJson.releaseLabel, "V07");
+  assert.equal(packageJson.version, "8.0.0");
+  assert.equal(packageJson.releaseLabel, "V08");
   assert.equal(packageJson.build.appId, "com.nasfm.notesbook");
   assert.deepEqual(packageJson.build.publish, [
     {

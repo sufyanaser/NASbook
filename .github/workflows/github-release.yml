@@ -78,6 +78,10 @@ jobs:
         if: steps.release-check.outputs.publish == 'true'
         run: npm ci
 
+      - name: Audit dependencies
+        if: steps.release-check.outputs.publish == 'true'
+        run: npm audit --audit-level=high
+
       - name: Lint
         if: steps.release-check.outputs.publish == 'true'
         run: npm run lint
@@ -125,13 +129,11 @@ jobs:
           @"
           ## NASbook ${{ steps.meta.outputs.label }}
 
-          - Fixes section collapse while a note is unlocked and prevents viewport jumping.
-          - Adds automatic background update checks for installed Windows copies.
-          - Downloads future releases automatically and installs them on a normal safe exit.
-          - Preserves the existing application identity and local notes database.
-
-          V07 is the first update-enabled release. Install V07 once over V06; future
-          releases will then arrive through the application automatically.
+          - Hardens Electron navigation, NASBK file access, OAuth state/PKCE, and HTML imports.
+          - Adds professional text-size and line-spacing controls with accessible +/- steppers.
+          - Adds customizable code-block language, size, direction, wrapping, colors, and quick copy.
+          - Enables configured Google Drive backups after successful local backups.
+          - Updates vulnerable dependencies while preserving the local notes database.
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Publish GitHub Release

@@ -87,7 +87,7 @@ test("renderer avoids the former global observer and deprecated editing commands
 test("fresh installs expose a focused core toolbar while advanced tools remain customizable", async () => {
   const editor = await source("src/renderer/components/NoteEditorArea.tsx");
   assert.match(editor, /fontFamily: false/);
-  assert.match(editor, /codeBlock: false/);
+  assert.match(editor, /codeBlock: true/);
   assert.match(editor, /horizontalRule: false/);
   assert.match(editor, /table: false/);
   assert.match(editor, /bold: true/);
@@ -104,15 +104,15 @@ test("editor note actions cannot inherit the hidden note-card action styles", as
   assert.match(styles, /\.editor-note-actions\s*\{\s*gap: 10px;/);
 });
 
-test("release V07 is consistent across app metadata and Windows installer naming", async () => {
+test("release V08 is consistent across app metadata and Windows installer naming", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const main = await source("electron/main/index.ts");
   const workflow = await source(".github/workflows/windows-release.yml");
 
-  assert.equal(packageJson.version, "7.0.0");
-  assert.equal(packageJson.releaseLabel, "V07");
-  assert.equal(packageJson.build.win.artifactName, "NASbook-Setup-V07.exe");
-  assert.equal(packageJson.build.nsis.artifactName, "NASbook-Setup-V07.${ext}");
-  assert.match(main, /appVersion: "V07"/);
+  assert.equal(packageJson.version, "8.0.0");
+  assert.equal(packageJson.releaseLabel, "V08");
+  assert.equal(packageJson.build.win.artifactName, "NASbook-Setup-V08.exe");
+  assert.equal(packageJson.build.nsis.artifactName, "NASbook-Setup-V08.${ext}");
+  assert.match(main, /appVersion: "V08"/);
   assert.match(workflow, /NASbook-Setup-\$label\.exe/);
 });

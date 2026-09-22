@@ -335,14 +335,14 @@ const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   fontFamily: false,
   fontSize: true,
   heading: true,
-  lineHeight: false,
+  lineHeight: true,
   bold: true,
   italic: true,
   underline: true,
   textColor: false,
   fillColor: false,
   link: true,
-  codeBlock: false,
+  codeBlock: true,
   bullets: true,
   numbered: true,
   alignLeft: true,
@@ -437,6 +437,8 @@ function isCodeBlockBoxColor(value: string | null): value is CodeBlockBoxColor {
 }
 
 const CODE_BLOCK_DIRECTIONS = ["auto", "ltr", "rtl"] as const;
+const CODE_BLOCK_LANGUAGES = ["plain", "javascript", "typescript", "python", "powershell", "json", "html", "css", "sql", "bash"] as const;
+const CODE_BLOCK_FONT_SIZES = ["sm", "md", "lg", "xl"] as const;
 
 type CodeBlockDirection = (typeof CODE_BLOCK_DIRECTIONS)[number];
 
@@ -497,6 +499,31 @@ const CustomCodeBlock = CodeBlock.extend({
         },
         renderHTML: (attributes) => ({
           dir: isCodeBlockDirection(attributes.dir) ? attributes.dir : "auto",
+        }),
+      },
+      language: {
+        default: "plain",
+        parseHTML: (element) => {
+          const value = element.getAttribute("data-language");
+          return CODE_BLOCK_LANGUAGES.includes(value as typeof CODE_BLOCK_LANGUAGES[number]) ? value : "plain";
+        },
+        renderHTML: (attributes) => ({
+          "data-language": CODE_BLOCK_LANGUAGES.includes(attributes.language) ? attributes.language : "plain",
+        }),
+      },
+      wrap: {
+        default: true,
+        parseHTML: (element) => element.getAttribute("data-wrap") !== "false",
+        renderHTML: (attributes) => ({ "data-wrap": attributes.wrap === false ? "false" : "true" }),
+      },
+      fontSize: {
+        default: "md",
+        parseHTML: (element) => {
+          const value = element.getAttribute("data-font-size");
+          return CODE_BLOCK_FONT_SIZES.includes(value as typeof CODE_BLOCK_FONT_SIZES[number]) ? value : "md";
+        },
+        renderHTML: (attributes) => ({
+          "data-font-size": CODE_BLOCK_FONT_SIZES.includes(attributes.fontSize) ? attributes.fontSize : "md",
         }),
       },
     };
@@ -1054,6 +1081,7 @@ export function NoteEditorArea({
   
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [quickCopy, setQuickCopy] = useState<QuickCopyState | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [editorMenuPos, setEditorMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isTableCellSelected, setIsTableCellSelected] = useState(false);
   const [selectedDividerVariant, setSelectedDividerVariant] = useState<DividerVariant | null>(null);
@@ -1565,12 +1593,21 @@ export function NoteEditorArea({
 
   const fontSizes = [
     { value: "Default", label: language === "ar" ? "الافتراضي" : "Default" },
+    { value: "10px", label: "10px" },
+    { value: "12px", label: "12px" },
     { value: "13px", label: "13px" },
     { value: "15px", label: "15px" },
+    { value: "16px", label: "16px" },
     { value: "17px", label: "17px" },
+    { value: "18px", label: "18px" },
     { value: "20px", label: "20px" },
     { value: "24px", label: "24px" },
+    { value: "28px", label: "28px" },
     { value: "32px", label: "32px" },
+    { value: "40px", label: "40px" },
+    { value: "48px", label: "48px" },
+    { value: "64px", label: "64px" },
+    { value: "72px", label: "72px" },
   ];
 
   const headingTypes = [
@@ -1586,9 +1623,12 @@ export function NoteEditorArea({
   const lineHeights = [
     { value: "1.0", label: "1.0" },
     { value: "1.25", label: "1.25" },
+    { value: "1.35", label: "1.35" },
     { value: "1.5", label: "1.5" },
     { value: "1.75", label: "1.75" },
     { value: "2.0", label: "2.0" },
+    { value: "2.5", label: "2.5" },
+    { value: "3.0", label: "3.0" },
   ];
 
   const activeFontFamily = editor
@@ -1630,6 +1670,28 @@ export function NoteEditorArea({
       "1.5"
     : "1.5";
 
+  const stepFontSize = (direction: -1 | 1) => {
+    if (!editor) return;
+    const values = fontSizes.slice(1).map((option) => Number.parseInt(option.value, 10));
+    const current = activeFontSize === "Default"
+      ? 15
+      : Number.parseInt(activeFontSize, 10);
+    const closestIndex = values.reduce((best, value, index) =>
+      Math.abs(value - current) < Math.abs(values[best] - current) ? index : best, 0);
+    const nextIndex = Math.max(0, Math.min(values.length - 1, closestIndex + direction));
+    editor.chain().focus().setFontSize(`${values[nextIndex]}px`).run();
+  };
+
+  const stepLineHeight = (direction: -1 | 1) => {
+    if (!editor) return;
+    const values = lineHeights.map((option) => Number.parseFloat(option.value));
+    const current = Number.parseFloat(activeLineHeight);
+    const closestIndex = values.reduce((best, value, index) =>
+      Math.abs(value - current) < Math.abs(values[best] - current) ? index : best, 0);
+    const nextIndex = Math.max(0, Math.min(values.length - 1, closestIndex + direction));
+    editor.chain().focus().setLineHeight(values[nextIndex].toString()).run();
+  };
+
   const activeTextColor = editor
     ? editor.getAttributes("textStyle").color || null
     : null;
@@ -1663,6 +1725,15 @@ export function NoteEditorArea({
   const activeCodeBlockDir = isCodeBlockDirection(activeCodeBlockDirValue)
     ? activeCodeBlockDirValue
     : "auto";
+  const activeCodeLanguage = editor?.isActive("codeBlock")
+    ? String(editor.getAttributes("codeBlock").language ?? "plain")
+    : "plain";
+  const activeCodeFontSize = editor?.isActive("codeBlock")
+    ? String(editor.getAttributes("codeBlock").fontSize ?? "md")
+    : "md";
+  const activeCodeWrap = editor?.isActive("codeBlock")
+    ? editor.getAttributes("codeBlock").wrap !== false
+    : true;
 
   const insertDivider = (variant: DividerVariant = "thin") => {
     if (!editor || isTrashView || !selectedNote) return;
@@ -1698,6 +1769,16 @@ export function NoteEditorArea({
     { value: "auto", label: language === "ar" ? "تلقائي" : "Auto" },
     { value: "ltr", label: "LTR" },
     { value: "rtl", label: "RTL" },
+  ];
+  const codeBlockLanguageOptions = CODE_BLOCK_LANGUAGES.map((value) => ({
+    value,
+    label: value === "plain" ? (language === "ar" ? "نص" : "Plain") : value,
+  }));
+  const codeBlockFontSizeOptions = [
+    { value: "sm", label: language === "ar" ? "صغير" : "Small" },
+    { value: "md", label: language === "ar" ? "متوسط" : "Medium" },
+    { value: "lg", label: language === "ar" ? "كبير" : "Large" },
+    { value: "xl", label: language === "ar" ? "كبير جداً" : "Extra large" },
   ];
 
   const convertSelectionToSingleCodeBlock = () => {
@@ -2460,21 +2541,22 @@ export function NoteEditorArea({
                     </>
                   )}
                   {visibleTools.fontSize !== false && (
-                    <Dropdown
-                      label={getFontSizeShortLabel(activeFontSize)}
-                      value={activeFontSize}
-                      options={fontSizes}
-                      disabled={!hasSelectedNote || isTrashView}
-                      tooltip={`${t("tooltipFontSize", language)}: ${language === "ar" && activeFontSize === "Default" ? "الافتراضي" : activeFontSize}`}
-                      className="font-size-dropdown"
-                      onChange={(val) => {
-                        if (val === "Default") {
-                          editor.chain().focus().unsetFontSize().run();
-                        } else {
-                          editor.chain().focus().setFontSize(val).run();
-                        }
-                      }}
-                    />
+                    <div className="toolbar-stepper" role="group" aria-label={t("tooltipFontSize", language)}>
+                      <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "تصغير النص" : "Decrease text size"} onMouseDown={(event) => { event.preventDefault(); stepFontSize(-1); }}>−</button>
+                      <Dropdown
+                        label={getFontSizeShortLabel(activeFontSize)}
+                        value={activeFontSize}
+                        options={fontSizes}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${t("tooltipFontSize", language)}: ${language === "ar" && activeFontSize === "Default" ? "الافتراضي" : activeFontSize}`}
+                        className="font-size-dropdown"
+                        onChange={(val) => {
+                          if (val === "Default") editor.chain().focus().unsetFontSize().run();
+                          else editor.chain().focus().setFontSize(val).run();
+                        }}
+                      />
+                      <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "تكبير النص" : "Increase text size"} onMouseDown={(event) => { event.preventDefault(); stepFontSize(1); }}>+</button>
+                    </div>
                   )}
                   {visibleTools.heading !== false && (
                     <Dropdown
@@ -2495,21 +2577,22 @@ export function NoteEditorArea({
                     />
                   )}
                   {visibleTools.lineHeight !== false && (
-                    <Dropdown
-                      label={activeLineHeight}
-                      value={activeLineHeight}
-                      options={lineHeights}
-                      disabled={!hasSelectedNote || isTrashView}
-                      tooltip={`${language === "ar" ? "تباعد الأسطر" : "Line height"}: ${activeLineHeight}`}
-                      className="line-height-dropdown"
-                      onChange={(val) => {
-                        if (val === "1.5") {
-                          editor.chain().focus().unsetLineHeight().run();
-                        } else {
-                          editor.chain().focus().setLineHeight(val).run();
-                        }
-                      }}
-                    />
+                    <div className="toolbar-stepper" role="group" aria-label={language === "ar" ? "تباعد الأسطر" : "Line height"}>
+                      <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "تقليل تباعد الأسطر" : "Decrease line height"} onMouseDown={(event) => { event.preventDefault(); stepLineHeight(-1); }}>−</button>
+                      <Dropdown
+                        label={activeLineHeight}
+                        value={activeLineHeight}
+                        options={lineHeights}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${language === "ar" ? "تباعد الأسطر" : "Line height"}: ${activeLineHeight}`}
+                        className="line-height-dropdown"
+                        onChange={(val) => {
+                          if (val === "1.5") editor.chain().focus().unsetLineHeight().run();
+                          else editor.chain().focus().setLineHeight(val).run();
+                        }}
+                      />
+                      <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "زيادة تباعد الأسطر" : "Increase line height"} onMouseDown={(event) => { event.preventDefault(); stepLineHeight(1); }}>+</button>
+                    </div>
                   )}
                 </div>
               </>
@@ -2672,6 +2755,36 @@ export function NoteEditorArea({
                           chain.updateAttributes("codeBlock", { dir: val }).run();
                         }}
                       />
+                      <Dropdown
+                        label={activeCodeLanguage}
+                        value={activeCodeLanguage}
+                        options={codeBlockLanguageOptions}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "لغة الكود" : "Code language"}
+                        className="code-language-dropdown"
+                        onChange={(val) => editor.chain().focus().setCodeBlock().updateAttributes("codeBlock", { language: val }).run()}
+                      />
+                      <Dropdown
+                        label={activeCodeFontSize.toUpperCase()}
+                        value={activeCodeFontSize}
+                        options={codeBlockFontSizeOptions}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "حجم خط الكود" : "Code font size"}
+                        className="code-font-size-dropdown"
+                        onChange={(val) => editor.chain().focus().setCodeBlock().updateAttributes("codeBlock", { fontSize: val }).run()}
+                      />
+                      <button
+                        type="button"
+                        className="toolbar-icon-button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        data-active={activeCodeWrap ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "التفاف أسطر الكود" : "Wrap code lines"}
+                        aria-label={language === "ar" ? "التفاف أسطر الكود" : "Wrap code lines"}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          editor.chain().focus().setCodeBlock().updateAttributes("codeBlock", { wrap: !activeCodeWrap }).run();
+                        }}
+                      >↩</button>
                     </>
                   )}
                 </div>
@@ -3140,6 +3253,24 @@ export function NoteEditorArea({
           data-locked={isLocked ? "true" : "false"}
           dir={editorDirection}
           onContextMenu={isLocked ? undefined : handleEditorContextMenu}
+          onMouseMove={(event) => {
+            const target = event.target as HTMLElement;
+            const pre = target.closest("pre");
+            if (!pre) {
+              setQuickCopy(null);
+              return;
+            }
+            const rect = pre.getBoundingClientRect();
+            const text = pre.textContent ?? "";
+            setCodeCopied(false);
+            setQuickCopy({ text, left: Math.max(rect.left + 8, rect.right - 72), top: rect.top + 8 });
+          }}
+          onFocusCapture={(event) => {
+            const pre = (event.target as HTMLElement).closest("pre");
+            if (!pre) return;
+            const rect = pre.getBoundingClientRect();
+            setQuickCopy({ text: pre.textContent ?? "", left: Math.max(rect.left + 8, rect.right - 72), top: rect.top + 8 });
+          }}
         >
           <EditorContent editor={editor} />
         </div>
@@ -3157,15 +3288,16 @@ export function NoteEditorArea({
         <button
           className="quick-copy-button"
           onClick={() => {
-            void copyPlainText(quickCopy.text).finally(() => {
-              setQuickCopy(null);
+            void copyPlainText(quickCopy.text).then(() => {
+              setCodeCopied(true);
+              window.setTimeout(() => setCodeCopied(false), 1500);
             });
           }}
           onMouseDown={(event) => event.preventDefault()}
           style={{ left: quickCopy.left, top: quickCopy.top }}
           type="button"
         >
-          {language === "ar" ? "نسخ" : "Copy"}
+          {codeCopied ? (language === "ar" ? "تم" : "Copied") : (language === "ar" ? "نسخ" : "Copy")}
         </button>
       )}
 

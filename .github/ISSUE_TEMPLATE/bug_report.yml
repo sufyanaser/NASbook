@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: NASbook version
-      placeholder: V07 / 7.0.0
+      placeholder: V08 / 8.0.0
     validations:
       required: true
   - type: input

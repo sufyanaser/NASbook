@@ -125,6 +125,7 @@ function copy(language: AppLanguage) {
     unlink: ar ? "إلغاء الربط" : "Unlink",
     driveTitle: "Google Drive",
     driveDesc: ar ? "رفع أحدث نسخة إلى مجلد NASbook Backups." : "Upload the latest copy to the NASbook Backups folder.",
+    driveAutomatic: ar ? "رفع تلقائي بعد النسخ المحلي" : "Upload automatically after local backup",
     uploadDrive: ar ? "رفع أحدث نسخة" : "Upload latest backup",
     gmailTitle: "Gmail Backup",
     gmailDesc: ar ? "إرسال أحدث نسخة كمرفقات إلى نفس حساب Gmail المرتبط." : "Send the latest backup as attachments to the linked Gmail account.",
@@ -807,6 +808,16 @@ export function SettingsPanel({
                 </SettingsCard>
 
                 <SettingsCard title={c.driveTitle} description={c.driveDesc}>
+                  <SettingRow label={c.driveAutomatic}>
+                    <Toggle
+                      checked={settings.cloudBackupEnabled}
+                      disabled={!cloudStatus?.linked}
+                      label={c.driveAutomatic}
+                      onChange={(cloudBackupEnabled) =>
+                        onUpdateSettings({ cloudBackupEnabled })
+                      }
+                    />
+                  </SettingRow>
                   <SettingRow label={c.lastBackup}>
                     <span>{cloudStatus?.lastCloudBackupAt ? new Date(cloudStatus.lastCloudBackupAt).toLocaleString(language === "ar" ? "ar-IQ" : "en-US") : c.noBackup}</span>
                   </SettingRow>

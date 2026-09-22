@@ -1,5 +1,21 @@
 # Changelog
 
+## 8.0.0 - 2026-09-22
+
+### Security and reliability
+
+- Blocked untrusted main-window navigation and embedded webviews.
+- Added OAuth state, PKCE, callback timeout, and server error handling.
+- Restricted NASBK overwrite operations to user-approved paths.
+- Sanitized imported HTML and updated all vulnerable dependencies.
+- Enabled automatic Google Drive backup when configured.
+
+### Editor
+
+- Added accessible `+ / −` controls and expanded presets for text size and line spacing.
+- Added code-block language, font-size, direction, wrapping, color, and upper copy controls.
+- Reduced note-list database and IPC payloads by selecting bounded previews.
+
 ## 0.9.0 - 2026-07-25
 
 ### Fixed

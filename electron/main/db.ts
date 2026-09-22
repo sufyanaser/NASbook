@@ -543,7 +543,7 @@ function createNoteListQuery(
       : "deleted_at IS NULL";
     const rows = database
       .prepare(
-        `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
+        `SELECT id, title, '' AS content_markdown, substr(content_html, 1, 500) AS content_html, category_id, is_rtl, is_locked,
                 created_at, updated_at, deleted_at
          FROM notes
          WHERE ${deletedPredicate}
@@ -561,7 +561,7 @@ function createNoteListQuery(
   if (options.includeTrash) {
     const rows = database
       .prepare(
-        `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
+        `SELECT id, title, '' AS content_markdown, substr(content_html, 1, 500) AS content_html, category_id, is_rtl, is_locked,
                 created_at, updated_at, deleted_at
          FROM notes
          WHERE deleted_at IS NOT NULL
@@ -575,7 +575,7 @@ function createNoteListQuery(
   if (categoryId !== null) {
     const rows = database
       .prepare(
-        `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
+        `SELECT id, title, '' AS content_markdown, substr(content_html, 1, 500) AS content_html, category_id, is_rtl, is_locked,
                 created_at, updated_at, deleted_at
          FROM notes
          WHERE deleted_at IS NULL AND category_id = ?
@@ -588,7 +588,7 @@ function createNoteListQuery(
 
   const rows = database
     .prepare(
-      `SELECT id, title, content_markdown, content_html, category_id, is_rtl, is_locked,
+      `SELECT id, title, '' AS content_markdown, substr(content_html, 1, 500) AS content_html, category_id, is_rtl, is_locked,
               created_at, updated_at, deleted_at
        FROM notes
        WHERE deleted_at IS NULL
