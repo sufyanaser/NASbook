@@ -82,6 +82,7 @@ export interface NotesbookDatabase {
   readonly restoreNote: (id: number) => void;
   readonly deleteNotePermanent: (id: number) => void;
   readonly checkpoint?: () => void;
+  readonly reopen?: () => void;
   readonly close: () => void;
 }
 
@@ -348,7 +349,7 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
   mkdirSync(userDataPath, { recursive: true });
 
   const databasePath = getDatabasePath(userDataPath);
-  const database = new Database(databasePath);
+  let database = new Database(databasePath);
   ensureDatabaseReady(database);
   verifyDatabaseIntegrity(database);
 
@@ -509,6 +510,18 @@ export function createNotesbookDatabase(userDataPath: string): NotesbookDatabase
     },
     checkpoint: () => {
       database.pragma("wal_checkpoint(TRUNCATE)");
+    },
+    reopen: () => {
+      try {
+        database.pragma("wal_checkpoint(TRUNCATE)");
+        database.close();
+      } catch (error) {
+        console.warn("Closing database during reopen:", error);
+      }
+      isClosed = false;
+      database = new Database(databasePath);
+      ensureDatabaseReady(database);
+      verifyDatabaseIntegrity(database);
     },
     close: () => {
       if (isClosed) {

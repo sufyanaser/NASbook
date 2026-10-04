@@ -1,6 +1,6 @@
 # NAS Notesbook 📔
 
-Current release: **V08** (`v8.0.0`)
+Current release: **V09** (`v8.1.0`)
 
 [![Latest release](https://img.shields.io/github/v/release/sufyanaser/NASbook?display_name=tag&sort=semver&label=release&color=2563eb)](https://github.com/sufyanaser/NASbook/releases/latest)
 [![NASbook CI](https://github.com/sufyanaser/NASbook/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/sufyanaser/NASbook/actions/workflows/ci.yml)
@@ -8,7 +8,7 @@ Current release: **V08** (`v8.0.0`)
 ![Local first](https://img.shields.io/badge/data-local--first-16a34a)
 ![RTL first](https://img.shields.io/badge/writing-RTL--first-7c3aed)
 
-**[Download NASbook V08 for Windows](https://github.com/sufyanaser/NASbook/releases/latest)**
+**[Download NASbook V09 for Windows](https://github.com/sufyanaser/NASbook/releases/latest)**
 
 NAS Notesbook is **SUFYAN's personal**, **RTL-first, local-first** desktop notebook for ChatGPT prompts, NAS APP project contexts, PowerShell commands, and development notes. Built on Windows using Electron, Vite, React, and SQLite, it runs fully offline as a fast, lightweight writing and reference tool.
 
@@ -69,11 +69,11 @@ v1 is intentionally minimal and personal—not a generic note app for IT admins 
 ## Install on Windows
 
 1. Open the [latest GitHub Release](https://github.com/sufyanaser/NASbook/releases/latest).
-2. Download `NASbook-Setup-V08.exe`.
+2. Download `NASbook-Setup-V09.exe`.
 3. Close any older NASbook process and run the installer.
 4. Launch NASbook and confirm that your existing notes are present.
 
-V07 and later builds update automatically. V08 preserves the existing local notes database and editor content, but keeping an independent backup remains recommended.
+V08 and later builds update automatically. V09 preserves the existing local notes database and editor content, but keeping an independent backup remains recommended.
 
 Windows builds are currently unsigned and may show a reputation warning. Install only assets downloaded from this repository's Releases page.
 

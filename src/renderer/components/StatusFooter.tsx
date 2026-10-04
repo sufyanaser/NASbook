@@ -22,21 +22,38 @@ export function StatusFooter({
   appName,
   appVersion,
 }: StatusFooterProps): JSX.Element {
+  const isArabic = language === "ar";
   const translatedSaveStatus = (() => {
     const s = saveStatus.toLowerCase();
-    if (s === "saved" || s === "idle") return t("saved", language);
+    if (s === "saved" || s === "idle") return isArabic ? "حفظ تلقائي" : "Autosaved";
     if (s === "unsaved") return t("unsavedChanges", language);
     if (s === "saving") return t("saving", language);
     if (s === "error") return t("saveError", language);
     return saveStatus;
   })();
 
+  const directionDisplay = (() => {
+    const dir = (editorDirection || "auto").toLowerCase();
+    if (dir === "auto") return isArabic ? "اتجاه تلقائي" : "Auto Direction";
+    if (dir === "rtl") return isArabic ? "يمين ← يسار" : "RTL";
+    return isArabic ? "يسار → يمين" : "LTR";
+  })();
+
+  const dbTooltip =
+    databaseStatus === "ready"
+      ? (isArabic ? "قاعدة البيانات متصلة وجاهزة" : "Database connected and ready")
+      : (isArabic ? "قاعدة البيانات غير متاحة" : "Database unavailable");
+
   return (
     <footer className="status-footer" data-focus-mode={isFocusMode ? "true" : "false"}>
       <div className="status-footer-left">
-        <span className="status-item status-db" data-status={databaseStatus}>
+        <span
+          className="status-item status-db"
+          data-status={databaseStatus}
+          title={dbTooltip}
+        >
           <span className="status-dot" />
-          {databaseStatus === "ready" ? t("settingsDataReady", language) : t("settingsDataUnavailable", language)}
+          {databaseStatus === "ready" ? (isArabic ? "متصل" : "Connected") : (isArabic ? "غير متصل" : "Offline")}
         </span>
         {!isFocusMode && (
           <span className="status-item">
@@ -45,11 +62,18 @@ export function StatusFooter({
         )}
       </div>
       <div className="status-footer-right">
-        <span className="status-item status-save" data-status={saveStatus.toLowerCase()}>
+        <span
+          className="status-item status-save"
+          data-status={saveStatus.toLowerCase()}
+          title={isArabic ? "حالة الحفظ في الوقت الفعلي" : "Real-time save status"}
+        >
           {translatedSaveStatus}
         </span>
-        <span className="status-item status-dir">
-          {editorDirection ? editorDirection.toUpperCase() : "LTR"}
+        <span
+          className="status-item status-dir"
+          title={isArabic ? "اتجاه النص في المحرر" : "Editor text direction"}
+        >
+          {directionDisplay}
         </span>
         {appVersion && (
           <span className="status-item status-app-version">

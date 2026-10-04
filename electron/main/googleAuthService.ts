@@ -13,6 +13,8 @@ export interface GoogleAuthService {
   link: () => Promise<GoogleAuthState>;
   unlink: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
+  importCredentialsFromFile: (sourceFilePath: string) => Promise<{ success: boolean; error?: string }>;
+  saveCredentials: (clientId: string, clientSecret: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 interface Credentials {
@@ -93,6 +95,43 @@ export function createGoogleAuthService(
     return safeStorage.decryptString(Buffer.from(encrypted, "hex"));
   };
 
+  const extractCredentialsFromJson = (raw: string): Credentials | null => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+
+      // Google Cloud Console desktop client download format: { "installed": { "client_id": "...", "client_secret": "..." } }
+      if (parsed.installed && typeof parsed.installed === "object") {
+        const creds = {
+          client_id: String(parsed.installed.client_id || ""),
+          client_secret: String(parsed.installed.client_secret || ""),
+        };
+        if (isValidCredentials(creds)) return creds;
+      }
+
+      // Google Cloud Console web client download format: { "web": { "client_id": "...", "client_secret": "..." } }
+      if (parsed.web && typeof parsed.web === "object") {
+        const creds = {
+          client_id: String(parsed.web.client_id || ""),
+          client_secret: String(parsed.web.client_secret || ""),
+        };
+        if (isValidCredentials(creds)) return creds;
+      }
+
+      // Direct template format: { "client_id": "...", "client_secret": "..." }
+      if (parsed.client_id && parsed.client_secret) {
+        const creds = {
+          client_id: String(parsed.client_id || ""),
+          client_secret: String(parsed.client_secret || ""),
+        };
+        if (isValidCredentials(creds)) return creds;
+      }
+    } catch (err) {
+      console.error("Failed to parse google-credentials JSON:", err);
+    }
+    return null;
+  };
+
   // Load client credentials safely
   const loadCredentials = (): Credentials | null => {
     // 1. Check environment variables
@@ -106,22 +145,30 @@ export function createGoogleAuthService(
       }
     }
 
-    // 2. Check local credentials file in root directory
+    // 2. Check userData directory (AppData/Roaming/nas-notesbook/google-credentials.json)
+    const userDataCredentialsPath = path.join(userDataPath, "google-credentials.json");
+    if (existsSync(userDataCredentialsPath)) {
+      try {
+        const raw = readFileSync(userDataCredentialsPath, "utf8");
+        const creds = extractCredentialsFromJson(raw);
+        if (creds) {
+          return creds;
+        }
+      } catch (err) {
+        console.error("Failed to parse userData google-credentials.json:", err);
+      }
+    }
+
+    // 3. Check local credentials file in root directory
     if (existsSync(localCredentialsPath)) {
       try {
         const raw = readFileSync(localCredentialsPath, "utf8");
-        const parsed = JSON.parse(raw);
-        if (parsed.client_id && parsed.client_secret) {
-          const creds = {
-            client_id: parsed.client_id,
-            client_secret: parsed.client_secret,
-          };
-          if (isValidCredentials(creds)) {
-            return creds;
-          }
+        const creds = extractCredentialsFromJson(raw);
+        if (creds) {
+          return creds;
         }
       } catch (err) {
-        console.error("Failed to parse google-credentials.json:", err);
+        console.error("Failed to parse local google-credentials.json:", err);
       }
     }
 
@@ -639,10 +686,62 @@ export function createGoogleAuthService(
     });
   };
 
+  const importCredentialsFromFile = async (sourceFilePath: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (!existsSync(sourceFilePath)) {
+        return { success: false, error: "الملف غير موجود." };
+      }
+      const raw = readFileSync(sourceFilePath, "utf8");
+      const creds = extractCredentialsFromJson(raw);
+      if (!creds) {
+        return { success: false, error: "الملف المحدد لا يحتوي على Client ID أو Client Secret صالحين من Google." };
+      }
+      const targetPath = path.join(userDataPath, "google-credentials.json");
+      writeFileSync(targetPath, JSON.stringify(creds, null, 2), "utf8");
+      const lang = settingsStore.getSettings().language;
+      authState = {
+        configured: true,
+        linked: false,
+        status: "unlinked",
+        email: null,
+        error: null,
+        message: t("googleStatusNotLinked", lang),
+      };
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  };
+
+  const saveCredentials = async (clientId: string, clientSecret: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const creds = { client_id: clientId.trim(), client_secret: clientSecret.trim() };
+      if (!isValidCredentials(creds)) {
+        return { success: false, error: "بيانات الاعتماد غير صالحة." };
+      }
+      const targetPath = path.join(userDataPath, "google-credentials.json");
+      writeFileSync(targetPath, JSON.stringify(creds, null, 2), "utf8");
+      const lang = settingsStore.getSettings().language;
+      authState = {
+        configured: true,
+        linked: false,
+        status: "unlinked",
+        email: null,
+        error: null,
+        message: t("googleStatusNotLinked", lang),
+      };
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  };
+
   return {
     getStatus,
     link,
     unlink,
     getAccessToken,
+    importCredentialsFromFile,
+    saveCredentials,
   };
 }

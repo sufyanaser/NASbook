@@ -35,6 +35,7 @@ import {
   type ContextMenuState,
 } from "./components/AppContextMenu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { CommandPalette } from "./components/CommandPalette";
 import { OperationErrorDialog } from "./components/OperationErrorDialog";
 import { TitleBar } from "./components/TitleBar";
 import { useNotesSearch } from "./hooks/useNotesSearch";
@@ -111,6 +112,7 @@ export function App(): JSX.Element {
   const [settings, setSettings] =
     useState<AppSettings>(defaultAppSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [isPermanentDeleteDialogOpen, setIsPermanentDeleteDialogOpen] =
     useState(false);
@@ -634,6 +636,14 @@ export function App(): JSX.Element {
         return shortcut.includes("Ctrl") || shortcut.includes("Alt") || shortcut.includes("Shift");
       };
 
+      // 0. Command Palette (Ctrl+K / Cmd+K)
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
       // 1. Save Note
       if (
         eventMatchesShortcut(event, settings.shortcuts.saveNote) &&
@@ -845,7 +855,9 @@ export function App(): JSX.Element {
     try {
       const categoryId =
         activeCategory === "all-notes" ? null : activeCategoryRecord?.id ?? null;
-      const note = await api.notes.create({ categoryId, isRtl: true });
+      const defaultTitle =
+        settings.language === "ar" ? "ملاحظة بدون عنوان" : "Untitled note";
+      const note = await api.notes.create({ title: defaultTitle, categoryId, isRtl: true });
       selectionRequestRef.current += 1;
       await refreshNotes();
       setSelectedNote(note);
@@ -1596,6 +1608,29 @@ export function App(): JSX.Element {
           />
         </Suspense>
       )}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        notes={notes}
+        categories={categories}
+        language={settings.language}
+        hasSelectedNote={selectedNote !== null && activeCategory !== "trash"}
+        onSelectNote={(noteId) => {
+          void requestNavigation(async () => {
+            await operationErrors.execute("open note", () => doSelectNote(noteId));
+          });
+        }}
+        onCreateNote={handleCreateNote}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggleTheme={() => {
+          const nextTheme = getToggledLightDarkTheme(settings.theme);
+          void handleUpdateSettings({ theme: nextTheme });
+        }}
+        onSelectCategory={handleSelectCategory}
+        onSaveNote={() => {
+          void handleSaveNote();
+        }}
+      />
       <StatusFooter
         databaseStatus={databaseStatus}
         notesCount={notesCount}

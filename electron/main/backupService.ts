@@ -1,8 +1,8 @@
-import { copyFile, mkdir, readdir, rm, writeFile, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { copyFile, mkdir, readdir, rm, writeFile, readFile, stat, open } from "node:fs/promises";
+import { existsSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { shell } from "electron";
-import type { BackupStatus, BackupResult } from "../../src/shared/ipc";
+import { shell, dialog } from "electron";
+import type { BackupStatus, BackupResult, BackupFileEntry, RestoreResult } from "../../src/shared/ipc";
 import type { SettingsStore } from "./settingsStore";
 
 export function getLocalDateString(date: Date): { dateStr: string; timeStr: string } {
@@ -61,6 +61,9 @@ export interface BackupService {
   createBackup: () => Promise<BackupResult>;
   openFolder: () => Promise<void>;
   runStartupBackup: () => Promise<BackupResult | null>;
+  listBackups: () => Promise<BackupFileEntry[]>;
+  restoreBackup: (backupFilePath: string) => Promise<RestoreResult>;
+  chooseBackupFile: () => Promise<{ ok: boolean; path?: string; canceled?: boolean; error?: string }>;
 }
 
 export function createBackupService(
@@ -68,6 +71,7 @@ export function createBackupService(
   databasePath: string,
   settingsStore: SettingsStore,
   checkpointDatabase?: () => void,
+  onDatabaseRestored?: () => void,
 ): BackupService {
   let lastError: string | null = null;
 
@@ -251,11 +255,163 @@ export function createBackupService(
     return createBackup();
   };
 
+  const listBackups = async (): Promise<BackupFileEntry[]> => {
+    const backupsFolder = getBackupsFolder();
+    if (!existsSync(backupsFolder)) {
+      return [];
+    }
+    try {
+      const files = await readdir(backupsFolder);
+      const dbPattern = /^nas-notesbook-backup-(\d{4}-\d{2}-\d{2}-\d{6})\.db$/;
+      const entries: BackupFileEntry[] = [];
+
+      for (const file of files) {
+        const match = dbPattern.exec(file);
+        if (match) {
+          const timestamp = match[1];
+          const filePath = path.join(backupsFolder, file);
+          try {
+            const fileStat = await stat(filePath);
+            const names = getBackupFilenames(timestamp);
+            const metaPath = path.join(backupsFolder, names.metaFile);
+            let formattedDate = timestamp;
+
+            if (existsSync(metaPath)) {
+              try {
+                const metaContent = await readFile(metaPath, "utf8");
+                const parsed = JSON.parse(metaContent);
+                if (typeof parsed.localTime === "string") {
+                  formattedDate = parsed.localTime;
+                } else if (typeof parsed.timestamp === "string") {
+                  formattedDate = new Date(parsed.timestamp).toLocaleString();
+                }
+              } catch {
+                // Ignore parse errors, fallback to regex
+              }
+            } else {
+              const timeParts = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(timestamp);
+              if (timeParts) {
+                const [, y, m, d, hh, mm, ss] = timeParts;
+                formattedDate = `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+              }
+            }
+
+            entries.push({
+              filename: file,
+              timestamp,
+              formattedDate,
+              sizeBytes: fileStat.size,
+              filePath,
+            });
+          } catch (e) {
+            console.warn("Failed to stat backup file:", file, e);
+          }
+        }
+      }
+
+      entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+      return entries;
+    } catch (error) {
+      console.error("Failed to list backups:", error);
+      return [];
+    }
+  };
+
+  const restoreBackup = async (backupFilePath: string): Promise<RestoreResult> => {
+    try {
+      if (!existsSync(backupFilePath)) {
+        return { success: false, error: "ملف النسخة الاحتياطية غير موجود." };
+      }
+
+      // Check SQLite 3 magic header
+      const fileHandle = await open(backupFilePath, "r");
+      const headerBuf = Buffer.alloc(16);
+      await fileHandle.read(headerBuf, 0, 16, 0);
+      await fileHandle.close();
+
+      if (!headerBuf.toString("utf8").startsWith("SQLite format 3")) {
+        return { success: false, error: "الملف المحدد ليس قاعدة بيانات SQLite صالحة." };
+      }
+
+      // 1. Checkpoint current DB
+      checkpointDatabase?.();
+
+      // 2. Safety copy of current database before restoring
+      const snapshotDir = path.join(userDataPath, "database-backups");
+      await mkdir(snapshotDir, { recursive: true });
+      const safetySnapshotPath = path.join(
+        snapshotDir,
+        `pre-restore-${Date.now()}.db`
+      );
+      if (existsSync(databasePath)) {
+        try {
+          await copyFile(databasePath, safetySnapshotPath);
+        } catch (copyErr) {
+          console.warn("Failed to create pre-restore snapshot:", copyErr);
+        }
+      }
+
+      // 3. Remove WAL and SHM journal files
+      const walPath = `${databasePath}-wal`;
+      const shmPath = `${databasePath}-shm`;
+      if (existsSync(walPath)) {
+        try {
+          unlinkSync(walPath);
+        } catch (unlinkErr) {
+          console.warn("Could not delete WAL journal:", unlinkErr);
+        }
+      }
+      if (existsSync(shmPath)) {
+        try {
+          unlinkSync(shmPath);
+        } catch (unlinkErr) {
+          console.warn("Could not delete SHM journal:", unlinkErr);
+        }
+      }
+
+      // 4. Overwrite databasePath with restored file
+      await copyFile(backupFilePath, databasePath);
+
+      // 5. Notify database to reopen
+      onDatabaseRestored?.();
+
+      return {
+        success: true,
+        restoredFrom: path.basename(backupFilePath),
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { success: false, error: message };
+    }
+  };
+
+  const chooseBackupFile = async (): Promise<{ ok: boolean; path?: string; canceled?: boolean; error?: string }> => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: "اختر ملف النسخة الاحتياطية",
+        filters: [
+          { name: "SQLite Database (*.db)", extensions: ["db", "sqlite", "sqlite3"] },
+          { name: "All Files (*.*)", extensions: ["*"] },
+        ],
+        properties: ["openFile"],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { ok: false, canceled: true };
+      }
+      return { ok: true, path: result.filePaths[0] };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  };
+
   return {
     getStatus,
     getBackupsFolder,
     createBackup,
     openFolder,
     runStartupBackup,
+    listBackups,
+    restoreBackup,
+    chooseBackupFile,
   };
 }

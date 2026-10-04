@@ -1,4 +1,4 @@
-import { ipcMain, shell, dialog, BrowserWindow } from "electron";
+import { ipcMain, shell, dialog, BrowserWindow, app } from "electron";
 import path from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import type {
@@ -14,6 +14,7 @@ import type {
   NasbkSaveResult,
   NasbkImportResult,
   BackupLocationResult,
+  CredentialsInput,
 } from "../../src/shared/ipc";
 import type { AppSettings } from "../../src/shared/settings";
 import type { NotesbookDatabase } from "./db";
@@ -22,6 +23,7 @@ import type { BackupService } from "./backupService";
 import type { GoogleAuthService } from "./googleAuthService";
 import { GoogleDriveBackupService } from "./googleDriveBackupService";
 import type { GmailBackupService } from "./gmailBackupService";
+import { getUpdateStatus, checkForUpdatesManual } from "./updateService";
 import {
   MAX_IMPORT_FILE_BYTES,
   validateNasbkDocument,
@@ -365,6 +367,18 @@ export function registerIpcHandlers({
     }
   });
 
+  ipcMain.handle("backup:list", async () => {
+    return backupService.listBackups();
+  });
+
+  ipcMain.handle("backup:restore", async (_event, backupFilePath: string) => {
+    return backupService.restoreBackup(backupFilePath);
+  });
+
+  ipcMain.handle("backup:chooseFileToRestore", async () => {
+    return backupService.chooseBackupFile();
+  });
+
   ipcMain.handle("googleAuth:link", async () => {
     return googleAuthService.link();
   });
@@ -377,6 +391,29 @@ export function registerIpcHandlers({
     return googleAuthService.getStatus();
   });
 
+  ipcMain.handle("googleAuth:importCredentials", async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: "اختر ملف google-credentials.json أو client_secret_*.json",
+        filters: [
+          { name: "Google Credentials JSON", extensions: ["json"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+        properties: ["openFile"],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+      return await googleAuthService.importCredentialsFromFile(result.filePaths[0]);
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle("googleAuth:saveCredentials", async (_event, creds: CredentialsInput) => {
+    return googleAuthService.saveCredentials(creds.clientId, creds.clientSecret);
+  });
+
   ipcMain.handle("cloudBackup:getStatus", async () => {
     return googleDriveBackupService.getStatus();
   });
@@ -385,12 +422,32 @@ export function registerIpcHandlers({
     return googleDriveBackupService.uploadLatest();
   });
 
+  ipcMain.handle("cloudBackup:list", async () => {
+    return googleDriveBackupService.listCloudBackups();
+  });
+
+  ipcMain.handle("cloudBackup:restore", async (_event, fileId: string) => {
+    return googleDriveBackupService.restoreCloudBackup(fileId);
+  });
+
   ipcMain.handle("gmailBackup:getStatus", async () => {
     return gmailBackupService.getStatus();
   });
 
   ipcMain.handle("gmailBackup:sendLatest", async () => {
     return gmailBackupService.sendLatest();
+  });
+
+  ipcMain.handle("updater:getStatus", () => {
+    return getUpdateStatus();
+  });
+
+  ipcMain.handle("updater:checkForUpdates", async () => {
+    return checkForUpdatesManual();
+  });
+
+  ipcMain.handle("updater:quitAndInstall", () => {
+    app.quit();
   });
 
   ipcMain.handle("window:minimize", (event): void => {

@@ -101,6 +101,39 @@ export interface BackupLocationResult {
   readonly error?: string;
 }
 
+export interface BackupFileEntry {
+  readonly filename: string;
+  readonly timestamp: string;
+  readonly formattedDate: string;
+  readonly sizeBytes: number;
+  readonly filePath: string;
+}
+
+export interface RestoreResult {
+  readonly success: boolean;
+  readonly error?: string;
+  readonly restoredFrom?: string;
+}
+
+export interface CloudBackupEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly size: string;
+  readonly modifiedTime: string;
+}
+
+export interface CredentialsInput {
+  readonly clientId: string;
+  readonly clientSecret: string;
+}
+
+export interface UpdateStatusInfo {
+  readonly status: "idle" | "checking" | "available" | "not-available" | "downloaded" | "error";
+  readonly currentVersion: string;
+  readonly availableVersion?: string;
+  readonly error?: string;
+}
+
 export type GoogleAuthStatus =
   | "not_configured"
   | "unlinked"
@@ -213,19 +246,31 @@ export interface NasNotesbookApi {
     readonly openFolder: () => Promise<void>;
     readonly chooseFolder: () => Promise<BackupLocationResult>;
     readonly resetFolder: () => Promise<BackupLocationResult>;
+    readonly listBackups: () => Promise<readonly BackupFileEntry[]>;
+    readonly restoreBackup: (backupFilePath: string) => Promise<RestoreResult>;
+    readonly chooseBackupFile: () => Promise<{ ok: boolean; path?: string; canceled?: boolean; error?: string }>;
   };
   readonly googleAuth: {
     readonly link: () => Promise<GoogleAuthState>;
     readonly unlink: () => Promise<void>;
     readonly getStatus: () => Promise<GoogleAuthState>;
+    readonly importCredentials: () => Promise<{ success: boolean; error?: string; canceled?: boolean }>;
+    readonly saveCredentials: (creds: CredentialsInput) => Promise<{ success: boolean; error?: string }>;
   };
   readonly cloudBackup: {
     readonly getStatus: () => Promise<CloudBackupInfo>;
     readonly uploadLatest: () => Promise<CloudBackupUploadResult>;
+    readonly listCloudBackups: () => Promise<readonly CloudBackupEntry[]>;
+    readonly restoreCloudBackup: (fileId: string) => Promise<RestoreResult>;
   };
   readonly gmailBackup: {
     readonly getStatus: () => Promise<GmailBackupInfo>;
     readonly sendLatest: () => Promise<GmailBackupSendResult>;
+  };
+  readonly updater: {
+    readonly getStatus: () => Promise<UpdateStatusInfo>;
+    readonly checkForUpdates: () => Promise<UpdateStatusInfo>;
+    readonly quitAndInstall: () => Promise<void>;
   };
   readonly nasbk: {
     readonly saveFile: (input: NasbkSaveInput) => Promise<NasbkSaveResult>;

@@ -218,11 +218,16 @@ export function NavigationRail({
   }, [isThemeOpen]);
 
 
-  const primaryCategories = categories.filter(
-    (category) => category.placement === "primary",
+  const notesCategories = categories.filter((c) => c.slug === "all-notes");
+  const spacesCategories = categories.filter((c) =>
+    ["powershell-commands", "nas-projects", "prompts", "chatgpt-instructions"].includes(c.slug),
   );
-  const secondaryCategories = categories.filter(
-    (category) => category.placement === "secondary",
+  const collectionsCategories = categories.filter((c) =>
+    ["development-notes", "errors-fixes", "templates"].includes(c.slug) ||
+    (!["all-notes", "powershell-commands", "nas-projects", "prompts", "chatgpt-instructions", "archive", "trash"].includes(c.slug) && c.placement === "primary"),
+  );
+  const systemCategories = categories.filter((c) =>
+    c.placement === "secondary" || ["archive", "trash"].includes(c.slug),
   );
 
   const renderCategoryButton = (
@@ -308,12 +313,51 @@ export function NavigationRail({
         )}
       </div>
 
-      <nav className="rail-section" aria-label={language === "ar" ? "التصنيفات الأساسية" : "Primary categories"}>
-        {primaryCategories.map((category) => renderCategoryButton(category, true))}
+      <nav className="rail-section" aria-label={language === "ar" ? "الملاحظات والمساحات" : "Notes & Spaces"}>
+        {notesCategories.length > 0 && (
+          <div className="rail-category-group">
+            {expanded && (
+              <div className="rail-group-header">
+                {language === "ar" ? "الملاحظات" : "Notes"}
+              </div>
+            )}
+            {notesCategories.map((category) => renderCategoryButton(category, true))}
+          </div>
+        )}
+
+        {spacesCategories.length > 0 && (
+          <div className="rail-category-group">
+            {!expanded && <div className="rail-group-divider" />}
+            {expanded && (
+              <div className="rail-group-header">
+                {language === "ar" ? "المساحات" : "Spaces"}
+              </div>
+            )}
+            {spacesCategories.map((category) => renderCategoryButton(category, true))}
+          </div>
+        )}
+
+        {collectionsCategories.length > 0 && (
+          <div className="rail-category-group">
+            {!expanded && <div className="rail-group-divider" />}
+            {expanded && (
+              <div className="rail-group-header">
+                {language === "ar" ? "المجموعات" : "Collections"}
+              </div>
+            )}
+            {collectionsCategories.map((category) => renderCategoryButton(category, true))}
+          </div>
+        )}
       </nav>
 
       <nav className="rail-section rail-section-bottom" aria-label={language === "ar" ? "النظام" : "System"}>
-        {secondaryCategories.map((category) => renderCategoryButton(category, false))}
+        {!expanded && <div className="rail-group-divider" />}
+        {expanded && (
+          <div className="rail-group-header">
+            {language === "ar" ? "النظام" : "System"}
+          </div>
+        )}
+        {systemCategories.map((category) => renderCategoryButton(category, false))}
         <div className="rail-theme-control">
           <button
             ref={themeMenuRef}

@@ -1,15 +1,18 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { redactSensitive, isRecord, getErrorMessage } from "./googleAuthService";
 import type { AppLanguage } from "../../src/shared/settings";
 import type { GoogleAuthService } from "./googleAuthService";
 import type { SettingsStore } from "./settingsStore";
-import type { CloudBackupInfo, CloudBackupUploadResult } from "../../src/shared/ipc";
+import type { BackupService } from "./backupService";
+import type { CloudBackupInfo, CloudBackupUploadResult, CloudBackupEntry, RestoreResult } from "../../src/shared/ipc";
 import { t } from "../../src/shared/i18n";
 
 export interface GoogleDriveBackupService {
   getStatus: () => Promise<CloudBackupInfo>;
   uploadLatest: () => Promise<CloudBackupUploadResult>;
+  listCloudBackups: () => Promise<CloudBackupEntry[]>;
+  restoreCloudBackup: (fileId: string) => Promise<RestoreResult>;
 }
 
 // Pure utility helper to find files in the latest backup group
@@ -224,11 +227,17 @@ export function getLocalizedUploadError(errStr: string, lang: AppLanguage): stri
 }
 
 export function createGoogleDriveBackupService(
-  userDataPath: string,
+  userDataPathOrBackupService: string | BackupService,
   googleAuthService: GoogleAuthService,
   settingsStore: SettingsStore
 ): GoogleDriveBackupService {
-  const backupsFolder = path.join(userDataPath, "backups");
+  const getBackupsFolder = (): string => {
+    if (typeof userDataPathOrBackupService === "object" && "getBackupsFolder" in userDataPathOrBackupService) {
+      return userDataPathOrBackupService.getBackupsFolder();
+    }
+    const configured = settingsStore.getSettings().backupDirectory;
+    return configured || path.join(String(userDataPathOrBackupService), "backups");
+  };
   const folderName = "NASbook Backups";
 
   let uploadInProgress = false;
@@ -302,7 +311,8 @@ export function createGoogleDriveBackupService(
     }
 
     // Find latest backup group
-    const backupGroup = getLatestBackupGroup(backupsFolder);
+    const currentBackupsFolder = getBackupsFolder();
+    const backupGroup = getLatestBackupGroup(currentBackupsFolder);
     if (!backupGroup || backupGroup.files.length === 0) {
       return {
         ok: false,
@@ -329,7 +339,7 @@ export function createGoogleDriveBackupService(
       // 2. Upload files in the latest backup group
       const uploadedFiles: string[] = [];
       for (const file of backupGroup.files) {
-        const filePath = path.join(backupsFolder, file);
+        const filePath = path.join(currentBackupsFolder, file);
         let mimeType = "application/octet-stream";
         if (file.endsWith(".json")) {
           mimeType = "application/json";
@@ -375,8 +385,103 @@ export function createGoogleDriveBackupService(
     }
   };
 
+  const listCloudBackups = async (): Promise<CloudBackupEntry[]> => {
+    const authStatus = await googleAuthService.getStatus();
+    if (!authStatus.configured || !authStatus.linked) {
+      return [];
+    }
+
+    try {
+      const accessToken = await googleAuthService.getAccessToken();
+      if (!accessToken) return [];
+
+      const folderId = await getOrCreateFolder(folderName, accessToken);
+      const query = `'${folderId}' in parents and trashed = false and name contains '.db'`;
+      const url = new URL("https://www.googleapis.com/drive/v3/files");
+      url.searchParams.set("q", query);
+      url.searchParams.set("fields", "files(id, name, size, modifiedTime)");
+      url.searchParams.set("orderBy", "modifiedTime desc");
+
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to list Drive files: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (isRecord(data) && Array.isArray(data.files)) {
+        return data.files.map((file) => {
+          const rawSize = Number(file.size || 0);
+          const sizeStr = rawSize > 0 ? `${Math.round(rawSize / 1024)} KB` : "0 KB";
+          return {
+            id: String(file.id || ""),
+            name: String(file.name || ""),
+            size: sizeStr,
+            modifiedTime: String(file.modifiedTime || ""),
+          };
+        });
+      }
+      return [];
+    } catch (err) {
+      console.error("Failed to list cloud backups:", redactSensitive(getErrorMessage(err)));
+      return [];
+    }
+  };
+
+  const restoreCloudBackup = async (fileId: string): Promise<RestoreResult> => {
+    const authStatus = await googleAuthService.getStatus();
+    if (!authStatus.configured || !authStatus.linked) {
+      return { success: false, error: "حساب Google غير مرتبط." };
+    }
+
+    try {
+      const accessToken = await googleAuthService.getAccessToken();
+      if (!accessToken) {
+        return { success: false, error: "تعذر الحصول على رمز الوصول إلى Google." };
+      }
+
+      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+      const res = await fetch(downloadUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) {
+        throw new Error(`فشل تنزيل النسخة الاحتياطية من Google Drive: ${res.status}`);
+      }
+
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const tempRestoreFolder = getBackupsFolder();
+      const tempPath = path.join(tempRestoreFolder, `temp-cloud-restore-${Date.now()}.db`);
+      writeFileSync(tempPath, buffer);
+
+      if (typeof userDataPathOrBackupService === "object" && "restoreBackup" in userDataPathOrBackupService) {
+        const restoreRes = await userDataPathOrBackupService.restoreBackup(tempPath);
+        try {
+          unlinkSync(tempPath);
+        } catch (unlinkErr) {
+          console.warn("Could not delete temporary cloud restore file:", unlinkErr);
+        }
+        return restoreRes;
+      }
+
+      try {
+        unlinkSync(tempPath);
+      } catch (unlinkErr) {
+        console.warn("Could not delete temporary cloud restore file:", unlinkErr);
+      }
+      return { success: true };
+    } catch (err) {
+      const message = redactSensitive(getErrorMessage(err));
+      return { success: false, error: message };
+    }
+  };
+
   return {
     getStatus,
     uploadLatest,
+    listCloudBackups,
+    restoreCloudBackup,
   };
 }

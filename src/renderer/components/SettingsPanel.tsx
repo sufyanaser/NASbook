@@ -12,8 +12,11 @@ import {
 import type {
   AppInfo,
   BackupStatus,
+  BackupFileEntry,
   CloudBackupInfo,
+  CloudBackupEntry,
   GmailBackupInfo,
+  UpdateStatusInfo,
 } from "../../shared/ipc";
 import { APP_COMMANDS, type AppCommand } from "../../shared/commands";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -36,6 +39,7 @@ interface SettingsPanelProps {
   readonly onClose: () => void;
   readonly onOpenDataFolder: () => void;
   readonly onUpdateSettings: (settings: Partial<AppSettings>) => void;
+  readonly onRestoreComplete?: () => void;
 }
 
 interface FeedbackState {
@@ -154,6 +158,37 @@ function copy(language: AppLanguage) {
     successGmail: ar ? "تم إرسال أحدث نسخة إلى Gmail." : "Latest backup sent to Gmail.",
     processing: ar ? "جارٍ التنفيذ..." : "Working...",
     configureGoogle: ar ? "أضف google-credentials.json ثم أعد تشغيل التطبيق." : "Add google-credentials.json and restart the application.",
+    restoreTitle: ar ? "استعادة النسخ الاحتياطي" : "Restore backup",
+    restoreSub: ar ? "استعادة قاعدة البيانات والملاحظات من نسخة سابقة." : "Restore database and notes from a previous backup.",
+    restoreFromFile: ar ? "استعادة من ملف محلي..." : "Restore from local file...",
+    refreshBackups: ar ? "تحديث قائمة النسخ" : "Refresh backup list",
+    availableBackups: ar ? "النسخ الاحتياطية المتوفرة محلياً" : "Locally available backups",
+    noLocalBackupsFound: ar ? "لا توجد نسخ احتياطية في هذا المجلد بعد." : "No backups found in this folder yet.",
+    restoreAction: ar ? "استعادة" : "Restore",
+    confirmRestoreTitle: ar ? "تأكيد استعادة النسخة الاحتياطية" : "Confirm backup restore",
+    confirmRestoreMessage: ar
+      ? "تنبيه: ستؤدي استعادة هذه النسخة إلى استبدال قاعدة البيانات الحالية لجميع الملاحظات. هل تريد المتابعة؟"
+      : "Warning: Restoring this backup will replace the current notes database. Do you want to continue?",
+    restoreSuccess: ar ? "تمت استعادة النسخة الاحتياطية بنجاح! جارٍ تحديث التطبيق..." : "Backup restored successfully! Reloading app...",
+    restoreFailed: ar ? "فشلت عملية استعادة النسخة الاحتياطية" : "Failed to restore backup",
+    importCredentials: ar ? "استيراد ملف google-credentials.json" : "Import google-credentials.json",
+    enterCredentialsManual: ar ? "إدخال بيانات الاعتماد يدوياً" : "Enter credentials manually",
+    clientIdLabel: "Client ID",
+    clientSecretLabel: "Client Secret",
+    saveCredentialsAction: ar ? "حفظ وتفعيل" : "Save and activate",
+    credentialsSaved: ar ? "تم حفظ بيانات الاعتماد بنجاح!" : "Credentials saved successfully!",
+    cloudRestoreTitle: ar ? "استعادة من Google Drive" : "Restore from Google Drive",
+    cloudRestoreDesc: ar ? "عرض واستعادة النسخ الاحتياطية المحفوظة في Google Drive." : "View and restore backups stored in Google Drive.",
+    fetchCloudBackups: ar ? "عرض النسخ في Google Drive" : "Show Google Drive backups",
+    noCloudBackupsFound: ar ? "لا توجد نسخ احتياطية في مجلد Google Drive." : "No backups found in Google Drive.",
+    updatesTitle: ar ? "التحديثات" : "Updates",
+    updatesDesc: ar ? "التحقق من التحديثات وتنزيل أحدث إصدارات NASbook تلقائياً." : "Check for updates and download the latest NASbook releases automatically.",
+    checkUpdates: ar ? "التحقق من وجود تحديثات" : "Check for updates",
+    checkingUpdates: ar ? "جارٍ التحقق من وجود تحديثات..." : "Checking for updates...",
+    upToDate: ar ? "أنت تستخدم أحدث إصدار من التطبيق." : "You are using the latest version.",
+    updateAvailable: ar ? "يتوفر تحديث جديد وجارٍ تنزيله..." : "A new update is available and downloading...",
+    updateDownloaded: ar ? "تم تنزيل التحديث بنجاح وسيتم تثبيته عند إغلاق التطبيق." : "Update downloaded and will install on exit.",
+    updateError: ar ? "فشل التحقق من التحديثات" : "Failed to check for updates",
   };
 }
 
@@ -185,16 +220,23 @@ function labelForValue(value: string, language: AppLanguage): string {
 function SettingsCard({
   title,
   description,
+  badge,
+  secondary,
   children,
 }: {
   readonly title: string;
   readonly description?: string;
+  readonly badge?: string;
+  readonly secondary?: boolean;
   readonly children: React.ReactNode;
 }): JSX.Element {
   return (
-    <section className="settings-center-card">
+    <section className={`settings-center-card${secondary ? " settings-center-card-secondary" : ""}`}>
       <div className="settings-center-card-heading">
-        <h3>{title}</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3>{title}</h3>
+          {badge && <span className="settings-center-badge">{badge}</span>}
+        </div>
         {description && <p>{description}</p>}
       </div>
       <div className="settings-center-card-body">{children}</div>
@@ -263,14 +305,22 @@ export function SettingsPanel({
   onClose,
   onOpenDataFolder,
   onUpdateSettings,
+  onRestoreComplete,
 }: SettingsPanelProps): JSX.Element | null {
   const language = settings.language;
   const c = copy(language);
   const [activeSection, setActiveSection] = useState<SettingsSection>("general");
   const [searchQuery, setSearchQuery] = useState("");
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [localBackups, setLocalBackups] = useState<BackupFileEntry[]>([]);
   const [cloudStatus, setCloudStatus] = useState<CloudBackupInfo | null>(null);
+  const [cloudBackups, setCloudBackups] = useState<CloudBackupEntry[]>([]);
   const [gmailStatus, setGmailStatus] = useState<GmailBackupInfo | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateStatusInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [credentialsModalOpen, setCredentialsModalOpen] = useState(false);
+  const [manualClientId, setManualClientId] = useState("");
+  const [manualClientSecret, setManualClientSecret] = useState("");
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [capturingCommandId, setCapturingCommandId] = useState<string | null>(null);
@@ -280,10 +330,25 @@ export function SettingsPanel({
     readonly newShortcut: string;
     readonly conflictingCommand: AppCommand;
   } | null>(null);
+  const [confirmRestoreState, setConfirmRestoreState] = useState<{
+    readonly type: "local" | "cloud";
+    readonly target: string;
+    readonly title: string;
+  } | null>(null);
 
   const refreshBackup = useCallback(async (): Promise<void> => {
     if (!window.nasNotesbook) return;
     setBackupStatus(await window.nasNotesbook.backup.getStatus());
+  }, []);
+
+  const refreshLocalBackups = useCallback(async (): Promise<void> => {
+    if (!window.nasNotesbook) return;
+    try {
+      const list = await window.nasNotesbook.backup.listBackups();
+      setLocalBackups([...list]);
+    } catch {
+      setLocalBackups([]);
+    }
   }, []);
 
   const refreshIntegrations = useCallback(async (): Promise<void> => {
@@ -296,11 +361,33 @@ export function SettingsPanel({
     setGmailStatus(gmail);
   }, []);
 
+  const refreshCloudBackups = useCallback(async (): Promise<void> => {
+    if (!window.nasNotesbook) return;
+    try {
+      const list = await window.nasNotesbook.cloudBackup.listCloudBackups();
+      setCloudBackups([...list]);
+    } catch {
+      setCloudBackups([]);
+    }
+  }, []);
+
+  const fetchUpdateStatus = useCallback(async (): Promise<void> => {
+    if (!window.nasNotesbook) return;
+    try {
+      const status = await window.nasNotesbook.updater.getStatus();
+      setUpdateInfo(status);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     void refreshBackup();
+    void refreshLocalBackups();
     void refreshIntegrations();
-  }, [isOpen, refreshBackup, refreshIntegrations]);
+    void fetchUpdateStatus();
+  }, [isOpen, refreshBackup, refreshLocalBackups, refreshIntegrations, fetchUpdateStatus]);
 
   useEffect(() => {
     if (capturingCommandId) {
@@ -421,6 +508,115 @@ export function SettingsPanel({
       await refreshIntegrations();
       setFeedback({ type: "success", message: c.successGmail });
     });
+  };
+
+  const restoreBackupFile = async (filePath: string): Promise<void> => {
+    await runAction("restore", async () => {
+      if (!window.nasNotesbook) return;
+      const result = await window.nasNotesbook.backup.restoreBackup(filePath);
+      if (!result.success) {
+        throw new Error(result.error || c.restoreFailed);
+      }
+      setFeedback({ type: "success", message: c.restoreSuccess });
+      await refreshBackup();
+      await refreshLocalBackups();
+      if (onRestoreComplete) {
+        onRestoreComplete();
+      } else {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      }
+    });
+  };
+
+  const chooseAndRestoreLocalFile = async (): Promise<void> => {
+    if (!window.nasNotesbook) return;
+    const res = await window.nasNotesbook.backup.chooseBackupFile();
+    if (!res.ok || !res.path) {
+      if (res.error) {
+        setFeedback({ type: "error", message: res.error });
+      }
+      return;
+    }
+    setConfirmRestoreState({
+      type: "local",
+      target: res.path,
+      title: res.path.split(/[\\/]/).pop() || res.path,
+    });
+  };
+
+  const restoreCloudFile = async (fileId: string): Promise<void> => {
+    await runAction("cloud-restore", async () => {
+      if (!window.nasNotesbook) return;
+      const result = await window.nasNotesbook.cloudBackup.restoreCloudBackup(fileId);
+      if (!result.success) {
+        throw new Error(result.error || c.restoreFailed);
+      }
+      setFeedback({ type: "success", message: c.restoreSuccess });
+      await refreshBackup();
+      await refreshLocalBackups();
+      if (onRestoreComplete) {
+        onRestoreComplete();
+      } else {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      }
+    });
+  };
+
+  const handleImportCredentials = async (): Promise<void> => {
+    await runAction("import-credentials", async () => {
+      if (!window.nasNotesbook) return;
+      const result = await window.nasNotesbook.googleAuth.importCredentials();
+      if (!result.success) {
+        if (!result.canceled) {
+          throw new Error(result.error || "فشل استيراد ملف الاعتماد");
+        }
+        return;
+      }
+      await refreshIntegrations();
+      setFeedback({ type: "success", message: c.credentialsSaved });
+    });
+  };
+
+  const handleSaveManualCredentials = async (): Promise<void> => {
+    await runAction("save-credentials", async () => {
+      if (!window.nasNotesbook) return;
+      if (!manualClientId.trim() || !manualClientSecret.trim()) {
+        throw new Error("Client ID and Client Secret are required.");
+      }
+      const result = await window.nasNotesbook.googleAuth.saveCredentials({
+        clientId: manualClientId.trim(),
+        clientSecret: manualClientSecret.trim(),
+      });
+      if (!result.success) {
+        throw new Error(result.error || "فشل حفظ بيانات الاعتماد");
+      }
+      setCredentialsModalOpen(false);
+      setManualClientId("");
+      setManualClientSecret("");
+      await refreshIntegrations();
+      setFeedback({ type: "success", message: c.credentialsSaved });
+    });
+  };
+
+  const handleCheckForUpdates = async (): Promise<void> => {
+    setIsCheckingUpdate(true);
+    try {
+      if (window.nasNotesbook) {
+        const info = await window.nasNotesbook.updater.checkForUpdates();
+        setUpdateInfo(info);
+      }
+    } catch (err: unknown) {
+      setFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsCheckingUpdate(false);
+    }
   };
 
   const saveShortcut = (commandId: string, shortcut: string): void => {
@@ -783,6 +979,57 @@ export function SettingsPanel({
                     </button>
                   </div>
                 </SettingsCard>
+
+                <SettingsCard title={c.restoreTitle} description={c.restoreSub}>
+                  <div className="settings-center-actions">
+                    <button
+                      className="primary"
+                      disabled={busyAction !== null}
+                      onClick={() => void chooseAndRestoreLocalFile()}
+                      type="button"
+                    >
+                      {c.restoreFromFile}
+                    </button>
+                    <button
+                      disabled={busyAction !== null}
+                      onClick={() => void refreshLocalBackups()}
+                      type="button"
+                    >
+                      {c.refreshBackups}
+                    </button>
+                  </div>
+                  {localBackups.length > 0 ? (
+                    <div className="settings-center-backups-list">
+                      {localBackups.map((bk) => (
+                        <div key={bk.filename} className="settings-center-backup-item">
+                          <div>
+                            <strong>{bk.filename}</strong>
+                            <span>
+                              {bk.formattedDate} • {Math.round(bk.sizeBytes / 1024)} KB
+                            </span>
+                          </div>
+                          <button
+                            disabled={busyAction !== null}
+                            onClick={() =>
+                              setConfirmRestoreState({
+                                type: "local",
+                                target: bk.filePath,
+                                title: bk.filename,
+                              })
+                            }
+                            type="button"
+                          >
+                            {c.restoreAction}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ marginTop: "10px", fontSize: "12px", color: "var(--app-text-muted)" }}>
+                      {c.noLocalBackupsFound}
+                    </p>
+                  )}
+                </SettingsCard>
               </>
             )}
 
@@ -797,11 +1044,32 @@ export function SettingsPanel({
                     </div>
                     <div>
                       {!cloudStatus?.configured ? (
-                        <span className="settings-center-warning">{c.configureGoogle}</span>
+                        <div className="settings-center-credentials-box">
+                          <span className="settings-center-warning">{c.configureGoogle}</span>
+                          <div className="settings-center-actions" style={{ marginTop: "6px" }}>
+                            <button
+                              disabled={busyAction !== null}
+                              onClick={() => void handleImportCredentials()}
+                              type="button"
+                            >
+                              {c.importCredentials}
+                            </button>
+                            <button
+                              disabled={busyAction !== null}
+                              onClick={() => setCredentialsModalOpen(true)}
+                              type="button"
+                            >
+                              {c.enterCredentialsManual}
+                            </button>
+                          </div>
+                        </div>
                       ) : cloudStatus.linked ? (
                         <button disabled={busyAction !== null} onClick={() => void unlinkGoogle()} type="button">{c.unlink}</button>
                       ) : (
-                        <button className="primary" disabled={busyAction !== null} onClick={() => void linkGoogle()} type="button">{c.link}</button>
+                        <div className="settings-center-actions">
+                          <button className="primary" disabled={busyAction !== null} onClick={() => void linkGoogle()} type="button">{c.link}</button>
+                          <button disabled={busyAction !== null} onClick={() => void handleImportCredentials()} type="button">{c.importCredentials}</button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -830,10 +1098,47 @@ export function SettingsPanel({
                     >
                       {busyAction === "drive" ? c.processing : c.uploadDrive}
                     </button>
+                    <button
+                      disabled={!cloudStatus?.linked || busyAction !== null}
+                      onClick={() => void refreshCloudBackups()}
+                      type="button"
+                    >
+                      {c.fetchCloudBackups}
+                    </button>
                   </div>
+                  {cloudBackups.length > 0 && (
+                    <div className="settings-center-backups-list">
+                      {cloudBackups.map((entry) => (
+                        <div key={entry.id} className="settings-center-backup-item">
+                          <div>
+                            <strong>{entry.name}</strong>
+                            <span>{entry.size} • {entry.modifiedTime ? new Date(entry.modifiedTime).toLocaleString(language === "ar" ? "ar-IQ" : "en-US") : ""}</span>
+                          </div>
+                          <button
+                            disabled={busyAction !== null}
+                            onClick={() =>
+                              setConfirmRestoreState({
+                                type: "cloud",
+                                target: entry.id,
+                                title: entry.name,
+                              })
+                            }
+                            type="button"
+                          >
+                            {c.restoreAction}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </SettingsCard>
 
-                <SettingsCard title={c.gmailTitle} description={c.gmailDesc}>
+                <SettingsCard
+                  title={c.gmailTitle}
+                  description={c.gmailDesc}
+                  secondary
+                  badge={language === "ar" ? "إضافي" : "Secondary"}
+                >
                   <SettingRow label={c.gmailAutomatic}>
                     <Toggle
                       checked={settings.gmailBackupEnabled}
@@ -929,6 +1234,35 @@ export function SettingsPanel({
                     <span>{c.settingsFile}</span><code>{appInfo?.settingsPath ?? c.unavailable}</code>
                   </div>
                 </SettingsCard>
+                <SettingsCard
+                  title={c.updatesTitle}
+                  description={c.updatesDesc}
+                >
+                  <div className="settings-center-updater">
+                    <div className="settings-center-updater-status">
+                      <span>{c.version}: <strong>{appInfo?.version ?? c.unavailable}</strong></span>
+                      {updateInfo?.status === "checking" && <em>{c.checkingUpdates}</em>}
+                      {updateInfo?.status === "not-available" && <span className="settings-center-badge">{c.upToDate}</span>}
+                      {updateInfo?.status === "available" && <span className="settings-center-badge settings-center-badge-warning">{c.updateAvailable}</span>}
+                      {updateInfo?.status === "downloaded" && <span className="settings-center-badge settings-center-badge-success">{c.updateDownloaded}</span>}
+                      {updateInfo?.status === "error" && (
+                        <span className="settings-center-badge settings-center-badge-error">
+                          {c.updateError}: {updateInfo.error}
+                        </span>
+                      )}
+                    </div>
+                    <div className="settings-center-updater-actions">
+                      <button
+                        className="settings-center-primary-button"
+                        disabled={isCheckingUpdate || updateInfo?.status === "checking"}
+                        onClick={handleCheckForUpdates}
+                        type="button"
+                      >
+                        {isCheckingUpdate ? c.checkingUpdates : c.checkUpdates}
+                      </button>
+                    </div>
+                  </div>
+                </SettingsCard>
               </>
             )}
           </main>
@@ -944,6 +1278,91 @@ export function SettingsPanel({
         onConfirm={resolveShortcutConflict}
         title={c.conflictTitle}
       />
+
+      <ConfirmDialog
+        cancelLabel={c.cancel}
+        confirmLabel={c.restoreAction}
+        isOpen={Boolean(confirmRestoreState)}
+        message={`${c.confirmRestoreMessage}\n\n${confirmRestoreState?.title ?? ""}`}
+        onCancel={() => setConfirmRestoreState(null)}
+        onConfirm={async () => {
+          if (!confirmRestoreState) return;
+          const { type, target } = confirmRestoreState;
+          setConfirmRestoreState(null);
+          if (type === "local") {
+            await restoreBackupFile(target);
+          } else {
+            await restoreCloudFile(target);
+          }
+        }}
+        title={c.confirmRestoreTitle}
+        variant="destructive"
+      />
+
+      {credentialsModalOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setCredentialsModalOpen(false);
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            aria-label={c.enterCredentialsManual}
+            aria-modal="true"
+            className="modal-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="modal-dialog-copy">
+              <h2>{c.enterCredentialsManual}</h2>
+              <p>{c.configureGoogle}</p>
+            </div>
+            <div className="settings-center-credentials-form">
+              <label>
+                <span>{c.clientIdLabel}</span>
+                <input
+                  type="text"
+                  value={manualClientId}
+                  onChange={(e) => setManualClientId(e.target.value)}
+                  placeholder="xxxx.apps.googleusercontent.com"
+                  className="settings-center-input-field"
+                />
+              </label>
+              <label>
+                <span>{c.clientSecretLabel}</span>
+                <input
+                  type="password"
+                  value={manualClientSecret}
+                  onChange={(e) => setManualClientSecret(e.target.value)}
+                  placeholder="GOCSPX-xxxx"
+                  className="settings-center-input-field"
+                />
+              </label>
+            </div>
+            <div className="modal-dialog-actions">
+              <button
+                className="modal-secondary-button"
+                onClick={() => setCredentialsModalOpen(false)}
+                type="button"
+              >
+                {c.cancel}
+              </button>
+              <button
+                className="modal-primary-button"
+                disabled={!manualClientId.trim() || !manualClientSecret.trim() || busyAction === "save-credentials"}
+                onClick={handleSaveManualCredentials}
+                type="button"
+              >
+                {busyAction === "save-credentials" ? c.processing : c.saveCredentialsAction}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
+

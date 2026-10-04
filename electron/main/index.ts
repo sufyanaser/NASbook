@@ -148,11 +148,12 @@ if (!gotTheLock) {
       notesbookDatabase.databasePath,
       settingsStore,
       () => notesbookDatabase?.checkpoint?.(),
+      () => notesbookDatabase?.reopen?.(),
     );
 
     const googleAuthService = createGoogleAuthService(userDataPath, settingsStore);
     const googleDriveBackupService = createGoogleDriveBackupService(
-      userDataPath,
+      backupService,
       googleAuthService,
       settingsStore,
     );
@@ -199,7 +200,7 @@ if (!gotTheLock) {
 
     registerIpcHandlers({
       appName: app.getName(),
-      appVersion: "V08",
+      appVersion: "V09",
       database: notesbookDatabase,
       settingsStore,
       backupService,

@@ -329,16 +329,35 @@ function ToolbarIconSvg({ icon }: { readonly icon: ToolbarIcon }): JSX.Element {
   );
 }
 
+function FormatMoreIcon(): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="toolbar-button-icon"
+      aria-hidden="true"
+    >
+      <path d="M4 20h16" />
+      <path d="M6 16l6-12 6 12" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
 const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   undo: true,
   redo: true,
   fontFamily: false,
-  fontSize: true,
-  heading: true,
-  lineHeight: true,
+  fontSize: false,
+  heading: false,
+  lineHeight: false,
   bold: true,
   italic: true,
-  underline: true,
+  underline: false,
   textColor: false,
   fillColor: false,
   link: true,
@@ -352,7 +371,7 @@ const DEFAULT_VISIBLE_TOOLS: Record<string, boolean> = {
   dirLtr: false,
   outdent: false,
   indent: false,
-  clear: true,
+  clear: false,
   horizontalRule: false,
   table: false,
 };
@@ -1107,10 +1126,12 @@ export function NoteEditorArea({
   const arrangePopoverRef = useRef<HTMLDivElement | null>(null);
   const arrangeButtonRef = useRef<HTMLButtonElement | null>(null);
   const [arrangePos, setArrangePos] = useState<{ top: number; right: number } | null>(null);
+  const [isFormatMoreOpen, setIsFormatMoreOpen] = useState(false);
+  const formatMorePopoverRef = useRef<HTMLDivElement | null>(null);
+  const formatMoreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [formatMorePos, setFormatMorePos] = useState<{ top: number; right?: number; left?: number } | null>(null);
   const [isDividerMenuOpen, setIsDividerMenuOpen] = useState(false);
   const dividerControlRef = useRef<HTMLDivElement | null>(null);
-
-
 
   // Visibility changes apply immediately and persist (no "Done" step).
   const persistVisibleTools = (next: Record<string, boolean>) => {
@@ -1156,6 +1177,37 @@ export function NoteEditorArea({
       window.removeEventListener("resize", close);
     };
   }, [isArrangeOpen]);
+
+  useEffect(() => {
+    if (!isFormatMoreOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        formatMorePopoverRef.current &&
+        !formatMorePopoverRef.current.contains(target) &&
+        formatMoreButtonRef.current &&
+        !formatMoreButtonRef.current.contains(target)
+      ) {
+        setIsFormatMoreOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsFormatMoreOpen(false);
+      }
+    };
+    const close = () => setIsFormatMoreOpen(false);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [isFormatMoreOpen]);
 
 
 
@@ -3171,6 +3223,601 @@ export function NoteEditorArea({
                 </div>
               </>
             )}
+
+            <div className="toolbar-divider" />
+            <div className="toolbar-format-container" style={{ position: "relative" }}>
+              <button
+                ref={formatMoreButtonRef}
+                aria-expanded={isFormatMoreOpen}
+                aria-label={language === "ar" ? "المزيد من التنسيق" : "More formatting"}
+                className="toolbar-action-button toolbar-format-more-button"
+                data-active={isFormatMoreOpen ? "true" : "false"}
+                data-tooltip={language === "ar" ? "المزيد من التنسيق" : "More formatting"}
+                disabled={!hasSelectedNote || isTrashView}
+                onClick={() => {
+                  if (!isFormatMoreOpen && formatMoreButtonRef.current) {
+                    const r = formatMoreButtonRef.current.getBoundingClientRect();
+                    if (language === "ar") {
+                      setFormatMorePos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+                    } else {
+                      setFormatMorePos({ top: r.bottom + 6, left: r.left });
+                    }
+                  }
+                  setIsFormatMoreOpen(!isFormatMoreOpen);
+                }}
+                type="button"
+              >
+                <FormatMoreIcon />
+                <span className="toolbar-format-label">{language === "ar" ? "تنسيق" : "Format"}</span>
+                <span style={{ fontSize: "9px", opacity: 0.7 }}>▾</span>
+              </button>
+
+              {isFormatMoreOpen && formatMorePos && createPortal(
+                <div
+                  className="toolbar-format-popover"
+                  ref={formatMorePopoverRef}
+                  dir={language === "ar" ? "rtl" : "ltr"}
+                  style={{
+                    position: "fixed",
+                    top: formatMorePos.top,
+                    ...(language === "ar"
+                      ? { right: formatMorePos.right, insetInlineEnd: "auto" }
+                      : { left: formatMorePos.left, insetInlineStart: "auto" }),
+                  }}
+                >
+                  <div className="format-popover-header">
+                    <span>{language === "ar" ? "خيارات التنسيق" : "Formatting Options"}</span>
+                    <button
+                      className="format-popover-close"
+                      onClick={() => setIsFormatMoreOpen(false)}
+                      type="button"
+                      aria-label={language === "ar" ? "إغلاق" : "Close"}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Section 1: Typography */}
+                  <div className="format-popover-section">
+                    <div className="format-popover-section-title">
+                      {language === "ar" ? "الخط والعناوين" : "Typography & Headings"}
+                    </div>
+                    <div className="format-popover-row">
+                      <Dropdown
+                        label={getHeadingShortLabel(activeHeadingType)}
+                        value={activeHeadingType}
+                        options={headingTypes}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${t("tooltipTextType", language)}: ${activeHeadingLabel}`}
+                        className="text-type-dropdown"
+                        onChange={(val) => {
+                          if (val === "paragraph") {
+                            editor.chain().focus().setParagraph().run();
+                          } else if (val.startsWith("h")) {
+                            const level = parseInt(val.replace("h", ""), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+                            editor.chain().focus().toggleHeading({ level }).run();
+                          }
+                        }}
+                      />
+                      <div className="toolbar-stepper" role="group" aria-label={t("tooltipFontSize", language)}>
+                        <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "تصغير النص" : "Decrease text size"} onMouseDown={(event) => { event.preventDefault(); stepFontSize(-1); }}>−</button>
+                        <Dropdown
+                          label={getFontSizeShortLabel(activeFontSize)}
+                          value={activeFontSize}
+                          options={fontSizes}
+                          disabled={!hasSelectedNote || isTrashView}
+                          tooltip={`${t("tooltipFontSize", language)}: ${language === "ar" && activeFontSize === "Default" ? "الافتراضي" : activeFontSize}`}
+                          className="font-size-dropdown"
+                          onChange={(val) => {
+                            if (val === "Default") editor.chain().focus().unsetFontSize().run();
+                            else editor.chain().focus().setFontSize(val).run();
+                          }}
+                        />
+                        <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "تكبير النص" : "Increase text size"} onMouseDown={(event) => { event.preventDefault(); stepFontSize(1); }}>+</button>
+                      </div>
+                      <div className="toolbar-stepper" role="group" aria-label={language === "ar" ? "تباعد الأسطر" : "Line height"}>
+                        <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "تقليل تباعد الأسطر" : "Decrease line height"} onMouseDown={(event) => { event.preventDefault(); stepLineHeight(-1); }}>−</button>
+                        <Dropdown
+                          label={activeLineHeight}
+                          value={activeLineHeight}
+                          options={lineHeights}
+                          disabled={!hasSelectedNote || isTrashView}
+                          tooltip={`${language === "ar" ? "تباعد الأسطر" : "Line height"}: ${activeLineHeight}`}
+                          className="line-height-dropdown"
+                          onChange={(val) => {
+                            if (val === "1.5") editor.chain().focus().unsetLineHeight().run();
+                            else editor.chain().focus().setLineHeight(val).run();
+                          }}
+                        />
+                        <button type="button" disabled={!hasSelectedNote || isTrashView} aria-label={language === "ar" ? "زيادة تباعد الأسطر" : "Increase line height"} onMouseDown={(event) => { event.preventDefault(); stepLineHeight(1); }}>+</button>
+                      </div>
+                    </div>
+                    <div className="format-popover-row">
+                      <Dropdown
+                        label={activeFontFamilyLabel}
+                        value={activeFontFamily}
+                        options={fontFamilies}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${t("tooltipFontFamily", language)}: ${language === "ar" && activeFontFamily === "System" ? "نظام" : activeFontFamily}`}
+                        className="font-family-dropdown"
+                        icon={<FontFamilyIcon />}
+                        renderOption={(option) => {
+                          const fontStyle = option.value === "System" ? {} : { fontFamily: option.value };
+                          return <span style={fontStyle}>{option.label}</span>;
+                        }}
+                        onChange={(val) => {
+                          if (val === "System") {
+                            editor.chain().focus().unsetFontFamily().run();
+                          } else {
+                            editor.chain().focus().setFontFamily(val).run();
+                          }
+                        }}
+                      />
+                      <Dropdown
+                        label={getFontWeightShortLabel(activeFontWeight, language)}
+                        value={activeFontWeight}
+                        options={fontWeights}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={`${language === "ar" ? "وزن الخط" : "Font Weight"}: ${
+                          fontWeights.find((w) => w.value === activeFontWeight)?.label || activeFontWeight
+                        }`}
+                        className="font-weight-dropdown"
+                        renderOption={(option) => (
+                          <span style={{ fontWeight: option.value }}>{option.label}</span>
+                        )}
+                        onChange={(val) => {
+                          if (val === "400") {
+                            editor.chain().focus().unsetFontWeight().run();
+                          } else {
+                            editor.chain().focus().setFontWeight(val).run();
+                          }
+                        }}
+                      />
+                      <button
+                        aria-label={toolLabel("underline", language)}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor.chain().focus().toggleUnderline().run();
+                        }}
+                        data-active={editor.isActive("underline") ? "true" : "false"}
+                        data-tooltip={t("tooltipUnderline", language)}
+                      >
+                        <ToolbarIconSvg icon="underline" />
+                      </button>
+                      <button
+                        aria-label={toolLabel("clear", language)}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor
+                            .chain()
+                            .focus()
+                            .clearNodes()
+                            .unsetAllMarks()
+                            .unsetColor()
+                            .unsetFontFamily()
+                            .unsetFontWeight()
+                            .unsetFontSize()
+                            .unsetLink()
+                            .run();
+                        }}
+                        data-tooltip={t("tooltipClearFormatting", language)}
+                      >
+                        <ToolbarIconSvg icon="clear" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Colors */}
+                  <div className="format-popover-section">
+                    <div className="format-popover-section-title">
+                      {language === "ar" ? "الألوان" : "Colors"}
+                    </div>
+                    <div className="format-popover-row">
+                      <ColorPicker
+                        value={activeTextColor}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={t("tooltipTextColor", language)}
+                        language={language}
+                        onChange={(val) => {
+                          if (val === null) {
+                            editor.chain().focus().unsetColor().run();
+                          } else {
+                            editor.chain().focus().setColor(val).run();
+                          }
+                        }}
+                      />
+                      <ColorPicker
+                        value={activeFillColor}
+                        kind="fill"
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "لون التعبئة" : "Fill color"}
+                        language={language}
+                        onChange={(val) => {
+                          const chain = editor.chain().focus();
+                          if (isCellSelected) {
+                            if (val === null) {
+                              chain.setCellAttribute("backgroundColor", null).unsetColor().run();
+                            } else {
+                              chain
+                                .setCellAttribute("backgroundColor", val)
+                                .setColor(readableTextColor(val))
+                                .run();
+                            }
+                          } else if (val === null) {
+                            chain.unsetBackgroundColor().unsetColor().run();
+                          } else {
+                            chain
+                              .setBackgroundColor(val)
+                              .setColor(readableTextColor(val))
+                              .run();
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Section 3: Code Block Controls */}
+                  <div className="format-popover-section">
+                    <div className="format-popover-section-title">
+                      {language === "ar" ? "كتلة الكود" : "Code Block"}
+                    </div>
+                    <div className="format-popover-row">
+                      <button
+                        aria-label={language === "ar" ? "كتلة كود" : "Code block"}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          convertSelectionToSingleCodeBlock();
+                        }}
+                        data-active={editor.isActive("codeBlock") ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "كتلة كود" : "Code block"}
+                      >
+                        <ToolbarIconSvg icon="codeBlock" />
+                      </button>
+                      <CodeBlockColorPicker
+                        value={activeCodeBlockColor}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "لون صندوق الكود" : "Code block color"}
+                        language={language}
+                        onChange={(val) => {
+                          const chain = editor.chain().focus();
+                          if (!editor.isActive("codeBlock")) {
+                            chain.setCodeBlock();
+                          }
+                          chain.updateAttributes("codeBlock", { boxColor: val }).run();
+                        }}
+                      />
+                      <Dropdown
+                        label={activeCodeBlockDir.toUpperCase()}
+                        value={activeCodeBlockDir}
+                        options={codeBlockDirectionOptions}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "اتجاه كتلة الكود" : "Code block direction"}
+                        className="code-direction-dropdown"
+                        onChange={(val) => {
+                          const chain = editor.chain().focus();
+                          if (!editor.isActive("codeBlock")) {
+                            chain.setCodeBlock();
+                          }
+                          chain.updateAttributes("codeBlock", { dir: val }).run();
+                        }}
+                      />
+                      <Dropdown
+                        label={activeCodeLanguage}
+                        value={activeCodeLanguage}
+                        options={codeBlockLanguageOptions}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "لغة الكود" : "Code language"}
+                        className="code-language-dropdown"
+                        onChange={(val) => editor.chain().focus().setCodeBlock().updateAttributes("codeBlock", { language: val }).run()}
+                      />
+                      <Dropdown
+                        label={activeCodeFontSize.toUpperCase()}
+                        value={activeCodeFontSize}
+                        options={codeBlockFontSizeOptions}
+                        disabled={!hasSelectedNote || isTrashView}
+                        tooltip={language === "ar" ? "حجم خط الكود" : "Code font size"}
+                        className="code-font-size-dropdown"
+                        onChange={(val) => editor.chain().focus().setCodeBlock().updateAttributes("codeBlock", { fontSize: val }).run()}
+                      />
+                      <button
+                        type="button"
+                        className="toolbar-icon-button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        data-active={activeCodeWrap ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "التفاف أسطر الكود" : "Wrap code lines"}
+                        aria-label={language === "ar" ? "التفاف أسطر الكود" : "Wrap code lines"}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          editor.chain().focus().setCodeBlock().updateAttributes("codeBlock", { wrap: !activeCodeWrap }).run();
+                        }}
+                      >↩</button>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Direction & Indents */}
+                  <div className="format-popover-section">
+                    <div className="format-popover-section-title">
+                      {language === "ar" ? "الاتجاه والمحاذاة" : "Direction & Spacing"}
+                    </div>
+                    <div className="format-popover-row">
+                      <button
+                        aria-label={toolLabel("dirRtl", language)}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor.chain().focus().setBlockDirection("rtl").run();
+                        }}
+                        data-active={activeBlockDir === "rtl" ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "اتجاه من اليمين لليسار" : "Right-to-left"}
+                      >
+                        <ToolbarIconSvg icon="dirRtl" />
+                      </button>
+                      <button
+                        aria-label={toolLabel("dirLtr", language)}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor.chain().focus().setBlockDirection("ltr").run();
+                        }}
+                        data-active={activeBlockDir === "ltr" ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "اتجاه من اليسار لليمين" : "Left-to-right"}
+                      >
+                        <ToolbarIconSvg icon="dirLtr" />
+                      </button>
+                      <button
+                        aria-label={toolLabel("outdent", language)}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor.chain().focus().outdent().run();
+                        }}
+                        data-tooltip={language === "ar" ? "تقليل الإزاحة" : "Decrease indent"}
+                      >
+                        <ToolbarIconSvg icon="indentDecrease" />
+                      </button>
+                      <button
+                        aria-label={toolLabel("indent", language)}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor.chain().focus().indent().run();
+                        }}
+                        data-tooltip={language === "ar" ? "زيادة الإزاحة" : "Increase indent"}
+                      >
+                        <ToolbarIconSvg icon="indentIncrease" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Section 5: Dividers & Tables */}
+                  <div className="format-popover-section">
+                    <div className="format-popover-section-title">
+                      {language === "ar" ? "الفواصل والجداول" : "Dividers & Tables"}
+                    </div>
+                    <div className="format-popover-row">
+                      <div className="divider-control" ref={dividerControlRef}>
+                        <button
+                          aria-label={toolLabel("horizontalRule", language)}
+                          className="toolbar-icon-button divider-main-button"
+                          type="button"
+                          disabled={!hasSelectedNote || isTrashView}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            insertDivider("thin");
+                          }}
+                          data-active={selectedDividerVariant ? "true" : "false"}
+                          data-tooltip={language === "ar" ? "خط فاصل" : "Divider"}
+                        >
+                          <ToolbarIconSvg icon="horizontalRule" />
+                        </button>
+                        <button
+                          aria-expanded={isDividerMenuOpen}
+                          aria-haspopup="menu"
+                          aria-label={language === "ar" ? "أنواع الخط الفاصل" : "Divider variants"}
+                          className="toolbar-icon-button divider-menu-button"
+                          type="button"
+                          disabled={!hasSelectedNote || isTrashView}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setIsDividerMenuOpen((open) => !open);
+                          }}
+                          data-active={isDividerMenuOpen ? "true" : "false"}
+                          data-tooltip={language === "ar" ? "أنواع الخط الفاصل" : "Divider variants"}
+                        >
+                          <svg viewBox="0 0 24 24" className="toolbar-button-icon" aria-hidden="true">
+                            <path
+                              d="m7 10 5 5 5-5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                            />
+                          </svg>
+                        </button>
+                        {isDividerMenuOpen && (
+                          <div
+                            className="divider-variant-menu"
+                            dir={language === "ar" ? "rtl" : "ltr"}
+                            role="menu"
+                          >
+                            {DIVIDER_VARIANTS.map((variant) => (
+                              <button
+                                aria-label={getDividerVariantLabel(variant, language)}
+                                className="divider-variant-item"
+                                data-selected={selectedDividerVariant === variant ? "true" : "false"}
+                                key={variant}
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  applyDividerVariant(variant);
+                                }}
+                                role="menuitemradio"
+                                type="button"
+                              >
+                                <span className="divider-variant-preview" data-variant={variant} />
+                                <span className="divider-variant-label">
+                                  {getDividerVariantLabel(variant, language)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        aria-label={language === "ar" ? "إدراج جدول" : "Insert table"}
+                        className="toolbar-icon-button"
+                        type="button"
+                        disabled={!hasSelectedNote || isTrashView}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          editor
+                            .chain()
+                            .focus()
+                            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                            .run();
+                        }}
+                        data-active={isCellSelected ? "true" : "false"}
+                        data-tooltip={language === "ar" ? "إدراج جدول" : "Insert table"}
+                      >
+                        <ToolbarIconSvg icon="table" />
+                      </button>
+
+                      {isCellSelected && (
+                        <>
+                          <button
+                            aria-label={language === "ar" ? "إضافة صف" : "Add row"}
+                            className="toolbar-icon-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().addRowAfter().run();
+                            }}
+                            data-tooltip={language === "ar" ? "إضافة صف" : "Add row"}
+                          >
+                            <ToolbarIconSvg icon="tableRowAdd" />
+                          </button>
+                          <button
+                            aria-label={language === "ar" ? "إضافة عمود" : "Add column"}
+                            className="toolbar-icon-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (editor.chain().focus().addColumnAfter().run()) {
+                                normalizeSelectedTableColumnWidths(editor.view);
+                              }
+                            }}
+                            data-tooltip={language === "ar" ? "إضافة عمود" : "Add column"}
+                          >
+                            <ToolbarIconSvg icon="tableColAdd" />
+                          </button>
+                          <button
+                            aria-label={language === "ar" ? "حذف صف" : "Delete row"}
+                            className="toolbar-icon-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().deleteRow().run();
+                            }}
+                            data-tooltip={language === "ar" ? "حذف صف" : "Delete row"}
+                          >
+                            <ToolbarIconSvg icon="tableRowDelete" />
+                          </button>
+                          <button
+                            aria-label={language === "ar" ? "حذف عمود" : "Delete column"}
+                            className="toolbar-icon-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (editor.chain().focus().deleteColumn().run()) {
+                                normalizeSelectedTableColumnWidths(editor.view);
+                              }
+                            }}
+                            data-tooltip={language === "ar" ? "حذف عمود" : "Delete column"}
+                          >
+                            <ToolbarIconSvg icon="tableColDelete" />
+                          </button>
+                          <button
+                            aria-label={language === "ar" ? "حذف الجدول" : "Delete table"}
+                            className="toolbar-icon-button"
+                            type="button"
+                            disabled={isTrashView}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editor.chain().focus().deleteTable().run();
+                            }}
+                            data-tooltip={language === "ar" ? "حذف الجدول" : "Delete table"}
+                          >
+                            <ToolbarIconSvg icon="tableDelete" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section 6: Quick Actions */}
+                  <div className="format-popover-section">
+                    <div className="format-popover-section-title">
+                      {language === "ar" ? "إجراءات سريعة" : "Quick Actions"}
+                    </div>
+                    <div className="format-popover-row">
+                      <button
+                        className="toolbar-action-button"
+                        type="button"
+                        disabled={!hasSelectedNote}
+                        onClick={() => {
+                          setIsFormatMoreOpen(false);
+                          if (editor) {
+                            const md = htmlToMarkdown(editor.getHTML());
+                            void navigator.clipboard.writeText(md);
+                          }
+                        }}
+                      >
+                        {language === "ar" ? "نسخ الملاحظة كـ Markdown" : "Copy note as Markdown"}
+                      </button>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
+            </div>
 
             <div className="toolbar-divider" />
             <div className="toolbar-arrange-container" style={{ position: "relative" }}>

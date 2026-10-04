@@ -440,7 +440,7 @@ export function NotesListColumn({
                   />
                 ) : (
                   <>
-                    <h2>{note.title}</h2>
+                    <h2>{note.title.trim() ? note.title : (isArabic ? "ملاحظة بدون عنوان" : "Untitled note")}</h2>
                     {note.isLocked && (
                       <span
                         className="nas-note-lock-indicator"

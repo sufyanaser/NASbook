@@ -104,15 +104,15 @@ test("editor note actions cannot inherit the hidden note-card action styles", as
   assert.match(styles, /\.editor-note-actions\s*\{\s*gap: 10px;/);
 });
 
-test("release V08 is consistent across app metadata and Windows installer naming", async () => {
+test("release V09 is consistent across app metadata and Windows installer naming", async () => {
   const packageJson = JSON.parse(await source("package.json"));
   const main = await source("electron/main/index.ts");
   const workflow = await source(".github/workflows/windows-release.yml");
 
-  assert.equal(packageJson.version, "8.0.0");
-  assert.equal(packageJson.releaseLabel, "V08");
-  assert.equal(packageJson.build.win.artifactName, "NASbook-Setup-V08.exe");
-  assert.equal(packageJson.build.nsis.artifactName, "NASbook-Setup-V08.${ext}");
-  assert.match(main, /appVersion: "V08"/);
+  assert.equal(packageJson.version, "8.1.0");
+  assert.equal(packageJson.releaseLabel, "V09");
+  assert.equal(packageJson.build.win.artifactName, "NASbook-Setup-V09.exe");
+  assert.equal(packageJson.build.nsis.artifactName, "NASbook-Setup-V09.${ext}");
+  assert.match(main, /appVersion: "V09"/);
   assert.match(workflow, /NASbook-Setup-\$label\.exe/);
 });
